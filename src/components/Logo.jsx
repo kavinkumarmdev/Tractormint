@@ -26,14 +26,14 @@ export default function Logo({ size = 'md', showText = true, lang = 'en', onClic
           height: dimensions.img,
           borderRadius: size === 'lg' ? '18px' : '12px',
           overflow: 'hidden',
-          background: 'linear-gradient(135deg, #064e3b, #047857)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)',
-          border: '1.5px solid rgba(52, 211, 153, 0.4)',
+          boxShadow: '0 4px 14px rgba(5, 150, 105, 0.3)',
+          border: '1px solid rgba(52, 211, 153, 0.35)',
           position: 'relative',
-          flexShrink: 0
+          flexShrink: 0,
+          background: '#041f17'
         }}
       >
         <img 
@@ -42,8 +42,7 @@ export default function Logo({ size = 'md', showText = true, lang = 'en', onClic
           style={{ 
             width: '100%', 
             height: '100%', 
-            objectFit: 'cover',
-            transform: 'scale(1.08)'
+            objectFit: 'cover'
           }} 
         />
       </div>
