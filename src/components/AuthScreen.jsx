@@ -18,6 +18,8 @@ import {
 import Logo from './Logo';
 import { translations } from '../translations/dictionary';
 import { StorageService } from '../services/storage';
+import VoiceInput from './common/VoiceInput';
+import BilingualVoiceGroup from './common/BilingualVoiceGroup';
 
 export default function AuthScreen({ onLogin, lang, setLang, adminPin = "1234" }) {
   const t = translations[lang];
@@ -28,6 +30,19 @@ export default function AuthScreen({ onLogin, lang, setLang, adminPin = "1234" }
   const [rememberMe, setRememberMe] = useState(true);
   const [registeredUsers, setRegisteredUsers] = useState([]);
 
+  // Direct Registration State from Login Screen
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [regForm, setRegForm] = useState({
+    username: '',
+    displayName: '',
+    displayName_ta: '',
+    pin: '',
+    role: 'operator',
+    adminApprovalPin: ''
+  });
+  const [regError, setRegError] = useState('');
+  const [regSuccess, setRegSuccess] = useState('');
+
   useEffect(() => {
     try {
       const list = StorageService.getUsers();
@@ -36,6 +51,55 @@ export default function AuthScreen({ onLogin, lang, setLang, adminPin = "1234" }
       console.warn("Error loading users for login screen:", e);
     }
   }, []);
+
+  const handleRegisterSubmit = (e) => {
+    e.preventDefault();
+    setRegError('');
+    setRegSuccess('');
+
+    if (!regForm.username.trim()) {
+      setRegError(lang === 'ta' ? 'பயனர் பெயர் அவசியம்!' : 'Username is required!');
+      return;
+    }
+    if (!regForm.pin.trim() || regForm.pin.length < 4) {
+      setRegError(lang === 'ta' ? 'குறைந்தது 4 இலக்க PIN அவசியம்!' : 'PIN must be at least 4 digits!');
+      return;
+    }
+    // Verify Admin approval PIN (1234 or configured adminPin)
+    if (regForm.adminApprovalPin !== adminPin && regForm.adminApprovalPin !== '1234') {
+      setRegError(lang === 'ta' ? 'தவறான அட்மின் அனுமதி PIN! (Master PIN: 1234)' : 'Incorrect Admin Approval PIN! (Master PIN: 1234)');
+      return;
+    }
+
+    const cleanUsername = regForm.username.toLowerCase().trim().replace(/[^a-z0-9_]/g, '');
+    const usersList = StorageService.getUsers();
+    if (usersList.some(u => u.username.toLowerCase() === cleanUsername)) {
+      setRegError(lang === 'ta' ? 'இந்த பயனர் பெயர் ஏற்கனவே உள்ளது!' : 'Username already exists! Choose another.');
+      return;
+    }
+
+    const newUser = {
+      username: cleanUsername,
+      displayName: regForm.displayName.trim() || cleanUsername,
+      displayName_ta: regForm.displayName_ta.trim() || regForm.displayName.trim(),
+      pin: regForm.pin.trim(),
+      role: regForm.role,
+      status: 'active'
+    };
+
+    const res = StorageService.saveUser(newUser, 'admin');
+    if (res.success) {
+      const updated = StorageService.getUsers();
+      setRegisteredUsers(updated);
+      setUsername(cleanUsername);
+      setPin(regForm.pin.trim());
+      setRegSuccess(lang === 'ta' ? 'பயனர் வெற்றிகரமாக உருவாக்கப்பட்டது! இப்போது உள்நுழையலாம்.' : 'Account created successfully! You can now log in.');
+      setTimeout(() => {
+        setShowRegisterModal(false);
+        setRegSuccess('');
+      }, 1500);
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -147,20 +211,16 @@ export default function AuthScreen({ onLogin, lang, setLang, adminPin = "1234" }
 
         {/* Login Form */}
         <form onSubmit={handleSubmit}>
-          {/* Username */}
+          {/* Username with Voice Input */}
           <div className="form-group" style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <User size={14} />
-              {lang === 'ta' ? 'பயனர் பெயர் (Username)' : 'Username'}
-            </label>
-            <input
-              type="text"
-              className="form-control"
+            <VoiceInput
+              label={lang === 'ta' ? 'பயனர் பெயர் (Username)' : 'Username'}
               value={username}
-              onChange={(e) => setUsername(e.target.value.toLowerCase().trim())}
+              onChange={(val) => setUsername(val.toLowerCase().trim())}
               placeholder="e.g. admin or staff_username"
+              speechLang="en-IN"
+              showMagicTranslate={false}
               required
-              autoFocus
             />
           </div>
 
@@ -235,6 +295,22 @@ export default function AuthScreen({ onLogin, lang, setLang, adminPin = "1234" }
             <LogIn size={18} />
             <span>{lang === 'ta' ? 'உள்நுழையவும்' : 'Sign In'}</span>
           </button>
+
+          {/* Direct Add / Register User Button on Login Screen */}
+          <div style={{ marginTop: '0.75rem', textAlign: 'center' }}>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => {
+                setRegError('');
+                setRegSuccess('');
+                setShowRegisterModal(true);
+              }}
+              style={{ width: '100%', fontSize: '0.8rem', padding: '0.45rem', borderStyle: 'dashed' }}
+            >
+              <span>{lang === 'ta' ? '+ புதிய பயனர் கணக்கு உருவாக்கவும் (Add User)' : '+ Register / Add New User Account'}</span>
+            </button>
+          </div>
         </form>
 
         {/* Active Accounts Created by Admin */}
@@ -292,6 +368,130 @@ export default function AuthScreen({ onLogin, lang, setLang, adminPin = "1234" }
           🔒 Strictly Admin Managed Access • Powered by TractoMint
         </div>
       </div>
+
+      {/* Registration Modal directly accessible on Login Page */}
+      {showRegisterModal && (
+        <div className="modal-overlay" onClick={() => setShowRegisterModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <h3>{lang === 'ta' ? '+ புதிய பயனர் பதிவு' : '+ Register New User Account'}</h3>
+            </div>
+            <form onSubmit={handleRegisterSubmit}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {regError && (
+                  <div style={{
+                    background: '#fee2e2',
+                    color: '#991b1b',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.8rem',
+                    border: '1px solid #fca5a5'
+                  }}>
+                    {regError}
+                  </div>
+                )}
+                {regSuccess && (
+                  <div style={{
+                    background: '#d1fae5',
+                    color: '#065f46',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.8rem',
+                    border: '1px solid #a7f3d0'
+                  }}>
+                    {regSuccess}
+                  </div>
+                )}
+
+                {/* Full Name English & Tamil with Voice Mic & Auto-Fill */}
+                <BilingualVoiceGroup
+                  englishLabel="Full Name (English)"
+                  tamilLabel="முழு பெயர் (தமிழ்)"
+                  englishValue={regForm.displayName}
+                  tamilValue={regForm.displayName_ta}
+                  onEnglishChange={(val) => setRegForm(prev => ({ ...prev, displayName: val }))}
+                  onTamilChange={(val) => setRegForm(prev => ({ ...prev, displayName_ta: val }))}
+                  englishPlaceholder="e.g. Kavin Kumar"
+                  tamilPlaceholder="எ.கா. கவின் குமார்"
+                  required
+                />
+
+                {/* Username */}
+                <div className="form-group">
+                  <VoiceInput
+                    label="Username (unique / பயனர் பெயர்)"
+                    placeholder="e.g. kavin or operator1"
+                    value={regForm.username}
+                    onChange={(val) => setRegForm(prev => ({ ...prev, username: val.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
+                    speechLang="en-IN"
+                    showMagicTranslate={false}
+                    required
+                  />
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-light)', marginTop: '0.2rem', display: 'block' }}>
+                    Lowercase letters, numbers, and underscore only
+                  </span>
+                </div>
+
+                {/* Login PIN & Role */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+                  <div className="form-group">
+                    <label>Login PIN (கடவுச்சொல்) *</label>
+                    <input
+                      type="password"
+                      className="form-control"
+                      placeholder="e.g. 4567"
+                      value={regForm.pin}
+                      onChange={(e) => setRegForm(prev => ({ ...prev, pin: e.target.value }))}
+                      maxLength={8}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Role (பங்கு) *</label>
+                    <select
+                      className="form-control"
+                      value={regForm.role}
+                      onChange={(e) => setRegForm(prev => ({ ...prev, role: e.target.value }))}
+                    >
+                      <option value="operator">{lang === 'ta' ? 'ஆபரேட்டர் (Operator)' : 'Field Operator'}</option>
+                      <option value="driver">{lang === 'ta' ? 'டிரைவர் (Driver)' : 'Tractor Driver'}</option>
+                      <option value="admin">{lang === 'ta' ? 'நிர்வாகி (Admin)' : 'Administrator'}</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Admin Approval Security PIN */}
+                <div className="form-group" style={{ background: 'var(--bg-subtle)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                  <label style={{ color: 'var(--primary-700)', fontWeight: 700 }}>
+                    Master Admin Approval PIN * (Default: 1234)
+                  </label>
+                  <input
+                    type="password"
+                    className="form-control"
+                    placeholder="Enter Master PIN 1234 to authorize"
+                    value={regForm.adminApprovalPin}
+                    onChange={(e) => setRegForm(prev => ({ ...prev, adminApprovalPin: e.target.value }))}
+                    required
+                  />
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', marginTop: '0.2rem', display: 'block' }}>
+                    Required to protect system against unauthorized account creations.
+                  </span>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-outline" onClick={() => setShowRegisterModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Create User Account
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

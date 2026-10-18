@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Users2, Plus, Edit3, Trash2, Phone, MapPin, Search, MessageSquareShare } from 'lucide-react';
 import { translations, resolveBilingual } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
+import BilingualVoiceGroup from './common/BilingualVoiceGroup';
+import VoiceInput from './common/VoiceInput';
 
 export default function CustomerManager({ 
   customers, 
@@ -208,78 +210,53 @@ export default function CustomerManager({
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">
                 
-                {/* Name English */}
-                <div className="form-group">
-                  <label>Customer Name (English)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="e.g. A. Arumugam Gounder"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                  />
-                </div>
+                {/* Name English & Tamil with Mic & Auto-Fill */}
+                <BilingualVoiceGroup
+                  englishLabel="Customer Name (English)"
+                  tamilLabel="விவசாயி பெயர் (தமிழ்)"
+                  englishValue={formData.name}
+                  tamilValue={formData.name_ta}
+                  onEnglishChange={(val) => setFormData(prev => ({ ...prev, name: val }))}
+                  onTamilChange={(val) => setFormData(prev => ({ ...prev, name_ta: val }))}
+                  englishPlaceholder="e.g. A. Arumugam Gounder"
+                  tamilPlaceholder="எ.கா. ஏ. ஆறுமுகம் கவுண்டர்"
+                  required
+                />
 
-                {/* Name Tamil */}
-                <div className="form-group">
-                  <label>பெயர் (தமிழ்)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="எ.கா. ஏ. ஆறுமுகம் கவுண்டர்"
-                    value={formData.name_ta}
-                    onChange={(e) => setFormData({ ...formData, name_ta: e.target.value })}
-                  />
-                </div>
-
-                {/* Village English */}
-                <div className="form-group">
-                  <label>Village / Town (English)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="e.g. Perur / Alandurai"
-                    value={formData.village}
-                    onChange={(e) => setFormData({ ...formData, village: e.target.value })}
-                    required
-                  />
-                </div>
-
-                {/* Village Tamil */}
-                <div className="form-group">
-                  <label>கிராமம் / ஊர் (தமிழ்)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="எ.கா. பேரூர் / ஆலாந்துறை"
-                    value={formData.village_ta}
-                    onChange={(e) => setFormData({ ...formData, village_ta: e.target.value })}
-                  />
-                </div>
+                {/* Village English & Tamil with Mic & Auto-Fill */}
+                <BilingualVoiceGroup
+                  englishLabel="Village / Town (English)"
+                  tamilLabel="கிராமம் / ஊர் (தமிழ்)"
+                  englishValue={formData.village}
+                  tamilValue={formData.village_ta}
+                  onEnglishChange={(val) => setFormData(prev => ({ ...prev, village: val }))}
+                  onTamilChange={(val) => setFormData(prev => ({ ...prev, village_ta: val }))}
+                  englishPlaceholder="e.g. Perur / Alandurai"
+                  tamilPlaceholder="எ.கா. பேரூர் / ஆலாந்துறை"
+                  required
+                />
 
                 {/* Phone */}
                 <div className="form-group">
-                  <label>{t.phone}</label>
-                  <input
+                  <VoiceInput
+                    label={t.phone}
                     type="tel"
-                    className="form-control"
                     placeholder="e.g. 98433 12345"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(val) => setFormData(prev => ({ ...prev, phone: val }))}
+                    speechLang="en-IN"
                     required
                   />
                 </div>
 
                 {/* Farm Land Address / Notes */}
                 <div className="form-group col-full">
-                  <label>Farm Location / Land Details</label>
-                  <input
-                    type="text"
-                    className="form-control"
+                  <VoiceInput
+                    label="Farm Location / Land Details (நில விபரம்)"
                     placeholder="e.g. Canal Road, North Thottam, 4.5 Acres Sugarcane"
                     value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    onChange={(val) => setFormData(prev => ({ ...prev, address: val }))}
+                    speechLang={lang === 'ta' ? 'ta-IN' : 'en-IN'}
                   />
                 </div>
 

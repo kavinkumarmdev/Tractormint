@@ -40,12 +40,8 @@ export default function App() {
     } catch (e) {
       console.error("Error reading session:", e);
     }
-    // Default logged in as Admin for first demo, or null
-    return {
-      role: settings.currentRole || 'admin',
-      username: 'admin',
-      displayName: 'Administrator'
-    };
+    // Default to null so initial opening displays the login page
+    return null;
   });
 
   // Load Entities from Storage
@@ -74,6 +70,14 @@ export default function App() {
     }
   }, [darkMode]);
 
+  // Dynamic Browser Tab Title with TractoMint Branding
+  useEffect(() => {
+    const comp = lang === 'ta' ? (settings?.companyName_ta || settings?.companyName) : settings?.companyName;
+    document.title = comp 
+      ? `${comp} - TractoMint | உழவு லெட்ஜர்` 
+      : 'TractoMint - Tractor & Farm Machinery Ledger | உழவு மேலாண்மை';
+  }, [settings?.companyName, settings?.companyName_ta, lang]);
+
   // Handle Login
   const handleLogin = (userObj, rememberMe) => {
     setCurrentUser(userObj);
@@ -99,8 +103,20 @@ export default function App() {
     }
   };
 
-  // Re-fetch all data from storage
-  const refreshAllData = () => {
+  // Cloud Auto-Save to Google Sheets
+  const triggerCloudAutoSave = () => {
+    const url = getEffectiveGoogleSheetUrl(settings.webAppUrl);
+    if (url && settings.autoSync !== false) {
+      setSyncStatus('syncing');
+      const fullData = StorageService.getFullDataset();
+      syncAllToGoogleSheet(url, fullData)
+        .then(res => setSyncStatus(res.success ? 'connected' : 'error'))
+        .catch(() => setSyncStatus('error'));
+    }
+  };
+
+  // Re-fetch all data from storage and optionally auto-sync to Google Sheets
+  const refreshAllData = (autoSync = true) => {
     setFleet(StorageService.getFleet());
     setRateMatrix(StorageService.getRateMatrix());
     setDrivers(StorageService.getDrivers());
@@ -112,7 +128,18 @@ export default function App() {
     setPartnerDrawings(StorageService.getPartnerDrawings());
     setDeletedRecords(StorageService.getAllDeletedRecords());
     setUsers(StorageService.getUsers());
+    if (autoSync) {
+      triggerCloudAutoSave();
+    }
   };
+
+  // Auto-fetch data from Google Sheets on initial load to get latest list
+  useEffect(() => {
+    const url = getEffectiveGoogleSheetUrl(settings.webAppUrl);
+    if (url) {
+      handlePullFromSheets(url);
+    }
+  }, []);
 
   // Save Handlers
   const handleSaveFleet = (item) => {
@@ -261,7 +288,7 @@ export default function App() {
     const result = await fetchDataFromGoogleSheet(url);
     if (result.success && result.data) {
       StorageService.importFullDataset(result.data);
-      refreshAllData();
+      refreshAllData(false);
       setSyncStatus('connected');
     } else {
       setSyncStatus('error');
@@ -327,6 +354,17 @@ export default function App() {
         deletedCount={deletedRecords.length}
         mobileNavOpen={mobileNavOpen}
         setMobileNavOpen={setMobileNavOpen}
+        currentUser={currentUser}
+        onLogout={handleLogout}
+        syncStatus={syncStatus}
+        onSyncNow={() => handleSyncAll()}
+        onRoleToggle={() => {
+          if (role === 'operator') {
+            setRole('admin');
+          } else {
+            setRole('operator');
+          }
+        }}
       />
 
       {/* Main Content Area */}

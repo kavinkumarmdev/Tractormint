@@ -11,12 +11,14 @@ import {
   Calendar, 
   Filter,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  X
 } from 'lucide-react';
 import { translations, resolveBilingual } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
+import VoiceInput from './common/VoiceInput';
 
 export default function TripSheetManager({ 
   tripSheets, 
@@ -54,6 +56,8 @@ export default function TripSheetManager({
     tractorName: '',
     implementId: '',
     implementName: '',
+    implementIds: [],
+    implementNames: [],
     workType: '5-Tyne Ploughing (5 கொழு உழவு)',
     workDescription: '',
     billingUnit: 'per_hour',
@@ -78,7 +82,10 @@ export default function TripSheetManager({
     const defaultCust = customers[0] || { id: '', name: 'Customer' };
     const defaultDrv = drivers[0] || { id: '', name: 'Driver' };
     const defaultTrac = tractors[0] || { id: '', name: 'Tractor' };
-    const defaultImp = implementsList[0] || { id: '', name: 'Implement' };
+    const defaultImp = implementsList[0] || null;
+
+    const initialImplementIds = defaultImp ? [defaultImp.id] : [];
+    const initialImplementNames = defaultImp ? [defaultImp.name] : [];
 
     const newTripId = `TRP-${1000 + tripSheets.length + 1}`;
     setEditingItem(null);
@@ -93,8 +100,10 @@ export default function TripSheetManager({
       driverName: defaultDrv.name,
       tractorId: defaultTrac.id,
       tractorName: defaultTrac.name,
-      implementId: defaultImp.id,
-      implementName: defaultImp.name,
+      implementId: defaultImp ? defaultImp.id : 'none',
+      implementName: defaultImp ? defaultImp.name : 'Standalone Tractor',
+      implementIds: initialImplementIds,
+      implementNames: initialImplementNames,
       workType: '5-Tyne Ploughing (5 கொழு உழவு)',
       workDescription: '',
       billingUnit: 'per_hour',
@@ -119,15 +128,43 @@ export default function TripSheetManager({
 
   const handleOpenEdit = (trip) => {
     setEditingItem(trip);
-    setFormData({ ...trip });
+    let ids = [];
+    if (Array.isArray(trip.implementIds) && trip.implementIds.length > 0) {
+      ids = trip.implementIds;
+    } else if (trip.implementId && trip.implementId !== 'none') {
+      ids = trip.implementId.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    const names = ids.map(id => {
+      const found = implementsList.find(m => m.id === id);
+      return found ? found.name : id;
+    });
+
+    setFormData({
+      ...trip,
+      implementIds: ids,
+      implementNames: names.length > 0 ? names : (trip.implementName ? [trip.implementName] : []),
+      implementId: ids.join(','),
+      implementName: trip.implementName || (names.length > 0 ? names.join(' + ') : 'Standalone Tractor')
+    });
     setIsModalOpen(true);
   };
 
   // Auto-lookup matching rate from Rate Card when Tractor, Implement or Date changes
   const lookupRate = (tractorId, implementId, date, unit) => {
+    if (!implementId || implementId === 'none') {
+      const matched = rateMatrix.filter(r => 
+        r.tractorId === tractorId && 
+        (r.implementId === 'none' || !r.implementId) &&
+        r.unit === unit &&
+        r.effectiveDate <= date
+      ).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0];
+      return matched ? matched.rate : null;
+    }
+
+    const targetIds = implementId.split(',').map(s => s.trim());
     const matched = rateMatrix.filter(r => 
       r.tractorId === tractorId && 
-      (r.implementId === implementId || implementId === 'none') &&
+      (targetIds.includes(r.implementId) || r.implementId === implementId || r.implementId === 'none') &&
       r.unit === unit &&
       r.effectiveDate <= date
     ).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0];
@@ -217,9 +254,149 @@ export default function TripSheetManager({
     });
   };
 
+  const handleAddImplement = (impId) => {
+    if (!impId || impId === 'none') return;
+    setFormData(prev => {
+      const currentIds = prev.implementIds || [];
+      if (currentIds.includes(impId)) return prev;
+      const newIds = [...currentIds, impId];
+      const newNames = newIds.map(id => {
+        const found = implementsList.find(m => m.id === id);
+        return found ? found.name : id;
+      });
+      const newImpName = newNames.join(' + ');
+      const newImpId = newIds.join(',');
+
+      const suggestedRate = lookupRate(prev.tractorId, impId, prev.date, prev.billingUnit) ||
+                            lookupRate(prev.tractorId, newIds[0], prev.date, prev.billingUnit);
+
+      const updated = {
+        ...prev,
+        implementIds: newIds,
+        implementNames: newNames,
+        implementId: newImpId,
+        implementName: newImpName
+      };
+
+      if (suggestedRate) {
+        updated.rate = suggestedRate;
+        const qty = parseFloat(prev.quantity) || 0;
+        const disc = parseFloat(prev.discount) || 0;
+        const gross = qty * parseFloat(suggestedRate);
+        const net = Math.max(0, gross - disc);
+        updated.grossAmount = gross;
+        updated.totalAmount = net;
+        if (prev.paymentStatus === 'paid') {
+          updated.paidAmount = net;
+          updated.balanceAmount = 0;
+        } else if (prev.paymentStatus === 'unpaid') {
+          updated.paidAmount = 0;
+          updated.balanceAmount = net;
+        } else {
+          const paid = parseFloat(prev.paidAmount) || 0;
+          updated.balanceAmount = Math.max(0, net - paid);
+        }
+      }
+
+      return updated;
+    });
+  };
+
+  const handleRemoveImplement = (impIdToRemove) => {
+    setFormData(prev => {
+      const currentIds = prev.implementIds || [];
+      const newIds = currentIds.filter(id => id !== impIdToRemove);
+      const newNames = newIds.map(id => {
+        const found = implementsList.find(m => m.id === id);
+        return found ? found.name : id;
+      });
+      const newImpName = newNames.length > 0 ? newNames.join(' + ') : 'Standalone Tractor';
+      const newImpId = newIds.length > 0 ? newIds.join(',') : 'none';
+
+      const suggestedRate = newIds.length > 0 
+        ? lookupRate(prev.tractorId, newIds[0], prev.date, prev.billingUnit)
+        : lookupRate(prev.tractorId, 'none', prev.date, prev.billingUnit);
+
+      const updated = {
+        ...prev,
+        implementIds: newIds,
+        implementNames: newNames,
+        implementId: newImpId,
+        implementName: newImpName
+      };
+
+      if (suggestedRate) {
+        updated.rate = suggestedRate;
+        const qty = parseFloat(prev.quantity) || 0;
+        const disc = parseFloat(prev.discount) || 0;
+        const gross = qty * parseFloat(suggestedRate);
+        const net = Math.max(0, gross - disc);
+        updated.grossAmount = gross;
+        updated.totalAmount = net;
+        if (prev.paymentStatus === 'paid') {
+          updated.paidAmount = net;
+          updated.balanceAmount = 0;
+        } else if (prev.paymentStatus === 'unpaid') {
+          updated.paidAmount = 0;
+          updated.balanceAmount = net;
+        } else {
+          const paid = parseFloat(prev.paidAmount) || 0;
+          updated.balanceAmount = Math.max(0, net - paid);
+        }
+      }
+
+      return updated;
+    });
+  };
+
+  const handleClearImplements = () => {
+    setFormData(prev => {
+      const suggestedRate = lookupRate(prev.tractorId, 'none', prev.date, prev.billingUnit);
+      const updated = {
+        ...prev,
+        implementIds: [],
+        implementNames: [],
+        implementId: 'none',
+        implementName: 'Standalone Tractor'
+      };
+      if (suggestedRate) {
+        updated.rate = suggestedRate;
+        const qty = parseFloat(prev.quantity) || 0;
+        const disc = parseFloat(prev.discount) || 0;
+        const gross = qty * parseFloat(suggestedRate);
+        const net = Math.max(0, gross - disc);
+        updated.grossAmount = gross;
+        updated.totalAmount = net;
+        if (prev.paymentStatus === 'paid') {
+          updated.paidAmount = net;
+          updated.balanceAmount = 0;
+        } else if (prev.paymentStatus === 'unpaid') {
+          updated.paidAmount = 0;
+          updated.balanceAmount = net;
+        } else {
+          const paid = parseFloat(prev.paidAmount) || 0;
+          updated.balanceAmount = Math.max(0, net - paid);
+        }
+      }
+      return updated;
+    });
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSaveTrip(formData);
+    const finalIds = formData.implementIds || [];
+    const finalNames = finalIds.map(id => {
+      const found = implementsList.find(m => m.id === id);
+      return found ? found.name : id;
+    });
+    const finalPayload = {
+      ...formData,
+      implementIds: finalIds,
+      implementNames: finalNames,
+      implementId: finalIds.length > 0 ? finalIds.join(',') : (formData.implementId || 'none'),
+      implementName: finalNames.length > 0 ? finalNames.join(' + ') : (formData.implementName || 'Standalone Tractor')
+    };
+    onSaveTrip(finalPayload);
     setIsModalOpen(false);
   };
 
@@ -309,7 +486,20 @@ export default function TripSheetManager({
                   <td style={{ fontSize: '0.85rem' }}>{trip.driverName}</td>
                   <td>
                     <div style={{ fontSize: '0.825rem', fontWeight: 600 }}>{trip.tractorName}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>{trip.implementName}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', display: 'flex', flexWrap: 'wrap', gap: '3px', marginTop: '2px' }}>
+                      {trip.implementName ? trip.implementName.split(' + ').map((name, idx) => (
+                        <span key={idx} style={{
+                          background: 'rgba(99, 102, 241, 0.1)',
+                          color: 'var(--primary-700, #4338ca)',
+                          borderRadius: '4px',
+                          padding: '1px 5px',
+                          fontSize: '0.7rem',
+                          fontWeight: 500
+                        }}>
+                          {name}
+                        </span>
+                      )) : <span style={{ color: 'var(--text-light)' }}>Standalone Tractor</span>}
+                    </div>
                   </td>
                   <td>
                     <div style={{ fontWeight: 600 }}>{trip.quantity} {trip.billingUnit === 'per_hour' ? 'hrs' : trip.billingUnit === 'per_acre' ? 'acres' : trip.billingUnit}</div>
@@ -477,19 +667,150 @@ export default function TripSheetManager({
                   />
                 </div>
 
-                {/* Implement */}
-                <div className="form-group">
-                  <SearchableSelect
-                    label={`${t.machine} (Implement)`}
-                    value={formData.implementId}
-                    onChange={(val) => handleFieldChange('implementId', val)}
-                    options={[
-                      { value: 'none', label: 'None (Standalone Tractor / Haulage)' },
-                      ...implementsList.map(imp => ({ value: imp.id, label: imp.name, subLabel: imp.category || '' }))
-                    ]}
-                    placeholder="-- Select Implement --"
-                    lang={lang}
-                  />
+                {/* Attached Implements (Multi-Select) */}
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', fontWeight: 600 }}>
+                    <span>
+                      {t.machine} ({lang === 'ta' ? 'இணைப்பு கருவிகள் - ஒன்றுக்கு மேல் சேர்க்கலாம்' : 'Attached Implements - Attach 1 or More'})
+                    </span>
+                    {(formData.implementIds && formData.implementIds.length > 0) && (
+                      <button
+                        type="button"
+                        onClick={handleClearImplements}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#ef4444',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          fontWeight: 500
+                        }}
+                      >
+                        {lang === 'ta' ? 'அனைத்தையும் நீக்கு (கருவி இல்லை)' : 'Clear All (Standalone)'}
+                      </button>
+                    )}
+                  </label>
+
+                  {/* Attached Implement Chips */}
+                  <div style={{
+                    minHeight: '44px',
+                    padding: '0.5rem',
+                    background: 'var(--bg-main, #f8fafc)',
+                    border: '1.5px dashed var(--border-color, #cbd5e1)',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    marginBottom: '0.5rem'
+                  }}>
+                    {(!formData.implementIds || formData.implementIds.length === 0) ? (
+                      <span style={{ fontSize: '0.825rem', color: 'var(--text-light, #64748b)', fontStyle: 'italic', padding: '0.2rem 0.4rem' }}>
+                        🚜 {lang === 'ta' ? 'கருவிகள் ஏதும் இணைக்கப்படவில்லை (தனி டிராக்டர்)' : 'No implement attached (Standalone tractor)'}
+                      </span>
+                    ) : (
+                      formData.implementIds.map(impId => {
+                        const found = implementsList.find(m => m.id === impId);
+                        const displayName = found ? (lang === 'ta' && found.name_ta ? `${found.name_ta} (${found.name})` : found.name) : impId;
+                        return (
+                          <span
+                            key={impId}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)',
+                              border: '1px solid #c7d2fe',
+                              color: '#3730a3',
+                              padding: '0.3rem 0.65rem',
+                              borderRadius: '9999px',
+                              fontSize: '0.82rem',
+                              fontWeight: 600,
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                            }}
+                          >
+                            ⚙️ {displayName}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveImplement(impId)}
+                              title={lang === 'ta' ? 'நீக்கு' : 'Remove'}
+                              style={{
+                                background: 'rgba(0,0,0,0.08)',
+                                border: 'none',
+                                borderRadius: '50%',
+                                width: '18px',
+                                height: '18px',
+                                cursor: 'pointer',
+                                color: '#4338ca',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: 0,
+                                marginLeft: '0.2rem'
+                              }}
+                            >
+                              <X size={12} />
+                            </button>
+                          </span>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Add Implement Dropdown */}
+                  <div>
+                    <SearchableSelect
+                      label=""
+                      value=""
+                      onChange={(val) => {
+                        if (val) handleAddImplement(val);
+                      }}
+                      options={implementsList
+                        .filter(imp => !(formData.implementIds || []).includes(imp.id))
+                        .map(imp => ({
+                          value: imp.id,
+                          label: lang === 'ta' && imp.name_ta ? `${imp.name_ta} (${imp.name})` : imp.name,
+                          subLabel: imp.category || ''
+                        }))}
+                      placeholder={lang === 'ta' ? '+ இணைப்பு கருவி சேர்க்க தேர்ந்தெடுக்கவும்...' : '+ Select implement to attach...'}
+                      searchPlaceholder={lang === 'ta' ? 'கருவியைத் தேடு...' : 'Search implement...'}
+                      lang={lang}
+                    />
+                  </div>
+
+                  {/* Quick-Add unselected chips */}
+                  {implementsList.filter(imp => !(formData.implementIds || []).includes(imp.id)).length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.35rem', marginTop: '0.45rem' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-light, #64748b)', fontWeight: 600 }}>
+                        {lang === 'ta' ? 'விரைவு சேர்க்கை:' : 'Quick Add:'}
+                      </span>
+                      {implementsList
+                        .filter(imp => !(formData.implementIds || []).includes(imp.id))
+                        .slice(0, 5)
+                        .map(imp => (
+                          <button
+                            key={imp.id}
+                            type="button"
+                            onClick={() => handleAddImplement(imp.id)}
+                            style={{
+                              background: 'var(--bg-main, #f1f5f9)',
+                              border: '1px solid var(--border-color, #cbd5e1)',
+                              color: 'var(--text-dark, #334155)',
+                              fontSize: '0.72rem',
+                              padding: '0.2rem 0.5rem',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '2px'
+                            }}
+                          >
+                            + {lang === 'ta' && imp.name_ta ? imp.name_ta : imp.name}
+                          </button>
+                        ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Billing Unit */}
@@ -622,13 +943,12 @@ export default function TripSheetManager({
 
                 {/* Who Collected & When */}
                 <div className="form-group">
-                  <label>{t.collectedBy} (Driver / Partner / Admin)</label>
-                  <input
-                    type="text"
-                    className="form-control"
+                  <VoiceInput
+                    label={`${t.collectedBy} (Driver / Partner / Admin)`}
                     placeholder="e.g. K. Murugan (Driver) or Kuppusamy (Partner)"
                     value={formData.collectedBy}
-                    onChange={(e) => handleFieldChange('collectedBy', e.target.value)}
+                    onChange={(val) => handleFieldChange('collectedBy', val)}
+                    speechLang={lang === 'ta' ? 'ta-IN' : 'en-IN'}
                   />
                 </div>
 
@@ -673,13 +993,12 @@ export default function TripSheetManager({
 
                 {/* Work Description */}
                 <div className="form-group col-full">
-                  <label>{t.workDescription} / Field Notes</label>
-                  <input
-                    type="text"
-                    className="form-control"
+                  <VoiceInput
+                    label={`${t.workDescription} / Field Notes`}
                     placeholder="e.g. Rotavator fine tilling for turmeric or 5-Tyne deep ploughing for sugarcane"
                     value={formData.workDescription}
-                    onChange={(e) => handleFieldChange('workDescription', e.target.value)}
+                    onChange={(val) => handleFieldChange('workDescription', val)}
+                    speechLang={lang === 'ta' ? 'ta-IN' : 'en-IN'}
                   />
                 </div>
 

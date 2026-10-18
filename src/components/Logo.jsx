@@ -21,6 +21,7 @@ export default function Logo({ size = 'md', showText = true, lang = 'en', onClic
     >
       {/* Premium Logo Graphic Container */}
       <div 
+        className="brand-logo-img-box"
         style={{
           width: dimensions.img,
           height: dimensions.img,
@@ -49,8 +50,9 @@ export default function Logo({ size = 'md', showText = true, lang = 'en', onClic
 
       {/* Typography */}
       {showText && (
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <div className="brand-typography" style={{ display: 'flex', flexDirection: 'column' }}>
           <div 
+            className="brand-title"
             style={{ 
               fontSize: dimensions.title, 
               fontWeight: 900, 
@@ -69,6 +71,7 @@ export default function Logo({ size = 'md', showText = true, lang = 'en', onClic
               fontWeight: 900
             }}>Mint</span>
             <span 
+              className="brand-pro-badge"
               style={{ 
                 fontSize: '0.65rem', 
                 background: 'var(--primary-100)', 
@@ -86,6 +89,7 @@ export default function Logo({ size = 'md', showText = true, lang = 'en', onClic
           </div>
 
           <span 
+            className="brand-subtitle"
             style={{ 
               fontSize: dimensions.sub, 
               color: 'var(--text-muted)', 

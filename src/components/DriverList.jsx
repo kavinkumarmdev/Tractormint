@@ -4,6 +4,8 @@ import { translations } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
+import BilingualVoiceGroup from './common/BilingualVoiceGroup';
+import VoiceInput from './common/VoiceInput';
 
 export default function DriverList({ 
   drivers, 
@@ -195,53 +197,40 @@ export default function DriverList({
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">
                 
-                {/* Name English */}
-                <div className="form-group">
-                  <label>Driver Name (English)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="e.g. K. Murugan"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                  />
-                </div>
-
-                {/* Name Tamil */}
-                <div className="form-group">
-                  <label>பெயர் (தமிழ்)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="எ.கா. கே. முருகன்"
-                    value={formData.name_ta}
-                    onChange={(e) => setFormData({ ...formData, name_ta: e.target.value })}
-                  />
-                </div>
+                {/* Driver Name English & Tamil with Mic & Auto-Fill */}
+                <BilingualVoiceGroup
+                  englishLabel="Driver Name (English)"
+                  tamilLabel="ஓட்டுநர் பெயர் (தமிழ்)"
+                  englishValue={formData.name}
+                  tamilValue={formData.name_ta}
+                  onEnglishChange={(val) => setFormData(prev => ({ ...prev, name: val }))}
+                  onTamilChange={(val) => setFormData(prev => ({ ...prev, name_ta: val }))}
+                  englishPlaceholder="e.g. K. Murugan"
+                  tamilPlaceholder="எ.கா. கே. முருகன்"
+                  required
+                />
 
                 {/* Phone */}
                 <div className="form-group">
-                  <label>{t.phone}</label>
-                  <input
+                  <VoiceInput
+                    label={t.phone}
                     type="tel"
-                    className="form-control"
                     placeholder="e.g. 98421 56780"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(val) => setFormData(prev => ({ ...prev, phone: val }))}
+                    speechLang="en-IN"
                     required
                   />
                 </div>
 
                 {/* License No */}
                 <div className="form-group">
-                  <label>{t.licenseNo}</label>
-                  <input
-                    type="text"
-                    className="form-control"
+                  <VoiceInput
+                    label={t.licenseNo}
                     placeholder="e.g. TN45 2018000456"
                     value={formData.licenseNo}
-                    onChange={(e) => setFormData({ ...formData, licenseNo: e.target.value })}
+                    onChange={(val) => setFormData(prev => ({ ...prev, licenseNo: val }))}
+                    speechLang="en-IN"
                   />
                 </div>
 

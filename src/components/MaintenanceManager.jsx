@@ -4,6 +4,7 @@ import { translations, resolveBilingual } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
+import VoiceInput from './common/VoiceInput';
 
 export default function MaintenanceManager({ 
   maintenance, 
@@ -366,37 +367,34 @@ export default function MaintenanceManager({
 
                 {/* Vendor / Bunk Name */}
                 <div className="form-group">
-                  <label>{t.vendorName}</label>
-                  <input
-                    type="text"
-                    className="form-control"
+                  <VoiceInput
+                    label={t.vendorName}
                     placeholder="e.g. HP Auto Fuels / Sri Murugan Agri Spares"
                     value={formData.vendorName}
-                    onChange={(e) => handleFormChange('vendorName', e.target.value)}
+                    onChange={(val) => handleFormChange('vendorName', val)}
+                    speechLang={lang === 'ta' ? 'ta-IN' : 'en-IN'}
                   />
                 </div>
 
                 {/* Bill / Invoice Number */}
                 <div className="form-group">
-                  <label>{t.billNumber}</label>
-                  <input
-                    type="text"
-                    className="form-control"
+                  <VoiceInput
+                    label={t.billNumber}
                     placeholder="e.g. INV-89021"
                     value={formData.billNumber}
-                    onChange={(e) => handleFormChange('billNumber', e.target.value)}
+                    onChange={(val) => handleFormChange('billNumber', val)}
+                    speechLang="en-IN"
                   />
                 </div>
 
                 {/* Notes */}
                 <div className="form-group col-full">
-                  <label>Remarks / Part Brand / Warranty Details</label>
-                  <input
-                    type="text"
-                    className="form-control"
+                  <VoiceInput
+                    label="Remarks / Part Brand / Warranty Details (குறிப்பு)"
                     placeholder="e.g. 14 right hand blades replaced, high tensile bolts"
                     value={formData.notes}
-                    onChange={(e) => handleFormChange('notes', e.target.value)}
+                    onChange={(val) => handleFormChange('notes', val)}
+                    speechLang={lang === 'ta' ? 'ta-IN' : 'en-IN'}
                   />
                 </div>
 

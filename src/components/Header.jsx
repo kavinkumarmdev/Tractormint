@@ -77,11 +77,11 @@ export default function Header({
 
       {/* Right Controls */}
       <div className="header-controls">
-        {/* Google Sheets Sync Pill (Hidden on extra small mobile screens, or compact) */}
+        {/* Google Sheets Sync Pill */}
         <div 
           className="sheets-sync-pill"
           onClick={onSyncNow}
-          title="Click to sync data with Google Sheets"
+          title={syncStatus === 'syncing' ? 'Syncing with Google Sheets...' : syncStatus === 'connected' ? 'Google Sheets Active (Click to sync now)' : 'Google Sheets Offline (Click to retry)'}
         >
           {syncStatus === 'syncing' ? (
             <RefreshCw size={14} className="spin-animation" style={{ color: 'var(--amber-500)' }} />
@@ -96,7 +96,9 @@ export default function Header({
         </div>
 
         {/* Launch / Install App Button */}
-        <InstallAppPrompt lang={lang} />
+        <div className="header-install-wrapper">
+          <InstallAppPrompt lang={lang} />
+        </div>
 
         {/* Language Toggle (English / தமிழ்) */}
         <button 
@@ -106,7 +108,8 @@ export default function Header({
           style={{ fontWeight: 700 }}
         >
           <Languages size={15} />
-          <span>{lang === 'en' ? 'தமிழ்' : 'English'}</span>
+          <span className="lang-full-text">{lang === 'en' ? 'தமிழ்' : 'English'}</span>
+          <span className="lang-short-text">{lang === 'en' ? 'த' : 'EN'}</span>
         </button>
 
         {/* Role Indicator / Switcher */}
@@ -116,7 +119,7 @@ export default function Header({
           title={role === 'admin' ? 'Admin Mode (Full Access)' : 'Operator Mode (Click to unlock Admin)'}
         >
           {role === 'admin' ? <ShieldCheck size={15} /> : <ShieldAlert size={15} />}
-          <span>{role === 'admin' ? t.admin : t.operator}</span>
+          <span className="role-btn-text">{role === 'admin' ? t.admin : t.operator}</span>
         </button>
 
         {/* Dark / Light Mode Switcher */}

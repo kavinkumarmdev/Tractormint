@@ -14,6 +14,8 @@ import { translations, resolveBilingual } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
+import BilingualVoiceGroup from './common/BilingualVoiceGroup';
+import VoiceInput from './common/VoiceInput';
 
 export default function FleetManager({ 
   fleet, 
@@ -304,152 +306,187 @@ export default function FleetManager({
                   />
                 </div>
 
-                {/* Implement Category if implement */}
-                {formData.type === 'implement' && (
-                  <div className="form-group">
-                    <SearchableSelect
-                      label={t.machineCategory}
-                      value={formData.implementCategory}
-                      onChange={(val) => handleFormChange('implementCategory', val)}
-                      options={[
-                        { value: 'rotavator', label: 'Rotavator (ரோட்டாவேட்டர்)' },
-                        { value: 'cultivator_5tyne', label: '5-Tyne Cultivator (5 கொழு கலப்பை)' },
-                        { value: 'disc_plough', label: 'Disc Plough (தட்டு கலப்பை)' },
-                        { value: 'trailer', label: 'Trailer / Tipper (டிரெய்லர்)' },
-                        { value: 'harvester', label: 'Harvester (அறுவடை இயந்திரம்)' },
-                        { value: 'baler', label: 'Straw Baler (வைக்கோல் கட்டும் கருவி)' },
-                        { value: 'leveler', label: 'Land Leveler (சமன் பலகை)' },
-                        { value: 'other', label: 'Other Machinery' }
-                      ]}
-                      lang={lang}
-                    />
-                  </div>
-                )}
-
-                {/* Name English */}
-                <div className="form-group">
-                  <label>Machine / Tractor Name (English)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="e.g. Mahindra 575 DI / 5-Tyne Cultivator"
-                    value={formData.name}
-                    onChange={(e) => handleFormChange('name', e.target.value)}
-                    required
-                  />
-                </div>
-
-                {/* Name Tamil */}
-                <div className="form-group">
-                  <label>பெயர் (தமிழ் - Auto-assisted)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="எ.கா. மகிந்திரா 575 DI / 5 கொழு கலப்பை"
-                    value={formData.name_ta}
-                    onChange={(e) => handleFormChange('name_ta', e.target.value)}
-                  />
-                </div>
-
-                {/* Reg / ID Number */}
-                <div className="form-group">
-                  <label>{t.regNumber}</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="e.g. TN 45 AB 1234 or IMP-01"
-                    value={formData.regNumber}
-                    onChange={(e) => handleFormChange('regNumber', e.target.value)}
-                  />
-                </div>
-
-                {/* Acquisition Type */}
-                <div className="form-group">
-                  <SearchableSelect
-                    label={`${t.acquisitionType} (Buy / Rent / Lease / Loan / Demo)`}
-                    value={formData.acquisition}
-                    onChange={(val) => handleFormChange('acquisition', val)}
-                    options={[
-                      { value: 'buy_cash', label: t.buyCash },
-                      { value: 'rent', label: t.rent },
-                      { value: 'lease', label: t.lease },
-                      { value: 'loan_emi', label: t.loanEmi },
-                      { value: 'demo', label: t.demo }
-                    ]}
-                    lang={lang}
-                  />
-                </div>
-
-                {/* Loan / EMI specific fields */}
-                {formData.acquisition === 'loan_emi' && (
+                {/* When Implement: Only Show Implement Preset Selector & Name & Status */}
+                {formData.type === 'implement' ? (
                   <>
+                    {/* Implement Name Preset Quick Dropdown */}
                     <div className="form-group">
-                      <label>{t.emiMonthly}</label>
-                      <input
-                        type="number"
-                        className="form-control"
-                        placeholder="e.g. 18500"
-                        value={formData.emiMonthly}
-                        onChange={(e) => handleFormChange('emiMonthly', e.target.value)}
+                      <SearchableSelect
+                        label={lang === 'ta' ? 'இணைப்பு கருவி தேர்வு (Quick Dropdown)' : 'Select Implement Preset'}
+                        value={formData.implementCategory}
+                        onChange={(val) => {
+                          const presets = {
+                            rotavator: { en: 'Rotavator', ta: 'ரோட்டாவேட்டர்' },
+                            cultivator_5tyne: { en: '5-Tyne Cultivator', ta: '5 கொழு கலப்பை' },
+                            cultivator_9tyne: { en: '9-Tyne Cultivator', ta: '9 கொழு கலப்பை' },
+                            disc_plough: { en: 'Disc Plough', ta: 'தட்டு கலப்பை' },
+                            mb_plough: { en: 'MB Plough', ta: 'எம்.பி கலப்பை' },
+                            leveler: { en: 'Land Leveler', ta: 'சமன் பலகை' },
+                            trailer: { en: 'Trailer / Tipper', ta: 'டிரெய்லர் (டிப்பர்)' },
+                            baler: { en: 'Straw Baler', ta: 'வைக்கோல் கட்டும் கருவி' },
+                            harvester: { en: 'Combine Harvester', ta: 'நெல் அறுவடை இயந்திரம்' },
+                            bund_maker: { en: 'Bund Maker', ta: 'வரப்பு கட்டும் கருவி' },
+                            dozer: { en: 'Front Dozer', ta: 'முன் டோசர்' },
+                            digger: { en: 'Post Hole Digger', ta: 'குழி தோண்டும் கருவி' },
+                            seed_drill: { en: 'Seed Drill', ta: 'விதை விதைக்கும் கருவி' },
+                            other: { en: '', ta: '' }
+                          };
+                          const selected = presets[val];
+                          handleFormChange('implementCategory', val);
+                          if (selected && selected.en) {
+                            handleFormChange('name', selected.en);
+                            handleFormChange('name_ta', selected.ta);
+                          }
+                        }}
+                        options={[
+                          { value: 'rotavator', label: 'Rotavator (ரோட்டாவேட்டர்)' },
+                          { value: 'cultivator_5tyne', label: '5-Tyne Cultivator (5 கொழு கலப்பை)' },
+                          { value: 'cultivator_9tyne', label: '9-Tyne Cultivator (9 கொழு கலப்பை)' },
+                          { value: 'disc_plough', label: 'Disc Plough (தட்டு கலப்பை)' },
+                          { value: 'mb_plough', label: 'MB Plough (எம்.பி கலப்பை)' },
+                          { value: 'leveler', label: 'Land Leveler (சமன் பலகை)' },
+                          { value: 'trailer', label: 'Trailer / Tipper (டிரெய்லர்)' },
+                          { value: 'baler', label: 'Straw Baler (வைக்கோல் கட்டும் கருவி)' },
+                          { value: 'harvester', label: 'Combine Harvester (அறுவடை இயந்திரம்)' },
+                          { value: 'bund_maker', label: 'Bund Maker (வரப்பு கட்டி)' },
+                          { value: 'dozer', label: 'Front Dozer (மண் தள்ளும் டோசர்)' },
+                          { value: 'digger', label: 'Post Hole Digger (குழி தோண்டி)' },
+                          { value: 'seed_drill', label: 'Seed Drill (விதைப்பான்)' },
+                          { value: 'other', label: '+ Other / Custom Implement Name' }
+                        ]}
+                        lang={lang}
                       />
                     </div>
+
+                    {/* Implement Name with Mic & Auto-Fill */}
+                    <BilingualVoiceGroup
+                      englishLabel="Implement Name (English)"
+                      tamilLabel="கருவி பெயர் (தமிழ்)"
+                      englishValue={formData.name}
+                      tamilValue={formData.name_ta}
+                      onEnglishChange={(val) => handleFormChange('name', val)}
+                      onTamilChange={(val) => handleFormChange('name_ta', val)}
+                      englishPlaceholder="e.g. Rotavator / 5-Tyne Cultivator"
+                      tamilPlaceholder="எ.கா. ரோட்டாவேட்டர் / 5 கொழு கலப்பை"
+                      required
+                    />
+                  </>
+                ) : (
+                  /* When Tractor: Show Full Tractor Specifications */
+                  <>
+                    {/* Tractor Name with Mic & Auto-Fill */}
+                    <BilingualVoiceGroup
+                      englishLabel="Tractor Name & Model (English)"
+                      tamilLabel="டிராக்டர் பெயர் & மாடல் (தமிழ்)"
+                      englishValue={formData.name}
+                      tamilValue={formData.name_ta}
+                      onEnglishChange={(val) => handleFormChange('name', val)}
+                      onTamilChange={(val) => handleFormChange('name_ta', val)}
+                      englishPlaceholder="e.g. Mahindra 575 DI / Swaraj 744 FE"
+                      tamilPlaceholder="எ.கா. மகிந்திரா 575 DI / ஸ்வராஜ் 744 FE"
+                      required
+                    />
+
+                    {/* Reg / ID Number */}
                     <div className="form-group">
-                      <label>{t.emiBank}</label>
+                      <VoiceInput
+                        label={t.regNumber}
+                        placeholder="e.g. TN 45 AB 1234"
+                        value={formData.regNumber}
+                        onChange={(val) => handleFormChange('regNumber', val)}
+                        speechLang="en-IN"
+                      />
+                    </div>
+
+                    {/* HP & Hour Meter */}
+                    <div className="form-group">
+                      <label>{t.hp}</label>
                       <input
                         type="text"
                         className="form-control"
-                        placeholder="e.g. SBI Agri Loan / Mahindra Finance"
-                        value={formData.emiBank}
-                        onChange={(e) => handleFormChange('emiBank', e.target.value)}
+                        placeholder="e.g. 45 or 50"
+                        value={formData.hp}
+                        onChange={(e) => handleFormChange('hp', e.target.value)}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>{t.currentHours}</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        className="form-control"
+                        placeholder="e.g. 1250"
+                        value={formData.currentHours}
+                        onChange={(e) => handleFormChange('currentHours', e.target.value)}
+                      />
+                    </div>
+
+                    {/* Acquisition Type */}
+                    <div className="form-group">
+                      <SearchableSelect
+                        label={`${t.acquisitionType} (Buy / Rent / Lease / Loan / Demo)`}
+                        value={formData.acquisition}
+                        onChange={(val) => handleFormChange('acquisition', val)}
+                        options={[
+                          { value: 'buy_cash', label: t.buyCash },
+                          { value: 'rent', label: t.rent },
+                          { value: 'lease', label: t.lease },
+                          { value: 'loan_emi', label: t.loanEmi },
+                          { value: 'demo', label: t.demo }
+                        ]}
+                        lang={lang}
+                      />
+                    </div>
+
+                    {/* Loan / EMI specific fields */}
+                    {formData.acquisition === 'loan_emi' && (
+                      <>
+                        <div className="form-group">
+                          <label>{t.emiMonthly}</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            placeholder="e.g. 18500"
+                            value={formData.emiMonthly}
+                            onChange={(e) => handleFormChange('emiMonthly', e.target.value)}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>{t.emiBank}</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            placeholder="e.g. SBI Agri Loan / Mahindra Finance"
+                            value={formData.emiBank}
+                            onChange={(e) => handleFormChange('emiBank', e.target.value)}
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {/* Purchase Cost & Date */}
+                    <div className="form-group">
+                      <label>{t.purchasePrice}</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        placeholder="e.g. 750000"
+                        value={formData.purchasePrice}
+                        onChange={(e) => handleFormChange('purchasePrice', e.target.value)}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <DatePicker
+                        label={t.purchaseDate}
+                        value={formData.purchaseDate}
+                        onChange={(val) => handleFormChange('purchaseDate', val)}
+                        lang={lang}
                       />
                     </div>
                   </>
                 )}
-
-                {/* Purchase Cost & Date */}
-                <div className="form-group">
-                  <label>{t.purchasePrice}</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    placeholder="e.g. 750000"
-                    value={formData.purchasePrice}
-                    onChange={(e) => handleFormChange('purchasePrice', e.target.value)}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <DatePicker
-                    label={t.purchaseDate}
-                    value={formData.purchaseDate}
-                    onChange={(val) => handleFormChange('purchaseDate', val)}
-                    lang={lang}
-                  />
-                </div>
-
-                {/* HP & Hour Meter */}
-                <div className="form-group">
-                  <label>{t.hp}</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="e.g. 45 or 50"
-                    value={formData.hp}
-                    onChange={(e) => handleFormChange('hp', e.target.value)}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>{t.currentHours}</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="form-control"
-                    placeholder="e.g. 1250"
-                    value={formData.currentHours}
-                    onChange={(e) => handleFormChange('currentHours', e.target.value)}
-                  />
-                </div>
 
                 {/* Status */}
                 <div className="form-group">

@@ -4,6 +4,7 @@ import { translations } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
+import VoiceInput from './common/VoiceInput';
 
 export default function RateMatrixManager({ 
   rateMatrix, 
@@ -283,13 +284,12 @@ export default function RateMatrixManager({
 
                 {/* Description */}
                 <div className="form-group col-full">
-                  <label>Pricing Description / Soil Condition Note</label>
-                  <input
-                    type="text"
-                    className="form-control"
+                  <VoiceInput
+                    label="Pricing Description / Soil Condition Note (விளக்கம் / குறிப்பு)"
                     placeholder="e.g. Fine dry soil tilling rate or wet paddy puddle"
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    onChange={(val) => setFormData(prev => ({ ...prev, description: val }))}
+                    speechLang={lang === 'ta' ? 'ta-IN' : 'en-IN'}
                   />
                 </div>
 

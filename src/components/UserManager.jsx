@@ -18,10 +18,11 @@ import {
   Eye,
   EyeOff,
   UserCheck,
-  Smartphone
 } from 'lucide-react';
 import { translations } from '../translations/dictionary';
 import SearchableSelect from './common/SearchableSelect';
+import BilingualVoiceGroup from './common/BilingualVoiceGroup';
+import VoiceInput from './common/VoiceInput';
 
 export default function UserManager({
   users = [],
@@ -558,26 +559,17 @@ export default function UserManager({
                 </span>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label>{lang === 'ta' ? 'முழு பெயர் (ஆங்கிலத்தில்)' : 'Full Name / Display Name (English)'} *</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="e.g. R. Manickam"
-                  value={formData.displayName}
-                  onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+              <div style={{ marginBottom: '1rem' }}>
+                <BilingualVoiceGroup
+                  englishLabel={lang === 'ta' ? 'முழு பெயர் (ஆங்கிலத்தில்)' : 'Full Name / Display Name (English)'}
+                  tamilLabel={lang === 'ta' ? 'முழு பெயர் (தமிழில்)' : 'Full Name (Tamil)'}
+                  englishValue={formData.displayName}
+                  tamilValue={formData.displayName_ta}
+                  onEnglishChange={(val) => setFormData(prev => ({ ...prev, displayName: val }))}
+                  onTamilChange={(val) => setFormData(prev => ({ ...prev, displayName_ta: val }))}
+                  englishPlaceholder="e.g. R. Manickam"
+                  tamilPlaceholder="எ.கா. ஆர். மாணிக்கம்"
                   required
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label>{lang === 'ta' ? 'முழு பெயர் (தமிழில்)' : 'Full Name (Tamil)'}</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="எ.கா. ஆர். மாணிக்கம்"
-                  value={formData.displayName_ta}
-                  onChange={(e) => setFormData({ ...formData, displayName_ta: e.target.value })}
                 />
               </div>
 
@@ -639,16 +631,13 @@ export default function UserManager({
               </div>
 
               <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                  <Phone size={14} />
-                  {lang === 'ta' ? 'தொலைபேசி எண்' : 'Phone Number (Optional)'}
-                </label>
-                <input
-                  type="text"
-                  className="form-control"
+                <VoiceInput
+                  label={lang === 'ta' ? 'தொலைபேசி எண் (Phone)' : 'Phone Number (Optional)'}
+                  type="tel"
                   placeholder="+91 98422 11223"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={(val) => setFormData(prev => ({ ...prev, phone: val }))}
+                  speechLang="en-IN"
                 />
               </div>
 
