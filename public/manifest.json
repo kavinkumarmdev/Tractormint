@@ -1,0 +1,42 @@
+{
+  "name": "TractoMint - Tractor & Farm Machinery Ledger",
+  "short_name": "TractoMint",
+  "description": "Agricultural Tractor & Fleet Rental Ledger, Trip Billing, Maintenance, Partner Split & Google Sheets Sync",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#041f17",
+  "theme_color": "#064e3b",
+  "orientation": "portrait-primary",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Trip Sheet",
+      "short_name": "New Trip",
+      "description": "Quickly create a new trip billing entry",
+      "url": "/?tab=tripSheets&action=new",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "View financial summary & hour meters",
+      "url": "/?tab=dashboard",
+      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+    }
+  ]
+}

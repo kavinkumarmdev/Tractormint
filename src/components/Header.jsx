@@ -14,6 +14,7 @@ import {
   User
 } from 'lucide-react';
 import Logo from './Logo';
+import InstallAppPrompt from './InstallAppPrompt';
 import { translations } from '../translations/dictionary';
 
 export default function Header({ 
@@ -93,6 +94,9 @@ export default function Header({
             {syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'connected' ? 'Sheets Active' : 'Sheets Offline'}
           </span>
         </div>
+
+        {/* Launch / Install App Button */}
+        <InstallAppPrompt lang={lang} />
 
         {/* Language Toggle (English / தமிழ்) */}
         <button 

@@ -888,6 +888,14 @@ body.dark-mode .role-tab-btn.active {
   justify-content: center;
 }
 
+.mobile-drawer-header {
+  display: none;
+}
+
+.mobile-bottom-nav {
+  display: none;
+}
+
 .mobile-nav-backdrop {
   display: none;
 }
@@ -985,18 +993,49 @@ body.dark-mode .role-tab-btn.active {
     border-right: 1px solid var(--border-color);
     box-shadow: var(--shadow-lg);
     transition: left 0.25s ease-in-out;
-    padding: 1.5rem 1rem;
+    padding: 0;
     overflow-y: auto;
+    overflow-x: hidden;
     white-space: normal;
+    display: flex;
+    flex-direction: column;
   }
 
   .main-nav-bar.mobile-open {
     left: 0;
   }
 
+  .mobile-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-subtle);
+  }
+
+  .mobile-drawer-close-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.4rem;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+  }
+
+  .mobile-drawer-close-btn:hover {
+    background: var(--border-color);
+    color: var(--text-main);
+  }
+
   .nav-tabs-wrapper {
     flex-direction: column;
     gap: 0.45rem;
+    padding: 0.75rem;
   }
 
   .nav-tab-btn {
@@ -1005,6 +1044,71 @@ body.dark-mode .role-tab-btn.active {
     padding: 0.75rem 1rem;
     font-size: 0.925rem;
     border-radius: var(--radius-md);
+  }
+
+  /* App-Style Mobile Bottom Navigation Bar */
+  .mobile-bottom-nav {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(60px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--bg-card);
+    border-top: 1px solid var(--border-color);
+    z-index: 120;
+    box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  body.dark-mode .mobile-bottom-nav {
+    background: #0b1329;
+    border-top-color: #1e293b;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.45);
+  }
+
+  .bottom-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 0.35rem 0;
+    position: relative;
+    transition: all var(--transition-fast);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .bottom-nav-item:hover,
+  .bottom-nav-item.active {
+    color: var(--primary-600);
+  }
+
+  body.dark-mode .bottom-nav-item:hover,
+  body.dark-mode .bottom-nav-item.active {
+    color: #34d399;
+  }
+
+  .bottom-nav-dot {
+    position: absolute;
+    top: 6px;
+    right: calc(50% - 14px);
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #ef4444;
+    border: 1.5px solid var(--bg-card);
+  }
+
+  .main-view-wrapper {
+    padding-bottom: calc(75px + env(safe-area-inset-bottom, 0px));
   }
 
   /* Filter bar responsiveness */
@@ -1071,6 +1175,14 @@ body.dark-mode .role-tab-btn.active {
   }
 
   .lang-toggle-btn span {
+    display: none;
+  }
+
+  .install-app-btn .install-btn-text {
+    display: none;
+  }
+
+  .app-installed-badge .app-badge-text {
     display: none;
   }
 
