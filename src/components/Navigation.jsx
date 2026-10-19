@@ -295,10 +295,7 @@ export default function Navigation({
                   className={`nav-tab-btn ${isSecondaryActive ? 'active' : ''}`}
                   onClick={() => setMoreDropdownOpen(!moreDropdownOpen)}
                   style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    padding: '0.6rem 0.9rem'
+                    gap: '0.4rem'
                   }}
                   title={lang === 'ta' ? 'மேலும் அமைப்புகள் & மேலாண்மை' : 'More tools, finance & settings'}
                 >
