@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Tag, Plus, Edit3, Trash2, Calendar, Search } from 'lucide-react';
+import { Tag, Plus, Edit3, Trash2, Calendar, Search, X } from 'lucide-react';
 import { translations } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
@@ -35,13 +35,31 @@ export default function RateMatrixManager({
     description: ''
   });
 
+  const generateUniqueRateId = () => {
+    let maxNum = 0;
+    rateMatrix.forEach(r => {
+      if (r.id && typeof r.id === 'string') {
+        const match = r.id.match(/^RATE-(\d+)/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+    });
+    let nextNum = maxNum + 1;
+    while (rateMatrix.some(r => r.id === `RATE-${String(nextNum).padStart(2, '0')}`)) {
+      nextNum++;
+    }
+    return `RATE-${String(nextNum).padStart(2, '0')}`;
+  };
+
   const handleOpenAdd = () => {
     const defaultTractor = tractors[0] || { id: 'TRAC-01', name: 'General Tractor' };
     const defaultImplement = implementsList[0] || { id: 'IMP-01', name: 'Standard Implement' };
     
     setEditingItem(null);
     setFormData({
-      id: `RATE-${String(rateMatrix.length + 1).padStart(2, '0')}`,
+      id: generateUniqueRateId(),
       tractorId: defaultTractor.id,
       tractorName: defaultTractor.name,
       implementId: defaultImplement.id,
@@ -82,7 +100,11 @@ export default function RateMatrixManager({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSaveRate(formData);
+    let finalId = formData.id;
+    if (!editingItem && (!finalId || rateMatrix.some(r => r.id === finalId))) {
+      finalId = generateUniqueRateId();
+    }
+    onSaveRate({ ...formData, id: finalId, _isEditing: Boolean(editingItem) });
     setIsModalOpen(false);
   };
 
@@ -102,7 +124,7 @@ export default function RateMatrixManager({
         </div>
         <button className="btn btn-primary" onClick={handleOpenAdd}>
           <Plus size={16} />
-          {lang === 'ta' ? '+ புதிய கட்டணம் சேர்' : '+ Add Combo Rate'}
+          <span>{lang === 'ta' ? 'புதிய கட்டணம் சேர்' : 'Add Combo Rate'}</span>
         </button>
       </div>
 
@@ -197,10 +219,19 @@ export default function RateMatrixManager({
 
       {/* Add / Edit Modal */}
       {isModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '580px' }}>
-            <div className="modal-header">
-              <h3>{editingItem ? `${t.edit} Rate: ${editingItem.id}` : '+ Add Combination Rate Card'}</h3>
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '580px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>{editingItem ? `${t.edit} Rate: ${editingItem.id}` : (lang === 'ta' ? 'புதிய சேர்க்கை கட்டணம்' : 'Add Combination Rate Card')}</h3>
+              <button 
+                type="button" 
+                className="btn btn-outline btn-sm" 
+                onClick={() => setIsModalOpen(false)}
+                style={{ padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <X size={16} />
+                <span>{t.cancel || 'Cancel'}</span>
+              </button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">

@@ -87,7 +87,22 @@ export default function TripSheetManager({
     const initialImplementIds = defaultImp ? [defaultImp.id] : [];
     const initialImplementNames = defaultImp ? [defaultImp.name] : [];
 
-    const newTripId = `TRP-${1000 + tripSheets.length + 1}`;
+    let maxNum = 1000;
+    tripSheets.forEach(t => {
+      if (t.id && typeof t.id === 'string') {
+        const match = t.id.match(/TRP-(\d+)/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+    });
+    let nextNum = maxNum + 1;
+    while (tripSheets.some(t => t.id === `TRP-${nextNum}`)) {
+      nextNum++;
+    }
+    const newTripId = `TRP-${nextNum}`;
+
     setEditingItem(null);
     setFormData({
       id: newTripId,
@@ -391,6 +406,7 @@ export default function TripSheetManager({
     });
     const finalPayload = {
       ...formData,
+      _isEditing: Boolean(editingItem),
       implementIds: finalIds,
       implementNames: finalNames,
       implementId: finalIds.length > 0 ? finalIds.join(',') : (formData.implementId || 'none'),
@@ -421,7 +437,7 @@ export default function TripSheetManager({
         </div>
         <button className="btn btn-primary" onClick={handleOpenAdd}>
           <Plus size={16} />
-          {lang === 'ta' ? '+ புதிய டிரிப் சீட்டு' : '+ New Trip Sheet'}
+          <span>{lang === 'ta' ? 'புதிய டிரிப் சீட்டு' : 'New Trip Sheet'}</span>
         </button>
       </div>
 
@@ -574,10 +590,19 @@ export default function TripSheetManager({
 
       {/* Add / Edit Trip Modal */}
       {isModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '780px' }}>
-            <div className="modal-header">
-              <h3>{editingItem ? `${t.edit} Trip: ${editingItem.id}` : '+ New Tractor Trip Sheet'}</h3>
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '780px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>{editingItem ? `${t.edit} Trip: ${editingItem.id}` : (lang === 'ta' ? 'புதிய உழவு டிரிப் சீட்டு' : 'New Tractor Trip Sheet')}</h3>
+              <button 
+                type="button" 
+                className="btn btn-outline btn-sm" 
+                onClick={() => setIsModalOpen(false)}
+                style={{ padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <X size={16} />
+                <span>{t.cancel || 'Cancel'}</span>
+              </button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">
@@ -773,7 +798,7 @@ export default function TripSheetManager({
                           label: lang === 'ta' && imp.name_ta ? `${imp.name_ta} (${imp.name})` : imp.name,
                           subLabel: imp.category || ''
                         }))}
-                      placeholder={lang === 'ta' ? '+ இணைப்பு கருவி சேர்க்க தேர்ந்தெடுக்கவும்...' : '+ Select implement to attach...'}
+                      placeholder={lang === 'ta' ? 'இணைப்பு கருவி சேர்க்க தேர்ந்தெடுக்கவும்...' : 'Select implement to attach...'}
                       searchPlaceholder={lang === 'ta' ? 'கருவியைத் தேடு...' : 'Search implement...'}
                       lang={lang}
                     />

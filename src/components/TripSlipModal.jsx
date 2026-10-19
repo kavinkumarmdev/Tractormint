@@ -37,12 +37,13 @@ ${trip.collectedBy ? `*Collected By:* ${trip.collectedBy} on ${trip.collectedWhe
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content" style={{ maxWidth: '640px' }}>
-        <div className="modal-header no-print">
-          <h3>{t.printSlip}</h3>
-          <button className="btn btn-outline btn-sm" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
+        <div className="modal-header no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0 }}>{t.printSlip}</h3>
+          <button className="btn btn-outline btn-sm" onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.65rem' }}>
             <X size={16} />
+            <span>{t.cancel || 'Close'}</span>
           </button>
         </div>
 

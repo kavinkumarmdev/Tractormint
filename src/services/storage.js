@@ -160,12 +160,19 @@ export const StorageService = {
       updated_by: role
     };
 
+    const isEditMode = item._isEditing === true;
+    delete updatedItem._isEditing;
+
     const index = list.findIndex(x => x.id === item.id);
-    if (index >= 0) {
-      list[index] = updatedItem;
+    if (index >= 0 && isEditMode) {
+      list[index] = { ...list[index], ...updatedItem };
     } else {
-      updatedItem.created_at = now;
-      updatedItem.created_by = role;
+      // If adding a new item, ensure ID never collides with an existing item
+      if (index >= 0) {
+        updatedItem.id = `${item.id}_${Date.now().toString().slice(-4)}`;
+      }
+      updatedItem.created_at = updatedItem.created_at || now;
+      updatedItem.created_by = updatedItem.created_by || role;
       updatedItem.is_deleted = false;
       list.unshift(updatedItem);
     }
@@ -178,7 +185,9 @@ export const StorageService = {
   // Soft Delete (Only allowed by Admin)
   softDeleteItem: (tableKey, id, pin) => {
     const settings = StorageService.getSettings();
-    if (pin !== settings.adminPin && pin !== '1234') {
+    const inputPin = String(pin || '').trim();
+    const adminPin = String(settings.adminPin || '1234').trim();
+    if (inputPin !== adminPin && inputPin !== '1234') {
       return { success: false, error: "Incorrect Admin PIN! Only Admin can delete records." };
     }
 
@@ -288,7 +297,9 @@ export const StorageService = {
 
   deleteUser: (id, pin) => {
     const settings = StorageService.getSettings();
-    if (pin !== settings.adminPin && pin !== '1234') {
+    const inputPin = String(pin || '').trim();
+    const adminPin = String(settings.adminPin || '1234').trim();
+    if (inputPin !== adminPin && inputPin !== '1234') {
       return { success: false, error: "Incorrect Admin PIN! Only Admin can delete users." };
     }
     const list = StorageService.getUsers(true);
@@ -308,19 +319,19 @@ export const StorageService = {
     if (!username || !username.trim()) {
       return { success: false, error: 'Please enter your username.' };
     }
-    if (!pin || !pin.trim()) {
+    if (!pin || !String(pin).trim()) {
       return { success: false, error: 'Please enter your login PIN.' };
     }
     const cleanUser = username.trim().toLowerCase();
-    const cleanPin = pin.trim();
+    const cleanPin = String(pin).trim();
     const users = StorageService.getUsers();
     const settings = StorageService.getSettings();
 
-    const user = users.find(u => u.username.toLowerCase() === cleanUser);
+    const user = users.find(u => u.username && u.username.toLowerCase() === cleanUser);
     if (!user) {
       return { 
         success: false, 
-        error: 'Account not found. Only Admin can create login accounts for this system.' 
+        error: 'Account not found. Please verify your username.' 
       };
     }
     if (user.status === 'inactive') {
@@ -330,8 +341,10 @@ export const StorageService = {
       };
     }
 
-    // Match user pin or Master Admin PIN override
-    const isPinValid = (user.pin === cleanPin) || (user.role === 'admin' && (cleanPin === settings.adminPin || cleanPin === '1234'));
+    // Match user pin or Master Admin PIN override (robust type handling for sheet numbers/strings)
+    const userPinStr = String(user.pin !== undefined && user.pin !== null ? user.pin : '').trim();
+    const adminPinStr = String(settings.adminPin !== undefined && settings.adminPin !== null ? settings.adminPin : '1234').trim();
+    const isPinValid = (userPinStr === cleanPin) || (user.role === 'admin' && (cleanPin === adminPinStr || cleanPin === '1234'));
     if (!isPinValid) {
       return { success: false, error: 'Incorrect PIN / password. Access denied.' };
     }

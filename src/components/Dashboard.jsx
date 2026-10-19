@@ -82,11 +82,11 @@ export default function Dashboard({
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button className="btn btn-primary" onClick={() => onNavigate('tripSheets')}>
             <Plus size={16} />
-            {lang === 'ta' ? '+ புதிய உழவு டிரிப்' : '+ New Trip Sheet'}
+            <span>{lang === 'ta' ? 'புதிய உழவு டிரிப்' : 'New Trip Sheet'}</span>
           </button>
           <button className="btn btn-outline" onClick={() => onNavigate('maintenance')}>
             <Fuel size={16} />
-            {lang === 'ta' ? '+ டீசல் / சர்வீஸ்' : '+ Fuel / Spares'}
+            <span>{lang === 'ta' ? 'டீசல் / சர்வீஸ்' : 'Fuel / Spares'}</span>
           </button>
         </div>
       </div>

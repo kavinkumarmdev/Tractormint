@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users2, Plus, Edit3, Trash2, Phone, MapPin, Search, MessageSquareShare } from 'lucide-react';
+import { Users2, Plus, Edit3, Trash2, Phone, MapPin, Search, MessageSquareShare, X } from 'lucide-react';
 import { translations, resolveBilingual } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import BilingualVoiceGroup from './common/BilingualVoiceGroup';
@@ -29,10 +29,28 @@ export default function CustomerManager({
     address: ''
   });
 
+  const generateUniqueCustomerId = () => {
+    let maxNum = 0;
+    customers.forEach(c => {
+      if (c.id && typeof c.id === 'string') {
+        const match = c.id.match(/^CUST-(\d+)/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+    });
+    let nextNum = maxNum + 1;
+    while (customers.some(c => c.id === `CUST-${String(nextNum).padStart(2, '0')}`)) {
+      nextNum++;
+    }
+    return `CUST-${String(nextNum).padStart(2, '0')}`;
+  };
+
   const handleOpenAdd = () => {
     setEditingItem(null);
     setFormData({
-      id: `CUST-${String(customers.length + 1).padStart(2, '0')}`,
+      id: generateUniqueCustomerId(),
       name: '',
       name_ta: '',
       phone: '',
@@ -51,7 +69,11 @@ export default function CustomerManager({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSaveCustomer(formData);
+    let finalId = formData.id;
+    if (!editingItem && (!finalId || customers.some(c => c.id === finalId))) {
+      finalId = generateUniqueCustomerId();
+    }
+    onSaveCustomer({ ...formData, id: finalId, _isEditing: Boolean(editingItem) });
     setIsModalOpen(false);
   };
 
@@ -91,7 +113,7 @@ export default function CustomerManager({
         </div>
         <button className="btn btn-primary" onClick={handleOpenAdd}>
           <Plus size={16} />
-          {lang === 'ta' ? '+ புதிய விவசாயி சேர்' : '+ Add Customer'}
+          <span>{lang === 'ta' ? 'புதிய விவசாயி சேர்' : 'Add Customer'}</span>
         </button>
       </div>
 
@@ -202,10 +224,19 @@ export default function CustomerManager({
 
       {/* Add / Edit Modal */}
       {isModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '560px' }}>
-            <div className="modal-header">
-              <h3>{editingItem ? `${t.edit}: ${editingItem.name}` : '+ Add Customer / Farmer'}</h3>
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '560px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>{editingItem ? `${t.edit}: ${editingItem.name}` : (lang === 'ta' ? 'புதிய விவசாயி சேர்' : 'Add Customer / Farmer')}</h3>
+              <button 
+                type="button" 
+                className="btn btn-outline btn-sm" 
+                onClick={() => setIsModalOpen(false)}
+                style={{ padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <X size={16} />
+                <span>{t.cancel || 'Cancel'}</span>
+              </button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">

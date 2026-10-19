@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Scale, Plus, Search, Edit3, Trash2, IndianRupee, PieChart, ArrowDownRight, User } from 'lucide-react';
+import { Scale, Plus, Search, Edit3, Trash2, IndianRupee, PieChart, ArrowDownRight, User, X } from 'lucide-react';
 import { translations } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
@@ -77,12 +77,48 @@ export default function PartnerSplitManager({
     };
   });
 
+  const generateUniqueDrawingId = () => {
+    let maxNum = 0;
+    partnerDrawings.forEach(d => {
+      if (d.id && typeof d.id === 'string') {
+        const match = d.id.match(/^DRW-(\d+)/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+    });
+    let nextNum = maxNum + 1;
+    while (partnerDrawings.some(d => d.id === `DRW-${String(nextNum).padStart(2, '0')}`)) {
+      nextNum++;
+    }
+    return `DRW-${String(nextNum).padStart(2, '0')}`;
+  };
+
+  const generateUniquePartnerId = () => {
+    let maxNum = 0;
+    partners.forEach(p => {
+      if (p.id && typeof p.id === 'string') {
+        const match = p.id.match(/^PART-(\d+)/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+    });
+    let nextNum = maxNum + 1;
+    while (partners.some(p => p.id === `PART-${String(nextNum).padStart(2, '0')}`)) {
+      nextNum++;
+    }
+    return `PART-${String(nextNum).padStart(2, '0')}`;
+  };
+
   // Handlers
   const handleOpenAddDrawing = () => {
     const defaultPartner = partners[0] || { id: '', name: 'Partner' };
     setEditingDrawing(null);
     setDrawingForm({
-      id: `DRW-${String(partnerDrawings.length + 1).padStart(2, '0')}`,
+      id: generateUniqueDrawingId(),
       date: new Date().toISOString().slice(0, 10),
       partnerId: defaultPartner.id,
       partnerName: defaultPartner.name,
@@ -102,7 +138,7 @@ export default function PartnerSplitManager({
   const handleOpenAddPartner = () => {
     setEditingPartner(null);
     setPartnerForm({
-      id: `PART-${String(partners.length + 1).padStart(2, '0')}`,
+      id: generateUniquePartnerId(),
       name: '',
       name_ta: '',
       sharePercent: '50',
@@ -120,13 +156,21 @@ export default function PartnerSplitManager({
 
   const handleDrawingSubmit = (e) => {
     e.preventDefault();
-    onSaveDrawing(drawingForm);
+    let finalId = drawingForm.id;
+    if (!editingDrawing && (!finalId || partnerDrawings.some(d => d.id === finalId))) {
+      finalId = generateUniqueDrawingId();
+    }
+    onSaveDrawing({ ...drawingForm, id: finalId, _isEditing: Boolean(editingDrawing) });
     setIsDrawingModalOpen(false);
   };
 
   const handlePartnerSubmit = (e) => {
     e.preventDefault();
-    onSavePartner(partnerForm);
+    let finalId = partnerForm.id;
+    if (!editingPartner && (!finalId || partners.some(p => p.id === finalId))) {
+      finalId = generateUniquePartnerId();
+    }
+    onSavePartner({ ...partnerForm, id: finalId, _isEditing: Boolean(editingPartner) });
     setIsPartnerModalOpen(false);
   };
 
@@ -146,11 +190,11 @@ export default function PartnerSplitManager({
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button className="btn btn-primary" onClick={handleOpenAddDrawing}>
             <Plus size={16} />
-            {lang === 'ta' ? '+ பணம் எடுத்த பதிவு (Drawing)' : '+ Record Amount Taken'}
+            <span>{lang === 'ta' ? 'பணம் எடுத்த பதிவு (Drawing)' : 'Record Amount Taken'}</span>
           </button>
           <button className="btn btn-outline" onClick={handleOpenAddPartner}>
             <User size={16} />
-            {lang === 'ta' ? '+ புதிய பங்குதாரர்' : '+ Add Partner'}
+            <span>{lang === 'ta' ? 'புதிய பங்குதாரர்' : 'Add Partner'}</span>
           </button>
         </div>
       </div>
@@ -376,10 +420,19 @@ export default function PartnerSplitManager({
 
       {/* Add / Edit Drawing Modal */}
       {isDrawingModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '540px' }}>
-            <div className="modal-header">
-              <h3>{editingDrawing ? `${t.edit}: ${editingDrawing.id}` : '+ Record Partner Amount Taken (Drawing)'}</h3>
+        <div className="modal-overlay" onClick={() => setIsDrawingModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '540px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>{editingDrawing ? `${t.edit}: ${editingDrawing.id}` : (lang === 'ta' ? 'பணம் எடுத்த பதிவு (Drawing)' : 'Record Partner Amount Taken (Drawing)')}</h3>
+              <button 
+                type="button" 
+                className="btn btn-outline btn-sm" 
+                onClick={() => setIsDrawingModalOpen(false)}
+                style={{ padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <X size={16} />
+                <span>{t.cancel || 'Cancel'}</span>
+              </button>
             </div>
             <form onSubmit={handleDrawingSubmit}>
               <div className="modal-body form-grid">
@@ -477,10 +530,19 @@ export default function PartnerSplitManager({
 
       {/* Add / Edit Partner Modal */}
       {isPartnerModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '520px' }}>
-            <div className="modal-header">
-              <h3>{editingPartner ? `${t.edit}: ${editingPartner.name}` : '+ Add Partner / Shareholder'}</h3>
+        <div className="modal-overlay" onClick={() => setIsPartnerModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>{editingPartner ? `${t.edit}: ${editingPartner.name}` : (lang === 'ta' ? 'புதிய பங்குதாரர்' : 'Add Partner / Shareholder')}</h3>
+              <button 
+                type="button" 
+                className="btn btn-outline btn-sm" 
+                onClick={() => setIsPartnerModalOpen(false)}
+                style={{ padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <X size={16} />
+                <span>{t.cancel || 'Cancel'}</span>
+              </button>
             </div>
             <form onSubmit={handlePartnerSubmit}>
               <div className="modal-body form-grid">

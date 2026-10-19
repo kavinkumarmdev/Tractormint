@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Receipt, Plus, Search, Edit3, Trash2, ArrowUpRight, ArrowDownRight, CheckCircle2, Clock } from 'lucide-react';
+import { Receipt, Plus, Search, Edit3, Trash2, ArrowUpRight, ArrowDownRight, CheckCircle2, Clock, X } from 'lucide-react';
 import { translations, resolveBilingual } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
@@ -32,10 +32,28 @@ export default function IncomeExpenseManager({
     status: 'completed'
   });
 
+  const generateUniqueIncomeExpenseId = () => {
+    let maxNum = 200;
+    incomeExpense.forEach(i => {
+      if (i.id && typeof i.id === 'string') {
+        const match = i.id.match(/^IE-(\d+)/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+    });
+    let nextNum = maxNum + 1;
+    while (incomeExpense.some(i => i.id === `IE-${nextNum}`)) {
+      nextNum++;
+    }
+    return `IE-${nextNum}`;
+  };
+
   const handleOpenAdd = (defaultType = 'income') => {
     setEditingItem(null);
     setFormData({
-      id: `IE-${String(incomeExpense.length + 201)}`,
+      id: generateUniqueIncomeExpenseId(),
       date: new Date().toISOString().slice(0, 10),
       type: defaultType,
       category: defaultType === 'income' ? 'Agri Subsidy / Govt Grant' : 'Driver Food / Tea',
@@ -68,7 +86,11 @@ export default function IncomeExpenseManager({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSaveIncomeExpense(formData);
+    let finalId = formData.id;
+    if (!editingItem && (!finalId || incomeExpense.some(i => i.id === finalId))) {
+      finalId = generateUniqueIncomeExpenseId();
+    }
+    onSaveIncomeExpense({ ...formData, id: finalId, _isEditing: Boolean(editingItem) });
     setIsModalOpen(false);
   };
 
@@ -100,11 +122,11 @@ export default function IncomeExpenseManager({
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button className="btn btn-primary" onClick={() => handleOpenAdd('income')}>
             <ArrowUpRight size={16} />
-            {lang === 'ta' ? '+ புதிய வரவு' : '+ Add Income'}
+            <span>{lang === 'ta' ? 'புதிய வரவு' : 'Add Income'}</span>
           </button>
           <button className="btn btn-outline" onClick={() => handleOpenAdd('expense')} style={{ color: '#dc2626' }}>
             <ArrowDownRight size={16} />
-            {lang === 'ta' ? '+ புதிய செலவு' : '+ Add Expense'}
+            <span>{lang === 'ta' ? 'புதிய செலவு' : 'Add Expense'}</span>
           </button>
         </div>
       </div>
@@ -235,10 +257,19 @@ export default function IncomeExpenseManager({
 
       {/* Add / Edit Modal */}
       {isModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '580px' }}>
-            <div className="modal-header">
-              <h3>{editingItem ? `${t.edit}: ${editingItem.category}` : '+ Add Other Income or Expense'}</h3>
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '580px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>{editingItem ? `${t.edit}: ${editingItem.category}` : (lang === 'ta' ? 'புதிய வரவு / செலவு பதிவு' : 'Add Other Income or Expense')}</h3>
+              <button 
+                type="button" 
+                className="btn btn-outline btn-sm" 
+                onClick={() => setIsModalOpen(false)}
+                style={{ padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <X size={16} />
+                <span>{t.cancel || 'Cancel'}</span>
+              </button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">

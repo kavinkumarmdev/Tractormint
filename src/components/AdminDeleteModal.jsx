@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Lock, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Lock, ShieldAlert, X } from 'lucide-react';
 import { translations } from '../translations/dictionary';
 
 export default function AdminDeleteModal({ 
@@ -33,13 +33,22 @@ export default function AdminDeleteModal({
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content" style={{ maxWidth: '440px' }}>
-        <div className="modal-header" style={{ borderBottomColor: '#fecaca', background: 'rgba(239, 68, 68, 0.05)' }}>
-          <h3 style={{ color: '#dc2626', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+        <div className="modal-header" style={{ borderBottomColor: '#fecaca', background: 'rgba(239, 68, 68, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ color: '#dc2626', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
             <AlertTriangle size={20} />
             {t.delete} Confirmation
           </h3>
+          <button 
+            type="button" 
+            className="btn btn-outline btn-sm" 
+            onClick={onClose}
+            style={{ padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem', borderColor: '#fca5a5', color: '#dc2626' }}
+          >
+            <X size={15} />
+            <span>{t.cancel || 'Cancel'}</span>
+          </button>
         </div>
         
         <form onSubmit={handleSubmit}>

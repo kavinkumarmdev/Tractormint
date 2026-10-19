@@ -8,7 +8,8 @@ import {
   Trash2, 
   Filter, 
   Info,
-  DollarSign
+  DollarSign,
+  X
 } from 'lucide-react';
 import { translations, resolveBilingual } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
@@ -54,10 +55,27 @@ export default function FleetManager({
     notes: ''
   });
 
+  const generateUniqueFleetId = (type, currentFleet = fleet) => {
+    const prefix = type === 'implement' ? 'IMP-' : 'TRAC-';
+    let maxNum = 0;
+    currentFleet.forEach(item => {
+      if (item.id && typeof item.id === 'string') {
+        const match = item.id.match(new RegExp(`^${prefix}(\\d+)`, 'i'));
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+    });
+    let nextNum = maxNum + 1;
+    while (currentFleet.some(item => item.id === `${prefix}${String(nextNum).padStart(2, '0')}`)) {
+      nextNum++;
+    }
+    return `${prefix}${String(nextNum).padStart(2, '0')}`;
+  };
+
   const handleOpenAdd = (defaultType = 'tractor') => {
-    const newId = defaultType === 'tractor' 
-      ? `TRAC-${String(fleet.filter(f => f.type === 'tractor').length + 1).padStart(2, '0')}`
-      : `IMP-${String(fleet.filter(f => f.type === 'implement').length + 1).padStart(2, '0')}`;
+    const newId = generateUniqueFleetId(defaultType);
     
     setEditingItem(null);
     setFormData({
@@ -91,6 +109,14 @@ export default function FleetManager({
     setFormData(prev => {
       const updated = { ...prev, [field]: value };
       
+      // When switching type on a new item, auto-update ID to matching prefix
+      if (field === 'type' && !editingItem) {
+        updated.id = generateUniqueFleetId(value);
+        if (value === 'implement' && updated.implementCategory === 'none') {
+          updated.implementCategory = 'rotavator';
+        }
+      }
+
       // Auto-translate / auto-suggest name_ta if name changes
       if (field === 'name') {
         const autoTa = resolveBilingual(value, 'ta');
@@ -122,7 +148,13 @@ export default function FleetManager({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSaveFleet(formData);
+    let finalId = formData.id;
+    if (!editingItem) {
+      if (!finalId || fleet.some(f => f.id === finalId)) {
+        finalId = generateUniqueFleetId(formData.type);
+      }
+    }
+    onSaveFleet({ ...formData, id: finalId, _isEditing: Boolean(editingItem) });
     setIsModalOpen(false);
   };
 
@@ -147,11 +179,11 @@ export default function FleetManager({
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button className="btn btn-primary" onClick={() => handleOpenAdd('tractor')}>
             <Plus size={16} />
-            {lang === 'ta' ? '+ புதிய டிராக்டர்' : '+ Add Tractor'}
+            <span>{lang === 'ta' ? 'புதிய டிராக்டர்' : 'Add Tractor'}</span>
           </button>
           <button className="btn btn-outline" onClick={() => handleOpenAdd('implement')}>
             <Wrench size={16} />
-            {lang === 'ta' ? '+ புதிய கருவி (5 கொழு/ரோட்டாவேட்டர்)' : '+ Add Implement'}
+            <span>{lang === 'ta' ? 'புதிய கருவி (5 கொழு/ரோட்டாவேட்டர்)' : 'Add Implement'}</span>
           </button>
         </div>
       </div>
@@ -284,10 +316,25 @@ export default function FleetManager({
 
       {/* Add / Edit Fleet Modal */}
       {isModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3>{editingItem ? `${t.edit}: ${editingItem.name}` : t.create}</h3>
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>
+                {editingItem 
+                  ? `${t.edit}: ${editingItem.name}` 
+                  : (formData.type === 'implement' 
+                      ? (lang === 'ta' ? 'புதிய இணைப்பு கருவி சேர்க்கை' : 'Add Implement / Machine') 
+                      : (lang === 'ta' ? 'புதிய டிராக்டர் சேர்க்கை' : 'Add Tractor'))}
+              </h3>
+              <button 
+                type="button" 
+                className="btn btn-outline btn-sm" 
+                onClick={() => setIsModalOpen(false)}
+                style={{ padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <X size={16} />
+                <span>{t.cancel || 'Cancel'}</span>
+              </button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">
@@ -352,7 +399,7 @@ export default function FleetManager({
                           { value: 'dozer', label: 'Front Dozer (மண் தள்ளும் டோசர்)' },
                           { value: 'digger', label: 'Post Hole Digger (குழி தோண்டி)' },
                           { value: 'seed_drill', label: 'Seed Drill (விதைப்பான்)' },
-                          { value: 'other', label: '+ Other / Custom Implement Name' }
+                          { value: 'other', label: 'Other / Custom Implement Name' }
                         ]}
                         lang={lang}
                       />

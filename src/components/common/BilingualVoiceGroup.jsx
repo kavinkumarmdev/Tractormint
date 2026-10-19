@@ -60,45 +60,6 @@ export default function BilingualVoiceGroup({
           counterpartLang="en"
         />
       </div>
-
-      {/* Helper Bar */}
-      <div 
-        style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          fontSize: '0.73rem', 
-          color: 'var(--text-light)',
-          background: 'var(--bg-subtle)',
-          padding: '0.35rem 0.65rem',
-          borderRadius: 'var(--radius-sm)',
-          border: '1px dashed var(--border-color)'
-        }}
-      >
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-          <Sparkles size={12} color="var(--primary-600)" />
-          <span>Mic & Auto-Fill: Speak or type in English or தமிழ் — both fields auto-fill!</span>
-        </span>
-        <button
-          type="button"
-          onClick={handleManualSync}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--primary-700)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.25rem',
-            fontWeight: 700,
-            fontSize: '0.72rem'
-          }}
-          title="Manually re-sync translations"
-        >
-          <RefreshCw size={11} className={isSyncing ? 'spin-animation' : ''} />
-          <span>{isSyncing ? 'Translating...' : 'Re-Sync (ஒத்திசை)'}</span>
-        </button>
-      </div>
     </div>
   );
 }

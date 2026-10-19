@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserCheck, Plus, Edit3, Trash2, Phone, Search } from 'lucide-react';
+import { UserCheck, Plus, Edit3, Trash2, Phone, Search, X } from 'lucide-react';
 import { translations } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
@@ -33,10 +33,28 @@ export default function DriverList({
     joinedDate: new Date().toISOString().slice(0, 10)
   });
 
+  const generateUniqueDriverId = () => {
+    let maxNum = 0;
+    drivers.forEach(d => {
+      if (d.id && typeof d.id === 'string') {
+        const match = d.id.match(/^DRV-(\d+)/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+    });
+    let nextNum = maxNum + 1;
+    while (drivers.some(d => d.id === `DRV-${String(nextNum).padStart(2, '0')}`)) {
+      nextNum++;
+    }
+    return `DRV-${String(nextNum).padStart(2, '0')}`;
+  };
+
   const handleOpenAdd = () => {
     setEditingItem(null);
     setFormData({
-      id: `DRV-${String(drivers.length + 1).padStart(2, '0')}`,
+      id: generateUniqueDriverId(),
       name: '',
       name_ta: '',
       phone: '',
@@ -57,7 +75,11 @@ export default function DriverList({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSaveDriver(formData);
+    let finalId = formData.id;
+    if (!editingItem && (!finalId || drivers.some(d => d.id === finalId))) {
+      finalId = generateUniqueDriverId();
+    }
+    onSaveDriver({ ...formData, id: finalId, _isEditing: Boolean(editingItem) });
     setIsModalOpen(false);
   };
 
@@ -86,7 +108,7 @@ export default function DriverList({
         </div>
         <button className="btn btn-primary" onClick={handleOpenAdd}>
           <Plus size={16} />
-          {lang === 'ta' ? '+ புதிய டிரைவர் சேர்' : '+ Add Driver / Labor'}
+          <span>{lang === 'ta' ? 'புதிய டிரைவர் சேர்' : 'Add Driver / Labor'}</span>
         </button>
       </div>
 
@@ -189,10 +211,19 @@ export default function DriverList({
 
       {/* Add / Edit Modal */}
       {isModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '580px' }}>
-            <div className="modal-header">
-              <h3>{editingItem ? `${t.edit}: ${editingItem.name}` : '+ Add Driver / Labor'}</h3>
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '580px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>{editingItem ? `${t.edit}: ${editingItem.name}` : (lang === 'ta' ? 'புதிய டிரைவர் சேர்' : 'Add Driver / Labor')}</h3>
+              <button 
+                type="button" 
+                className="btn btn-outline btn-sm" 
+                onClick={() => setIsModalOpen(false)}
+                style={{ padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <X size={16} />
+                <span>{t.cancel || 'Cancel'}</span>
+              </button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">

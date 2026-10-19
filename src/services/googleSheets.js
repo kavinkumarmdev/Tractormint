@@ -50,7 +50,8 @@ var SHEET_NAMES = {
   INCOME_EXPENSE: 'IncomeExpense',
   PARTNERS: 'Partners',
   PARTNER_DRAWINGS: 'PartnerDrawings',
-  SETTINGS: 'Settings'
+  SETTINGS: 'Settings',
+  USERS: 'Users'
 };
 
 /**
@@ -91,7 +92,8 @@ function doGet(e) {
             incomeExpense: getSheetData(ss.getSheetByName(SHEET_NAMES.INCOME_EXPENSE)),
             partners: getSheetData(ss.getSheetByName(SHEET_NAMES.PARTNERS)),
             partnerDrawings: getSheetData(ss.getSheetByName(SHEET_NAMES.PARTNER_DRAWINGS)),
-            settings: getSheetData(ss.getSheetByName(SHEET_NAMES.SETTINGS))
+            settings: getSheetData(ss.getSheetByName(SHEET_NAMES.SETTINGS)),
+            users: getSheetData(ss.getSheetByName(SHEET_NAMES.USERS))
           },
           timestamp: new Date().toISOString()
         };
@@ -141,7 +143,8 @@ function doPost(e) {
           incomeExpense: getSheetData(ss.getSheetByName(SHEET_NAMES.INCOME_EXPENSE)),
           partners: getSheetData(ss.getSheetByName(SHEET_NAMES.PARTNERS)),
           partnerDrawings: getSheetData(ss.getSheetByName(SHEET_NAMES.PARTNER_DRAWINGS)),
-          settings: getSheetData(ss.getSheetByName(SHEET_NAMES.SETTINGS))
+          settings: getSheetData(ss.getSheetByName(SHEET_NAMES.SETTINGS)),
+          users: getSheetData(ss.getSheetByName(SHEET_NAMES.USERS))
         };
         response.timestamp = new Date().toISOString();
         break;
@@ -159,8 +162,9 @@ function doPost(e) {
         if (payload.partners) overwriteSheetData(ss.getSheetByName(SHEET_NAMES.PARTNERS), payload.partners, getPartnerHeaders(), '#6d28d9');
         if (payload.partnerDrawings) overwriteSheetData(ss.getSheetByName(SHEET_NAMES.PARTNER_DRAWINGS), payload.partnerDrawings, getPartnerDrawingHeaders(), '#be185d');
         if (payload.settings) overwriteSheetData(ss.getSheetByName(SHEET_NAMES.SETTINGS), payload.settings, getSettingsHeaders(), '#334155');
+        if (payload.users) overwriteSheetData(ss.getSheetByName(SHEET_NAMES.USERS), payload.users, getUserHeaders(), '#0f172a');
         
-        response.message = 'All TractoMint database tables synchronized successfully!';
+        response.message = 'All 11 TractoMint database tables synchronized successfully!';
         response.spreadsheetName = ss.getName();
         response.timestamp = new Date().toISOString();
         break;
@@ -189,6 +193,22 @@ function doPost(e) {
       case 'addIncomeExpense':
         appendRow(ss.getSheetByName(SHEET_NAMES.INCOME_EXPENSE), payload, getIncomeExpenseHeaders());
         response.message = 'Income/Expense entry recorded in Google Sheet.';
+        break;
+
+      // Users Handlers
+      case 'addUser':
+        appendRow(ss.getSheetByName(SHEET_NAMES.USERS), payload, getUserHeaders());
+        response.message = 'User record added to Google Sheet.';
+        break;
+
+      case 'updateUser':
+        updateRowById(ss.getSheetByName(SHEET_NAMES.USERS), payload.id, payload, getUserHeaders());
+        response.message = 'User record updated in Google Sheet.';
+        break;
+
+      case 'deleteUser':
+        deleteRowById(ss.getSheetByName(SHEET_NAMES.USERS), payload.id);
+        response.message = 'User record deleted from Google Sheet.';
         break;
 
       default:
@@ -224,6 +244,7 @@ function initializeSheetsIfMissing(ss) {
   ensureSheetWithHeaders(ss, SHEET_NAMES.PARTNERS, getPartnerHeaders(), '#6d28d9');
   ensureSheetWithHeaders(ss, SHEET_NAMES.PARTNER_DRAWINGS, getPartnerDrawingHeaders(), '#be185d');
   ensureSheetWithHeaders(ss, SHEET_NAMES.SETTINGS, getSettingsHeaders(), '#334155');
+  ensureSheetWithHeaders(ss, SHEET_NAMES.USERS, getUserHeaders(), '#0f172a');
 }
 
 function ensureSheetWithHeaders(ss, name, headers, headerColor) {
@@ -325,6 +346,13 @@ function getPartnerDrawingHeaders() {
 
 function getSettingsHeaders() {
   return ['key', 'value', 'updatedAt'];
+}
+
+function getUserHeaders() {
+  return [
+    'id', 'username', 'pin', 'role', 'displayName', 'displayName_ta', 
+    'phone', 'status', 'isDefault', 'last_login', 'is_deleted', 'created_at', 'updated_at'
+  ];
 }
 
 // ----------------------------------------------------

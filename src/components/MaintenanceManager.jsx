@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Wrench, Plus, Search, Edit3, Trash2, Fuel, Filter } from 'lucide-react';
+import { Wrench, Plus, Search, Edit3, Trash2, Fuel, Filter, X } from 'lucide-react';
 import { translations, resolveBilingual } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
@@ -55,11 +55,29 @@ export default function MaintenanceManager({
     notes: ''
   });
 
+  const generateUniqueMaintenanceId = () => {
+    let maxNum = 100;
+    maintenance.forEach(m => {
+      if (m.id && typeof m.id === 'string') {
+        const match = m.id.match(/^MNT-(\d+)/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+    });
+    let nextNum = maxNum + 1;
+    while (maintenance.some(m => m.id === `MNT-${nextNum}`)) {
+      nextNum++;
+    }
+    return `MNT-${nextNum}`;
+  };
+
   const handleOpenAdd = () => {
     const defaultAsset = fleet[0] || { id: '', name: 'General Fleet' };
     setEditingItem(null);
     setFormData({
-      id: `MNT-${String(maintenance.length + 101)}`,
+      id: generateUniqueMaintenanceId(),
       date: new Date().toISOString().slice(0, 10),
       assetId: defaultAsset.id,
       assetName: defaultAsset.name,
@@ -115,7 +133,11 @@ export default function MaintenanceManager({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSaveMaintenance(formData);
+    let finalId = formData.id;
+    if (!editingItem && (!finalId || maintenance.some(m => m.id === finalId))) {
+      finalId = generateUniqueMaintenanceId();
+    }
+    onSaveMaintenance({ ...formData, id: finalId, _isEditing: Boolean(editingItem) });
     setIsModalOpen(false);
   };
 
@@ -138,7 +160,7 @@ export default function MaintenanceManager({
         </div>
         <button className="btn btn-primary" onClick={handleOpenAdd}>
           <Plus size={16} />
-          {lang === 'ta' ? '+ புதிய செலவு / உதிரிபாகம்' : '+ Add Maintenance / Fuel'}
+          <span>{lang === 'ta' ? 'புதிய செலவு / உதிரிபாகம்' : 'Add Maintenance / Fuel'}</span>
         </button>
       </div>
 
@@ -247,10 +269,19 @@ export default function MaintenanceManager({
 
       {/* Add / Edit Modal */}
       {isModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '640px' }}>
-            <div className="modal-header">
-              <h3>{editingItem ? `${t.edit}: ${editingItem.category}` : '+ Add Fuel, Spare Parts or Maintenance'}</h3>
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>{editingItem ? `${t.edit}: ${editingItem.category}` : (lang === 'ta' ? 'புதிய செலவு / பராமரிப்பு' : 'Add Fuel, Spare Parts or Maintenance')}</h3>
+              <button 
+                type="button" 
+                className="btn btn-outline btn-sm" 
+                onClick={() => setIsModalOpen(false)}
+                style={{ padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <X size={16} />
+                <span>{t.cancel || 'Cancel'}</span>
+              </button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">

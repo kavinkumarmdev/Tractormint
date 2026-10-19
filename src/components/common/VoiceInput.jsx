@@ -173,21 +173,6 @@ export default function VoiceInput({
           <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', margin: 0 }}>
             {label} {required && <span style={{ color: '#ef4444' }}>*</span>}
           </label>
-          {onCounterpartChange && showMagicTranslate && (
-            <span 
-              style={{ 
-                fontSize: '0.7rem', 
-                color: 'var(--primary-600)', 
-                display: 'inline-flex', 
-                alignItems: 'center', 
-                gap: '0.2rem',
-                fontWeight: 600 
-              }}
-              title="Typing or speaking in one language automatically updates the other"
-            >
-              <Sparkles size={11} /> Auto-Sync
-            </span>
-          )}
         </div>
       )}
 
