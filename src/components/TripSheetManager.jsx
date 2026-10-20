@@ -213,23 +213,50 @@ export default function TripSheetManager({
 
   // Determine current active value for the single select (Tractor + Implement)
   const currentComboValue = (() => {
-    const matchedRate = rateMatrix.find(r => 
-      r.tractorId === formData.tractorId && 
-      (r.implementId === formData.implementId || (!formData.implementId && (!r.implementId || r.implementId === 'none'))) &&
-      r.unit === formData.billingUnit
-    );
-    if (matchedRate) return `rate_${matchedRate.id}`;
+    if (!comboOptions || comboOptions.length === 0) return '';
 
-    const matchedRateAnyUnit = rateMatrix.find(r => 
-      r.tractorId === formData.tractorId && 
-      (r.implementId === formData.implementId || (!formData.implementId && (!r.implementId || r.implementId === 'none')))
-    );
-    if (matchedRateAnyUnit) return `rate_${matchedRateAnyUnit.id}`;
+    // 1. Try to find matching option in comboOptions by tractor + implement + unit
+    const matchedExact = comboOptions.find(opt => {
+      const item = opt.rateItem || opt.customCombo;
+      if (!item) return false;
 
-    if (formData.implementId === 'none' || !formData.implementId) {
-      return `tr_${formData.tractorId}_none`;
-    }
-    return `tr_${formData.tractorId}_imp_${formData.implementId}`;
+      const matchTrac = (formData.tractorId && item.tractorId && formData.tractorId === item.tractorId) ||
+                        (formData.tractorName && item.tractorName && formData.tractorName.trim().toLowerCase() === item.tractorName.trim().toLowerCase());
+
+      const isFormImpNone = !formData.implementId || formData.implementId === 'none' || formData.implementName === 'Standalone Tractor';
+      const isItemImpNone = !item.implementId || item.implementId === 'none' || item.implementName === 'Standalone Tractor';
+      
+      const matchImp = (isFormImpNone && isItemImpNone) ||
+                       (formData.implementId && item.implementId && formData.implementId === item.implementId) ||
+                       (formData.implementName && item.implementName && formData.implementName.trim().toLowerCase() === item.implementName.trim().toLowerCase());
+
+      const matchUnit = !formData.billingUnit || item.unit === formData.billingUnit;
+
+      return matchTrac && matchImp && matchUnit;
+    });
+    if (matchedExact) return matchedExact.value;
+
+    // 2. Try match without unit constraint
+    const matchedLoose = comboOptions.find(opt => {
+      const item = opt.rateItem || opt.customCombo;
+      if (!item) return false;
+
+      const matchTrac = (formData.tractorId && item.tractorId && formData.tractorId === item.tractorId) ||
+                        (formData.tractorName && item.tractorName && formData.tractorName.trim().toLowerCase() === item.tractorName.trim().toLowerCase());
+
+      const isFormImpNone = !formData.implementId || formData.implementId === 'none' || formData.implementName === 'Standalone Tractor';
+      const isItemImpNone = !item.implementId || item.implementId === 'none' || item.implementName === 'Standalone Tractor';
+      
+      const matchImp = (isFormImpNone && isItemImpNone) ||
+                       (formData.implementId && item.implementId && formData.implementId === item.implementId) ||
+                       (formData.implementName && item.implementName && formData.implementName.trim().toLowerCase() === item.implementName.trim().toLowerCase());
+
+      return matchTrac && matchImp;
+    });
+    if (matchedLoose) return matchedLoose.value;
+
+    // 3. Fallback to first available comboOption
+    return comboOptions[0]?.value || '';
   })();
 
   // Auto-lookup matching rate from Rate Card when Tractor, Implement or Date changes
@@ -390,7 +417,7 @@ export default function TripSheetManager({
     const newTripId = `TRP-${nextNum}`;
     const todayDate = new Date().toISOString().slice(0, 10);
 
-    // Initial default from Rate Card if available
+    // Initial default from first comboOption if available
     let initialTracId = defaultTrac.id || 'TRAC-01';
     let initialTracName = defaultTrac.name || 'Tractor';
     let initialImpId = defaultImp ? (defaultImp.id || 'none') : 'none';
@@ -398,18 +425,17 @@ export default function TripSheetManager({
     let initialUnit = 'per_hour';
     let initialRate = '900';
 
-    if (rateMatrix && rateMatrix.length > 0) {
-      const firstRate = rateMatrix[0];
-      const matchT = tractors.find(t => (firstRate.tractorId && t.id === firstRate.tractorId) || (firstRate.tractorName && t.name.toLowerCase() === firstRate.tractorName.toLowerCase()));
-      initialTracId = matchT ? matchT.id : (firstRate.tractorId || initialTracId);
-      initialTracName = matchT ? matchT.name : (firstRate.tractorName || initialTracName);
-
-      const matchI = implementsList.find(m => (firstRate.implementId && m.id === firstRate.implementId) || (firstRate.implementName && m.name.toLowerCase() === firstRate.implementName.toLowerCase()));
-      initialImpId = matchI ? matchI.id : (firstRate.implementId || 'none');
-      initialImpName = matchI ? matchI.name : (firstRate.implementName || 'Standalone Tractor');
-
-      initialUnit = firstRate.unit || initialUnit;
-      initialRate = (firstRate.rate || initialRate).toString();
+    if (comboOptions && comboOptions.length > 0) {
+      const firstOpt = comboOptions[0];
+      const item = firstOpt.rateItem || firstOpt.customCombo;
+      if (item) {
+        initialTracId = item.tractorId || initialTracId;
+        initialTracName = item.tractorName || initialTracName;
+        initialImpId = item.implementId || initialImpId;
+        initialImpName = item.implementName || initialImpName;
+        initialUnit = item.unit || initialUnit;
+        initialRate = (item.rate || initialRate).toString();
+      }
     } else {
       const suggestedRate = lookupRate(initialTracId, initialImpId, todayDate, 'per_hour');
       if (suggestedRate) initialRate = suggestedRate.toString();
@@ -727,10 +753,11 @@ export default function TripSheetManager({
           if (!isNaN(sh) && !isNaN(sm) && !isNaN(eh) && !isNaN(em)) {
             const startMins = sh * 60 + sm;
             const endMins = eh * 60 + em;
-            if (endMins > startMins) {
-              const diffHours = (endMins - startMins) / 60;
+            const diffMins = endMins >= startMins ? (endMins - startMins) : (endMins + 1440 - startMins);
+            if (diffMins > 0) {
+              const diffHours = diffMins / 60;
               const roundedHours = Math.max(0.1, Math.round(diffHours * 100) / 100);
-              if (updated.billingUnit === 'per_hour' && (!updated.startMeter || !updated.endMeter)) {
+              if (updated.billingUnit === 'per_hour') {
                 updated.quantity = roundedHours.toString();
               }
             }
@@ -762,8 +789,8 @@ export default function TripSheetManager({
             updated.balanceAmount = net;
             updated.paymentMode = 'credit';
           }
-        } else {
-          const paid = parseFloat(field === 'paidAmount' ? value : updated.paidAmount) || 0;
+        } else if (field === 'paidAmount') {
+          const paid = parseFloat(value) || 0;
           updated.balanceAmount = Math.max(0, net - paid);
           if (paid >= net && net > 0) {
             updated.paymentStatus = 'paid';
@@ -771,6 +798,15 @@ export default function TripSheetManager({
             updated.paymentStatus = 'partial';
           } else if (paid === 0) {
             updated.paymentStatus = 'unpaid';
+          }
+        } else {
+          // If totalAmount was recalculated, sync payment amounts
+          if (updated.paymentStatus === 'paid') {
+            updated.paidAmount = net.toString();
+            updated.balanceAmount = 0;
+          } else {
+            const paid = parseFloat(updated.paidAmount) || 0;
+            updated.balanceAmount = Math.max(0, net - paid);
           }
         }
       }
