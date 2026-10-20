@@ -440,6 +440,7 @@ export default function App() {
             onViewSlip={(trip) => setSelectedTripForSlip(trip)}
             lang={lang}
             role={role}
+            currentUser={currentUser}
           />
         )}
 
