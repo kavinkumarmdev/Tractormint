@@ -19,7 +19,8 @@ import {
   Check,
   DollarSign,
   Zap,
-  UserCheck
+  UserCheck,
+  Layers
 } from 'lucide-react';
 import { translations, resolveBilingual } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
@@ -58,6 +59,9 @@ export default function TripSheetManager({
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerMessage, setTimerMessage] = useState('');
 
+  // Optional custom/advanced fleet mode (multi-implement attachment)
+  const [showAdvancedFleet, setShowAdvancedFleet] = useState(false);
+
   // Logged-in user assignment in this trip: 'driver' | 'collector' | 'none'
   const [loginUserAssignment, setLoginUserAssignment] = useState('collector');
 
@@ -93,6 +97,69 @@ export default function TripSheetManager({
     const minutes = String(now.getMinutes()).padStart(2, '0');
     return `${hours}:${minutes}`;
   };
+
+  const resolveUnitLabel = (unit) => {
+    if (unit === 'per_hour') return lang === 'ta' ? 'மணி நேரத்திற்கு' : 'Per Hour';
+    if (unit === 'per_acre') return lang === 'ta' ? 'ஏக்கருக்கு' : 'Per Acre';
+    if (unit === 'per_km') return lang === 'ta' ? 'கி.மீக்கு' : 'Per Km';
+    if (unit === 'per_trip') return lang === 'ta' ? 'டிரிப்பிற்கு' : 'Per Trip';
+    return unit || '';
+  };
+
+  // Build the Unified Single Select Options: (Tractor + Implement / Rate Card Combos)
+  const comboOptions = [];
+
+  // 1. From Rate Card combinations (Image 3)
+  rateMatrix.forEach(r => {
+    comboOptions.push({
+      value: `rate_${r.id}`,
+      label: `${r.tractorName} + ${r.implementName || (lang === 'ta' ? 'கருவி இல்லை' : 'Standalone')}`,
+      subLabel: `${resolveUnitLabel(r.unit)} • ₹${r.rate}`,
+      badge: `₹${r.rate}`,
+      rateItem: r
+    });
+  });
+
+  // 2. Also ensure every tractor from fleet is selectable
+  tractors.forEach(tr => {
+    const hasStandaloneInRate = rateMatrix.some(r => r.tractorId === tr.id && (!r.implementId || r.implementId === 'none'));
+    if (!hasStandaloneInRate) {
+      comboOptions.push({
+        value: `tr_${tr.id}_none`,
+        label: `${tr.name} (${lang === 'ta' ? 'தனி டிராக்டர்' : 'Standalone Tractor'})`,
+        subLabel: tr.regNumber || '',
+        badge: 'Tractor',
+        customCombo: {
+          tractorId: tr.id,
+          tractorName: tr.name,
+          implementId: 'none',
+          implementName: 'Standalone Tractor',
+          unit: 'per_hour',
+          rate: '900'
+        }
+      });
+    }
+
+    implementsList.forEach(imp => {
+      const hasComboInRate = rateMatrix.some(r => r.tractorId === tr.id && r.implementId === imp.id);
+      if (!hasComboInRate) {
+        comboOptions.push({
+          value: `tr_${tr.id}_imp_${imp.id}`,
+          label: `${tr.name} + ${lang === 'ta' && imp.name_ta ? imp.name_ta : imp.name}`,
+          subLabel: imp.category || (lang === 'ta' ? 'கருவி' : 'Implement'),
+          badge: 'Combo',
+          customCombo: {
+            tractorId: tr.id,
+            tractorName: tr.name,
+            implementId: imp.id,
+            implementName: imp.name,
+            unit: 'per_hour',
+            rate: '900'
+          }
+        });
+      }
+    });
+  });
 
   // Form State
   const [formData, setFormData] = useState({
@@ -130,6 +197,27 @@ export default function TripSheetManager({
     notes: ''
   });
 
+  // Determine current active value for the single select (Tractor + Implement)
+  const currentComboValue = (() => {
+    const matchedRate = rateMatrix.find(r => 
+      r.tractorId === formData.tractorId && 
+      (r.implementId === formData.implementId || (!formData.implementId && (!r.implementId || r.implementId === 'none'))) &&
+      r.unit === formData.billingUnit
+    );
+    if (matchedRate) return `rate_${matchedRate.id}`;
+
+    const matchedRateAnyUnit = rateMatrix.find(r => 
+      r.tractorId === formData.tractorId && 
+      (r.implementId === formData.implementId || (!formData.implementId && (!r.implementId || r.implementId === 'none')))
+    );
+    if (matchedRateAnyUnit) return `rate_${matchedRateAnyUnit.id}`;
+
+    if (formData.implementId === 'none' || !formData.implementId) {
+      return `tr_${formData.tractorId}_none`;
+    }
+    return `tr_${formData.tractorId}_imp_${formData.implementId}`;
+  })();
+
   // Auto-lookup matching rate from Rate Card when Tractor, Implement or Date changes
   const lookupRate = (tractorId, implementId, date, unit) => {
     if (!tractorId) return null;
@@ -158,7 +246,6 @@ export default function TripSheetManager({
   const applyLoginUserAssignment = (mode) => {
     setLoginUserAssignment(mode);
     if (mode === 'driver') {
-      // Find matching driver in drivers list
       const matched = drivers.find(d => 
         (d.name && d.name.toLowerCase() === loggedUserName.toLowerCase()) ||
         (currentUser?.phone && d.phone && d.phone === currentUser.phone)
@@ -185,14 +272,84 @@ export default function TripSheetManager({
     }
   };
 
+  // Single Select Combo Change handler: Sets Tractor + Implement + Unit + Rate & Auto-calculates!
+  const handleSelectCombo = (val) => {
+    const selected = comboOptions.find(o => o.value === val);
+    if (!selected) return;
+
+    let tracId = '';
+    let tracName = '';
+    let impId = 'none';
+    let impName = 'Standalone Tractor';
+    let unitVal = 'per_hour';
+    let rateVal = '900';
+
+    if (selected.rateItem) {
+      const r = selected.rateItem;
+      tracId = r.tractorId;
+      tracName = r.tractorName;
+      impId = r.implementId || 'none';
+      impName = r.implementName || 'Standalone Tractor';
+      unitVal = r.unit || 'per_hour';
+      rateVal = (r.rate || '900').toString();
+    } else if (selected.customCombo) {
+      const c = selected.customCombo;
+      tracId = c.tractorId;
+      tracName = c.tractorName;
+      impId = c.implementId;
+      impName = c.implementName;
+      unitVal = c.unit;
+      rateVal = (c.rate || '900').toString();
+    }
+
+    setFormData(prev => {
+      const qty = parseFloat(prev.quantity) || 0;
+      const rt = parseFloat(rateVal) || 0;
+      const disc = parseFloat(prev.discount) || 0;
+      const gross = qty * rt;
+      const net = Math.max(0, gross - disc);
+
+      const impIds = impId && impId !== 'none' ? [impId] : [];
+      const impNames = impName && impName !== 'Standalone Tractor' ? [impName] : [];
+
+      const updated = {
+        ...prev,
+        tractorId: tracId,
+        tractorName: tracName,
+        implementId: impId,
+        implementName: impName,
+        implementIds: impIds,
+        implementNames: impNames,
+        billingUnit: unitVal,
+        rate: rateVal,
+        grossAmount: gross,
+        totalAmount: net,
+        workType: impName && impName !== 'Standalone Tractor' ? `${impName} Work` : prev.workType
+      };
+
+      if (!isCollectionActive) {
+        updated.paidAmount = '0';
+        updated.balanceAmount = net;
+        updated.paymentStatus = 'unpaid';
+      } else {
+        if (prev.paymentStatus === 'paid') {
+          updated.paidAmount = net.toString();
+          updated.balanceAmount = 0;
+        } else {
+          const paid = parseFloat(prev.paidAmount) || 0;
+          updated.balanceAmount = Math.max(0, net - paid);
+        }
+      }
+
+      return updated;
+    });
+  };
+
   const handleOpenAdd = () => {
     const defaultCust = customers[0] || { id: '', name: 'Customer' };
     const defaultDrv = drivers[0] || { id: '', name: 'Driver' };
     const defaultTrac = tractors[0] || { id: '', name: 'Tractor' };
     const defaultImp = implementsList[0] || null;
-
-    const initialImplementIds = defaultImp ? [defaultImp.id] : [];
-    const initialImplementNames = defaultImp ? [defaultImp.name] : [];
 
     let maxNum = 1000;
     tripSheets.forEach(t => {
@@ -211,13 +368,34 @@ export default function TripSheetManager({
     const newTripId = `TRP-${nextNum}`;
     const todayDate = new Date().toISOString().slice(0, 10);
 
-    // Initial rate auto-lookup for selected Tractor + Implement
-    const suggestedRate = lookupRate(defaultTrac.id, defaultImp ? defaultImp.id : 'none', todayDate, 'per_hour') || '900';
+    // Initial default from Rate Card (Image 3) if available
+    let initialTracId = defaultTrac.id;
+    let initialTracName = defaultTrac.name;
+    let initialImpId = defaultImp ? defaultImp.id : 'none';
+    let initialImpName = defaultImp ? defaultImp.name : 'Standalone Tractor';
+    let initialUnit = 'per_hour';
+    let initialRate = '900';
+
+    if (rateMatrix && rateMatrix.length > 0) {
+      const firstRate = rateMatrix[0];
+      initialTracId = firstRate.tractorId || initialTracId;
+      initialTracName = firstRate.tractorName || initialTracName;
+      initialImpId = firstRate.implementId || initialImpId;
+      initialImpName = firstRate.implementName || initialImpName;
+      initialUnit = firstRate.unit || initialUnit;
+      initialRate = (firstRate.rate || initialRate).toString();
+    } else {
+      const suggestedRate = lookupRate(defaultTrac.id, defaultImp ? defaultImp.id : 'none', todayDate, 'per_hour');
+      if (suggestedRate) initialRate = suggestedRate.toString();
+    }
+
+    const initialImplementIds = initialImpId && initialImpId !== 'none' ? [initialImpId] : [];
+    const initialImplementNames = initialImpName && initialImpName !== 'Standalone Tractor' ? [initialImpName] : [];
+
     const initialQty = '4';
-    const gross = (parseFloat(initialQty) * parseFloat(suggestedRate)) || 3600;
+    const gross = (parseFloat(initialQty) * parseFloat(initialRate)) || 3600;
     const net = gross;
 
-    // Login user assignment default: If driver role, default to driver; else collector
     const isDriverRole = loggedUserRole === 'driver';
     const initAssignment = isDriverRole ? 'driver' : 'collector';
 
@@ -242,12 +420,12 @@ export default function TripSheetManager({
 
     setEditingItem(null);
     setFormError('');
-    // By default for new trip, collection is OFF -> saves to pending collection list!
     setIsCollectionActive(false);
     setTimeEntryMode('manual');
     setTimerSeconds(0);
     setTimerRunning(false);
     setTimerMessage('');
+    setShowAdvancedFleet(false);
     setLoginUserAssignment(initAssignment);
 
     const currentTimeStr = getCurrentTimeFormatted();
@@ -261,25 +439,25 @@ export default function TripSheetManager({
       customerName: defaultCust.name,
       driverId: chosenDrvId,
       driverName: chosenDrvName,
-      tractorId: defaultTrac.id,
-      tractorName: defaultTrac.name,
-      implementId: defaultImp ? defaultImp.id : 'none',
-      implementName: defaultImp ? defaultImp.name : 'Standalone Tractor',
+      tractorId: initialTracId,
+      tractorName: initialTracName,
+      implementId: initialImpId,
+      implementName: initialImpName,
       implementIds: initialImplementIds,
       implementNames: initialImplementNames,
-      workType: '5-Tyne Ploughing (5 கொழு உழவு)',
+      workType: initialImpName && initialImpName !== 'Standalone Tractor' ? `${initialImpName} Work` : '5-Tyne Ploughing (5 கொழு உழவு)',
       workDescription: '',
-      billingUnit: 'per_hour',
+      billingUnit: initialUnit,
       startMeter: '',
       endMeter: '',
       quantity: initialQty,
-      rate: suggestedRate.toString(),
+      rate: initialRate,
       grossAmount: gross,
       discount: '0',
       totalAmount: net,
-      paidAmount: '0', // Default 0
-      balanceAmount: net, // Full amount pending
-      paymentStatus: 'unpaid', // Saved as pending collection
+      paidAmount: '0',
+      balanceAmount: net,
+      paymentStatus: 'unpaid',
       collectedBy: collectorString,
       collectedWhen: new Date().toISOString().slice(0, 16).replace('T', ' '),
       paymentMode: 'credit',
@@ -310,6 +488,7 @@ export default function TripSheetManager({
     setTimerSeconds(0);
     setTimerRunning(false);
     setTimerMessage('');
+    setShowAdvancedFleet(ids.length > 1);
 
     if (trip.driverName && trip.driverName.toLowerCase() === loggedUserName.toLowerCase()) {
       setLoginUserAssignment('driver');
@@ -338,18 +517,15 @@ export default function TripSheetManager({
     setIsModalOpen(true);
   };
 
-  // Quick action: Click from table to collect pending money
   const handleOpenCollect = (trip) => {
     handleOpenEdit(trip, true);
   };
 
-  // Toggle Collection Button handler
   const handleToggleCollection = (checked) => {
     setIsCollectionActive(checked);
     setFormData(prev => {
       const net = parseFloat(prev.totalAmount) || 0;
       if (checked) {
-        // Toggled ON: auto-fill collected amount and calculate balance = 0
         return {
           ...prev,
           paidAmount: net.toString(),
@@ -360,7 +536,6 @@ export default function TripSheetManager({
           collectedWhen: prev.collectedWhen || new Date().toISOString().slice(0, 16).replace('T', ' ')
         };
       } else {
-        // Toggled OFF: hide collection and save to pending collection list
         return {
           ...prev,
           paidAmount: '0',
@@ -387,7 +562,6 @@ export default function TripSheetManager({
     const hrs = timerSeconds / 3600;
     const rounded = hrs < 0.05 ? 0.1 : Math.round(hrs * 100) / 100;
     
-    // Auto-calculate start time and end time
     const now = new Date();
     const endStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const startObj = new Date(now.getTime() - timerSeconds * 1000);
@@ -405,7 +579,7 @@ export default function TripSheetManager({
         endTime: endStr,
         grossAmount: gross,
         totalAmount: net,
-        paidAmount: isCollectionActive ? (prev.paymentStatus === 'paid' ? net : prev.paidAmount) : '0',
+        paidAmount: isCollectionActive ? (prev.paymentStatus === 'paid' ? net.toString() : prev.paidAmount) : '0',
         balanceAmount: isCollectionActive ? Math.max(0, net - (parseFloat(prev.paidAmount) || 0)) : net,
         paymentStatus: isCollectionActive ? (prev.paymentStatus === 'unpaid' ? 'paid' : prev.paymentStatus) : 'unpaid'
       };
@@ -413,8 +587,8 @@ export default function TripSheetManager({
 
     setTimerMessage(
       lang === 'ta' 
-        ? `✅ நேர அளவு (${formatTimer(timerSeconds)}) -> ${rounded} மணியாக அமைக்கப்பட்டது!` 
-        : `✅ Time elapsed (${formatTimer(timerSeconds)}) set as ${rounded} hrs!`
+        ? `✅ நேர அளவு (${formatTimer(timerSeconds)}) -> ${rounded} மணியாக அமைக்கப்பட்டது! மொத்தம்: ₹${Math.round(rounded * parseFloat(formData.rate))}` 
+        : `✅ Time elapsed (${formatTimer(timerSeconds)}) set as ${rounded} hrs! Total: ₹${Math.round(rounded * parseFloat(formData.rate))}`
     );
     setTimeout(() => setTimerMessage(''), 4000);
   };
@@ -423,13 +597,11 @@ export default function TripSheetManager({
     setFormData(prev => {
       const updated = { ...prev, [field]: value };
 
-      // Customer selection
       if (field === 'customerId') {
         const found = customers.find(c => c.id === value);
         if (found) updated.customerName = found.name;
       }
 
-      // Driver selection
       if (field === 'driverId') {
         const found = drivers.find(d => d.id === value);
         if (found) {
@@ -440,7 +612,6 @@ export default function TripSheetManager({
         }
       }
 
-      // Tractor selection -> Auto-lookup matching rate from Rate Matrix & Auto-Calculate
       if (field === 'tractorId') {
         const found = tractors.find(t => t.id === value);
         if (found) updated.tractorName = found.name;
@@ -448,7 +619,6 @@ export default function TripSheetManager({
         if (suggestedRate) updated.rate = suggestedRate;
       }
 
-      // Implement selection -> Auto-lookup matching rate from Rate Matrix & Auto-Calculate
       if (field === 'implementId') {
         const found = implementsList.find(m => m.id === value);
         updated.implementName = found ? found.name : 'Standalone Tractor';
@@ -456,13 +626,11 @@ export default function TripSheetManager({
         if (suggestedRate) updated.rate = suggestedRate;
       }
 
-      // Billing Unit selection -> Auto-lookup rate for that unit
       if (field === 'billingUnit') {
         const suggestedRate = lookupRate(updated.tractorId, updated.implementId, updated.date, value);
         if (suggestedRate) updated.rate = suggestedRate;
       }
 
-      // Hour Meter start / end calculation
       if (field === 'startMeter' || field === 'endMeter') {
         const start = parseFloat(field === 'startMeter' ? value : updated.startMeter);
         const end = parseFloat(field === 'endMeter' ? value : updated.endMeter);
@@ -492,7 +660,6 @@ export default function TripSheetManager({
         }
       }
 
-      // Recalculate Financials
       const qty = parseFloat(field === 'quantity' ? value : updated.quantity) || 0;
       const rt = parseFloat(field === 'rate' ? value : updated.rate) || 0;
       const disc = parseFloat(field === 'discount' ? value : updated.discount) || 0;
@@ -502,7 +669,6 @@ export default function TripSheetManager({
       updated.grossAmount = gross;
       updated.totalAmount = net;
 
-      // Paid / Balance logic depending on whether collection toggle is active
       if (!isCollectionActive) {
         updated.paidAmount = '0';
         updated.balanceAmount = net;
@@ -511,10 +677,10 @@ export default function TripSheetManager({
       } else {
         if (field === 'paymentStatus') {
           if (value === 'paid') {
-            updated.paidAmount = net;
+            updated.paidAmount = net.toString();
             updated.balanceAmount = 0;
           } else if (value === 'unpaid') {
-            updated.paidAmount = 0;
+            updated.paidAmount = '0';
             updated.balanceAmount = net;
             updated.paymentMode = 'credit';
           }
@@ -548,7 +714,6 @@ export default function TripSheetManager({
       const newImpName = newNames.join(' + ');
       const newImpId = newIds.join(',');
 
-      // Auto-lookup matching rate for Tractor + Implements
       const suggestedRate = lookupRate(prev.tractorId, impId, prev.date, prev.billingUnit) ||
                             lookupRate(prev.tractorId, newIds[0], prev.date, prev.billingUnit);
 
@@ -574,10 +739,10 @@ export default function TripSheetManager({
           updated.paymentStatus = 'unpaid';
         } else {
           if (prev.paymentStatus === 'paid') {
-            updated.paidAmount = net;
+            updated.paidAmount = net.toString();
             updated.balanceAmount = 0;
           } else if (prev.paymentStatus === 'unpaid') {
-            updated.paidAmount = 0;
+            updated.paidAmount = '0';
             updated.balanceAmount = net;
           } else {
             const paid = parseFloat(prev.paidAmount) || 0;
@@ -627,10 +792,10 @@ export default function TripSheetManager({
           updated.paymentStatus = 'unpaid';
         } else {
           if (prev.paymentStatus === 'paid') {
-            updated.paidAmount = net;
+            updated.paidAmount = net.toString();
             updated.balanceAmount = 0;
           } else if (prev.paymentStatus === 'unpaid') {
-            updated.paidAmount = 0;
+            updated.paidAmount = '0';
             updated.balanceAmount = net;
           } else {
             const paid = parseFloat(prev.paidAmount) || 0;
@@ -639,45 +804,6 @@ export default function TripSheetManager({
         }
       }
 
-      return updated;
-    });
-  };
-
-  const handleClearImplements = () => {
-    setFormData(prev => {
-      const suggestedRate = lookupRate(prev.tractorId, 'none', prev.date, prev.billingUnit);
-      const updated = {
-        ...prev,
-        implementIds: [],
-        implementNames: [],
-        implementId: 'none',
-        implementName: 'Standalone Tractor'
-      };
-      if (suggestedRate) {
-        updated.rate = suggestedRate;
-        const qty = parseFloat(prev.quantity) || 0;
-        const disc = parseFloat(prev.discount) || 0;
-        const gross = qty * parseFloat(suggestedRate);
-        const net = Math.max(0, gross - disc);
-        updated.grossAmount = gross;
-        updated.totalAmount = net;
-        if (!isCollectionActive) {
-          updated.paidAmount = '0';
-          updated.balanceAmount = net;
-          updated.paymentStatus = 'unpaid';
-        } else {
-          if (prev.paymentStatus === 'paid') {
-            updated.paidAmount = net;
-            updated.balanceAmount = 0;
-          } else if (prev.paymentStatus === 'unpaid') {
-            updated.paidAmount = 0;
-            updated.balanceAmount = net;
-          } else {
-            const paid = parseFloat(prev.paidAmount) || 0;
-            updated.balanceAmount = Math.max(0, net - paid);
-          }
-        }
-      }
       return updated;
     });
   };
@@ -703,7 +829,6 @@ export default function TripSheetManager({
       return;
     }
 
-    // Hour Meter validation if readings are entered
     if (formData.startMeter !== '' && formData.startMeter !== undefined &&
         formData.endMeter !== '' && formData.endMeter !== undefined) {
       const s = Number(formData.startMeter);
@@ -722,21 +847,18 @@ export default function TripSheetManager({
       }
     }
 
-    // Quantity / Units validation
     const qtyVal = validatePositiveNumber(formData.quantity, lang === 'ta' ? 'வேலை அளவு (மணி / ஏக்கர்)' : 'Quantity / Hours', false);
     if (!qtyVal.valid) {
       setFormError(qtyVal.error);
       return;
     }
 
-    // Rate validation
     const rateVal = validatePositiveNumber(formData.rate, lang === 'ta' ? 'வாடகை கட்டணம்' : 'Billing Rate', false);
     if (!rateVal.valid) {
       setFormError(rateVal.error);
       return;
     }
 
-    // Discount validation
     const gross = qtyVal.value * rateVal.value;
     if (formData.discount !== undefined && formData.discount !== '') {
       const disc = Number(formData.discount);
@@ -758,7 +880,6 @@ export default function TripSheetManager({
 
     const netTotal = Math.max(0, gross - (parseFloat(formData.discount) || 0));
 
-    // Determine final collection values based on isCollectionActive
     let finalPaid = '0';
     let finalBal = netTotal;
     let finalStatus = 'unpaid';
@@ -804,7 +925,6 @@ export default function TripSheetManager({
     setIsModalOpen(false);
   };
 
-  // Filtered List
   const filteredTrips = tripSheets.filter(t => {
     const matchesSearch = (t.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (t.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1107,90 +1227,7 @@ export default function TripSheetManager({
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">
 
-                {/* 1. Logged-in User Role Options (Driver vs Collector) */}
-                <div style={{
-                  gridColumn: '1 / -1',
-                  background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
-                  border: '1.5px solid #a7f3d0',
-                  borderRadius: '10px',
-                  padding: '0.75rem 1rem',
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '0.75rem'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <div style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '50%',
-                      background: '#10b981',
-                      color: '#ffffff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 800
-                    }}>
-                      <UserCheck size={18} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.75rem', color: '#047857', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        {t.assignLoginUser || 'Assign Logged-in User'}
-                      </div>
-                      <div style={{ fontWeight: 800, color: '#064e3b', fontSize: '0.95rem' }}>
-                        {loggedUserName} <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#059669' }}>({loggedUserRole.toUpperCase()})</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      onClick={() => applyLoginUserAssignment('driver')}
-                      style={{
-                        padding: '0.4rem 0.85rem',
-                        borderRadius: '8px',
-                        fontSize: '0.825rem',
-                        fontWeight: 700,
-                        border: loginUserAssignment === 'driver' ? '2px solid #059669' : '1px solid #cbd5e1',
-                        background: loginUserAssignment === 'driver' ? '#059669' : '#ffffff',
-                        color: loginUserAssignment === 'driver' ? '#ffffff' : '#334155',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        boxShadow: loginUserAssignment === 'driver' ? '0 2px 5px rgba(5,150,105,0.3)' : 'none',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      🚜 {t.setAsDriver || 'Set as Driver (D)'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => applyLoginUserAssignment('collector')}
-                      style={{
-                        padding: '0.4rem 0.85rem',
-                        borderRadius: '8px',
-                        fontSize: '0.825rem',
-                        fontWeight: 700,
-                        border: loginUserAssignment === 'collector' ? '2px solid #0284c7' : '1px solid #cbd5e1',
-                        background: loginUserAssignment === 'collector' ? '#0284c7' : '#ffffff',
-                        color: loginUserAssignment === 'collector' ? '#ffffff' : '#334155',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        boxShadow: loginUserAssignment === 'collector' ? '0 2px 5px rgba(2,132,199,0.3)' : 'none',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      💰 {t.setAsCollector || 'Set as Collector'}
-                    </button>
-                  </div>
-                </div>
-
-                {/* 2. Customer Name */}
+                {/* 1. Customer Name */}
                 <div className="form-group">
                   <SearchableSelect
                     label={t.customerName}
@@ -1204,10 +1241,30 @@ export default function TripSheetManager({
                   />
                 </div>
 
-                {/* 3. Driver / Labor Name */}
+                {/* 2. Driver / Labor Name (with subtle button to set logged in user as driver) */}
                 <div className="form-group">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                    <label style={{ margin: 0, fontWeight: 600 }}>{t.driverName} *</label>
+                    <button
+                      type="button"
+                      onClick={() => applyLoginUserAssignment('driver')}
+                      style={{
+                        background: loginUserAssignment === 'driver' ? '#e0f2fe' : 'none',
+                        border: loginUserAssignment === 'driver' ? '1px solid #7dd3fc' : 'none',
+                        color: loginUserAssignment === 'driver' ? '#0369a1' : 'var(--primary-700)',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        padding: '2px 6px',
+                        borderRadius: '4px'
+                      }}
+                      title="Set logged in user as driver"
+                    >
+                      🚜 {lang === 'ta' ? 'நான் தான் ஓட்டுநர் (D)' : 'I am the Driver (D)'}
+                    </button>
+                  </div>
                   <SearchableSelect
-                    label={`${t.driverName} ${loginUserAssignment === 'driver' ? '(D - Logged In)' : ''}`}
+                    label=""
                     value={formData.driverId}
                     onChange={(val) => handleFieldChange('driverId', val)}
                     options={drivers.map(d => ({ 
@@ -1223,167 +1280,130 @@ export default function TripSheetManager({
                   />
                 </div>
 
-                {/* 4. Tractor (Vehicle) */}
+                {/* 3. Single Select: Tractor + Implement (Rate Card Combo) */}
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <SearchableSelect
-                    label={t.tractor}
-                    value={formData.tractorId}
-                    onChange={(val) => handleFieldChange('tractorId', val)}
-                    options={tractors.map(tr => ({ value: tr.id, label: tr.name, subLabel: tr.regNumber || '', badge: tr.hp ? `${tr.hp} HP` : '' }))}
-                    placeholder="-- Select Tractor / Vehicle --"
-                    searchPlaceholder={lang === 'ta' ? 'டிராக்டரைத் தேட...' : 'Search tractor...'}
+                    label={`${lang === 'ta' ? 'டிராக்டர் + கருவி சேர்க்கை (விலை அட்டை)' : 'Tractor + Implement (Rate Card Combo)'} *`}
+                    value={currentComboValue}
+                    onChange={handleSelectCombo}
+                    options={comboOptions}
+                    placeholder={lang === 'ta' ? '-- டிராக்டர் + கருவி சேர்க்கை தேர்வு செய்க --' : '-- Select Tractor + Implement --'}
+                    searchPlaceholder={lang === 'ta' ? 'தேடு (SWARAJ, Rotavator, 5-Tyne)...' : 'Search (SWARAJ, Rotavator, Cultivator)...'}
                     required
                     lang={lang}
                   />
-                </div>
 
-                {/* 5. Attached Implements (Multi-Select) */}
-                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', fontWeight: 600 }}>
-                    <span>
-                      {t.machine} ({lang === 'ta' ? 'இணைப்பு கருவிகள் - ஒன்றுக்கு மேல் சேர்க்கலாம்' : 'Attached Implements - Attach 1 or More'})
-                    </span>
-                    {(formData.implementIds && formData.implementIds.length > 0) && (
+                  {/* Active Selection Summary Card */}
+                  {formData.tractorName && (
+                    <div style={{
+                      marginTop: '0.45rem',
+                      padding: '0.5rem 0.85rem',
+                      background: 'linear-gradient(135deg, #f0fdf4 0%, #f8fafc 100%)',
+                      border: '1.5px solid #bbf7d0',
+                      borderRadius: '8px',
+                      fontSize: '0.825rem',
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.5rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700, color: '#166534' }}>
+                          🚜 {formData.tractorName}
+                        </span>
+                        <span style={{ color: '#cbd5e1' }}>|</span>
+                        <span style={{ fontWeight: 600, color: '#3730a3' }}>
+                          ⚙️ {formData.implementName || 'Standalone Tractor'}
+                        </span>
+                        <span style={{ color: '#cbd5e1' }}>|</span>
+                        <span style={{ fontWeight: 800, color: '#047857' }}>
+                          🏷️ ₹{formData.rate} / {formData.billingUnit === 'per_hour' ? (lang === 'ta' ? 'மணி' : 'hr') : formData.billingUnit === 'per_acre' ? (lang === 'ta' ? 'ஏக்கர்' : 'acre') : formData.billingUnit === 'per_km' ? 'km' : 'trip'}
+                        </span>
+                      </div>
                       <button
                         type="button"
-                        onClick={handleClearImplements}
+                        onClick={() => setShowAdvancedFleet(prev => !prev)}
                         style={{
                           background: 'none',
                           border: 'none',
-                          color: '#ef4444',
+                          color: '#0284c7',
                           fontSize: '0.75rem',
                           cursor: 'pointer',
                           textDecoration: 'underline',
-                          fontWeight: 500
+                          fontWeight: 600
                         }}
                       >
-                        {lang === 'ta' ? 'அனைத்தையும் நீக்கு (கருவி இல்லை)' : 'Clear All (Standalone)'}
+                        {showAdvancedFleet ? (lang === 'ta' ? 'சுருக்கு' : 'Hide Multi-Implement') : (lang === 'ta' ? '+ ஒன்றுக்கு மேற்பட்ட கருவிகள்' : '+ Attach More Implements')}
                       </button>
-                    )}
-                  </label>
+                    </div>
+                  )}
 
-                  {/* Attached Implement Chips */}
-                  <div style={{
-                    minHeight: '44px',
-                    padding: '0.5rem',
-                    background: 'var(--bg-main, #f8fafc)',
-                    border: '1.5px dashed var(--border-color, #cbd5e1)',
-                    borderRadius: '8px',
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    alignItems: 'center',
-                    gap: '0.45rem',
-                    marginBottom: '0.5rem'
-                  }}>
-                    {(!formData.implementIds || formData.implementIds.length === 0) ? (
-                      <span style={{ fontSize: '0.825rem', color: 'var(--text-light, #64748b)', fontStyle: 'italic', padding: '0.2rem 0.4rem' }}>
-                        🚜 {lang === 'ta' ? 'கருவிகள் ஏதும் இணைக்கப்படவில்லை (தனி டிராக்டர்)' : 'No implement attached (Standalone tractor)'}
-                      </span>
-                    ) : (
-                      formData.implementIds.map(impId => {
-                        const found = implementsList.find(m => m.id === impId);
-                        const displayName = found ? (lang === 'ta' && found.name_ta ? `${found.name_ta} (${found.name})` : found.name) : impId;
-                        return (
-                          <span
-                            key={impId}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.35rem',
-                              background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)',
-                              border: '1px solid #c7d2fe',
-                              color: '#3730a3',
-                              padding: '0.3rem 0.65rem',
-                              borderRadius: '9999px',
-                              fontSize: '0.82rem',
-                              fontWeight: 600,
-                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                            }}
-                          >
-                            ⚙️ {displayName}
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveImplement(impId)}
-                              title={lang === 'ta' ? 'நீக்கு' : 'Remove'}
+                  {/* Multi-implement drawer if user clicks "+ Attach More Implements" */}
+                  {showAdvancedFleet && (
+                    <div style={{
+                      marginTop: '0.5rem',
+                      padding: '0.75rem',
+                      background: '#f8fafc',
+                      border: '1px dashed #cbd5e1',
+                      borderRadius: '8px'
+                    }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.5rem' }}>
+                        {(formData.implementIds || []).map(impId => {
+                          const found = implementsList.find(m => m.id === impId);
+                          return (
+                            <span
+                              key={impId}
                               style={{
-                                background: 'rgba(0,0,0,0.08)',
-                                border: 'none',
-                                borderRadius: '50%',
-                                width: '18px',
-                                height: '18px',
-                                cursor: 'pointer',
-                                color: '#4338ca',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                justifyCenter: 'center',
-                                padding: 0,
-                                marginLeft: '0.2rem'
+                                gap: '0.35rem',
+                                background: '#e0e7ff',
+                                color: '#3730a3',
+                                padding: '0.25rem 0.5rem',
+                                borderRadius: '9999px',
+                                fontSize: '0.78rem',
+                                fontWeight: 600
                               }}
                             >
-                              <X size={12} />
-                            </button>
-                          </span>
-                        );
-                      })
-                    )}
-                  </div>
+                              ⚙️ {found ? found.name : impId}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveImplement(impId)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4338ca', padding: 0 }}
+                              >
+                                <X size={12} />
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
 
-                  {/* Add Implement Dropdown */}
-                  <div>
-                    <SearchableSelect
-                      label=""
-                      value=""
-                      onChange={(val) => {
-                        if (val) handleAddImplement(val);
-                      }}
-                      options={implementsList
-                        .filter(imp => !(formData.implementIds || []).includes(imp.id))
-                        .map(imp => ({
-                          value: imp.id,
-                          label: lang === 'ta' && imp.name_ta ? `${imp.name_ta} (${imp.name})` : imp.name,
-                          subLabel: imp.category || ''
-                        }))}
-                      placeholder={lang === 'ta' ? 'இணைப்பு கருவி சேர்க்க தேர்ந்தெடுக்கவும்...' : 'Select implement to attach...'}
-                      searchPlaceholder={lang === 'ta' ? 'கருவியைத் தேடு...' : 'Search implement...'}
-                      lang={lang}
-                    />
-                  </div>
-
-                  {/* Quick-Add unselected chips */}
-                  {implementsList.filter(imp => !(formData.implementIds || []).includes(imp.id)).length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.35rem', marginTop: '0.45rem' }}>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-light, #64748b)', fontWeight: 600 }}>
-                        {lang === 'ta' ? 'விரைவு சேர்க்கை:' : 'Quick Add:'}
-                      </span>
-                      {implementsList
-                        .filter(imp => !(formData.implementIds || []).includes(imp.id))
-                        .slice(0, 5)
-                        .map(imp => (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                        {implementsList.filter(imp => !(formData.implementIds || []).includes(imp.id)).slice(0, 6).map(imp => (
                           <button
                             key={imp.id}
                             type="button"
                             onClick={() => handleAddImplement(imp.id)}
                             style={{
-                              background: 'var(--bg-main, #f1f5f9)',
-                              border: '1px solid var(--border-color, #cbd5e1)',
-                              color: 'var(--text-dark, #334155)',
+                              background: '#ffffff',
+                              border: '1px solid #cbd5e1',
+                              color: '#334155',
                               fontSize: '0.72rem',
                               padding: '0.2rem 0.5rem',
                               borderRadius: '4px',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '2px'
+                              cursor: 'pointer'
                             }}
                           >
-                            + {lang === 'ta' && imp.name_ta ? imp.name_ta : imp.name}
+                            + {imp.name}
                           </button>
                         ))}
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* 6. Work Date */}
+                {/* 4. Work Date */}
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <DatePicker
                     label={t.tripDate}
@@ -1394,7 +1414,7 @@ export default function TripSheetManager({
                   />
                 </div>
 
-                {/* 7. Time & Hours Entry Mode: Manual vs Live Timer with Start, Pause, Set, Restart */}
+                {/* 5. Time & Hours Entry Mode: Manual vs Live Timer with Start, Pause, Set, Restart */}
                 <div style={{
                   gridColumn: '1 / -1',
                   background: 'var(--bg-subtle, #f8fafc)',
@@ -1443,8 +1463,8 @@ export default function TripSheetManager({
                   {timeEntryMode === 'manual' ? (
                     <div className="form-grid" style={{ marginBottom: 0 }}>
                       <div className="form-group">
-                        <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span>{t.startTime}</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                          <label style={{ margin: 0 }}>{t.startTime}</label>
                           <button
                             type="button"
                             onClick={() => handleFieldChange('startTime', getCurrentTimeFormatted())}
@@ -1462,7 +1482,7 @@ export default function TripSheetManager({
                           >
                             🕒 {lang === 'ta' ? 'இப்போது (Current)' : 'Now (Current)'}
                           </button>
-                        </label>
+                        </div>
                         <input
                           type="time"
                           className="form-control"
@@ -1471,8 +1491,8 @@ export default function TripSheetManager({
                         />
                       </div>
                       <div className="form-group">
-                        <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span>{t.endTime}</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                          <label style={{ margin: 0 }}>{t.endTime}</label>
                           <button
                             type="button"
                             onClick={() => handleFieldChange('endTime', getCurrentTimeFormatted())}
@@ -1490,7 +1510,7 @@ export default function TripSheetManager({
                           >
                             🕒 {lang === 'ta' ? 'இப்போது (Current)' : 'Now (Current)'}
                           </button>
-                        </label>
+                        </div>
                         <input
                           type="time"
                           className="form-control"
@@ -1606,7 +1626,7 @@ export default function TripSheetManager({
                   )}
                 </div>
 
-                {/* 8. Hour Meter Start / End (Optional) */}
+                {/* 6. Hour Meter Start / End (Optional) */}
                 <div className="form-group">
                   <label>{t.startMeter}</label>
                   <input
@@ -1631,7 +1651,7 @@ export default function TripSheetManager({
                   />
                 </div>
 
-                {/* 9. Billing Unit & Auto-filled Rate */}
+                {/* 7. Billing Unit & Auto-filled Rate */}
                 <div className="form-group">
                   <SearchableSelect
                     label={t.unit}
@@ -1647,7 +1667,7 @@ export default function TripSheetManager({
                   />
                 </div>
 
-                {/* Rate: Auto-filled from Rate Matrix based on Tractor + Implements */}
+                {/* Rate: Auto-filled from Rate Matrix Combo */}
                 <div className="form-group">
                   <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>{t.rateAmount} (₹)</span>
@@ -1664,7 +1684,7 @@ export default function TripSheetManager({
                   />
                 </div>
 
-                {/* 10. Worked Units & Discount */}
+                {/* 8. Worked Units & Discount */}
                 <div className="form-group">
                   <label>{t.workedUnits} (Hours / Acres / Km)</label>
                   <input
@@ -1687,7 +1707,7 @@ export default function TripSheetManager({
                   />
                 </div>
 
-                {/* 11. Net Total (Readonly, Auto-calculated) */}
+                {/* 9. Net Total (Readonly, Auto-calculated) */}
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <label style={{ color: 'var(--primary-700)', fontWeight: 800, fontSize: '0.95rem' }}>
                     {t.totalAmount} (₹)
@@ -1707,7 +1727,7 @@ export default function TripSheetManager({
                   />
                 </div>
 
-                {/* 12. Payment Collection Toggle Button Section */}
+                {/* 10. Payment Collection Toggle Button Section */}
                 <div style={{
                   gridColumn: '1 / -1',
                   background: isCollectionActive ? 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)' : '#f8fafc',
@@ -1730,7 +1750,6 @@ export default function TripSheetManager({
                       </div>
                     </div>
 
-                    {/* Toggle Switch */}
                     <label style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', gap: '0.6rem' }}>
                       <input
                         type="checkbox"
@@ -1787,7 +1806,6 @@ export default function TripSheetManager({
                       </div>
                     </div>
                   ) : (
-                    /* Display Collection Fields only when Toggle is ON */
                     <div className="form-grid" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #bbf7d0', marginBottom: 0 }}>
                       
                       {/* Payment Status */}
@@ -1831,8 +1849,28 @@ export default function TripSheetManager({
 
                       {/* Who Collected & When */}
                       <div className="form-group">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                          <label style={{ margin: 0, fontWeight: 600 }}>{t.collectedBy}</label>
+                          <button
+                            type="button"
+                            onClick={() => applyLoginUserAssignment('collector')}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--primary-700)',
+                              fontSize: '0.75rem',
+                              cursor: 'pointer',
+                              fontWeight: 600,
+                              textDecoration: 'underline',
+                              padding: 0
+                            }}
+                            title="Set logged in user as collector"
+                          >
+                            👤 {lang === 'ta' ? 'நானே வசூலித்தேன்' : 'I Collected'}
+                          </button>
+                        </div>
                         <VoiceInput
-                          label={`${t.collectedBy} (Driver / Partner / Admin)`}
+                          label=""
                           placeholder="e.g. K. Murugan (Driver) or Kuppusamy (Partner)"
                           value={formData.collectedBy}
                           onChange={(val) => handleFieldChange('collectedBy', val)}
@@ -1883,7 +1921,7 @@ export default function TripSheetManager({
                   )}
                 </div>
 
-                {/* 13. Work Description / Field Notes */}
+                {/* 11. Work Description / Field Notes */}
                 <div className="form-group col-full">
                   <VoiceInput
                     label={`${t.workDescription} / Field Notes`}
