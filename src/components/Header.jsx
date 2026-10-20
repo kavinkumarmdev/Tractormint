@@ -3,6 +3,9 @@ import {
   Languages, 
   ShieldAlert, 
   ShieldCheck, 
+  Shield,
+  UserCheck,
+  Tractor,
   Moon, 
   Sun, 
   RefreshCw, 
@@ -36,6 +39,46 @@ export default function Header({
   const [showPinModal, setShowPinModal] = useState(false);
   const [enteredPin, setEnteredPin] = useState('');
   const [pinError, setPinError] = useState('');
+
+  const getRoleBadgeInfo = () => {
+    switch (role) {
+      case 'admin':
+        return { 
+          label: lang === 'ta' ? 'நிர்வாகி (Admin)' : 'Admin', 
+          icon: <ShieldCheck size={15} />, 
+          className: 'btn-primary',
+          title: lang === 'ta' ? 'முதன்மை நிர்வாகி (முழு அணுகல்)' : 'Master Administrator (Full Access)'
+        };
+      case 'manager':
+        return { 
+          label: lang === 'ta' ? 'மேலாளர் (Manager)' : 'Manager', 
+          icon: <Shield size={15} />, 
+          className: 'btn-outline',
+          title: lang === 'ta' ? 'கள மேலாளர் / மேற்பார்வையாளர்' : 'Operations Manager / Supervisor'
+        };
+      case 'operator':
+        return { 
+          label: lang === 'ta' ? 'ஆபரேட்டர் (Operator)' : 'Operator', 
+          icon: <UserCheck size={15} />, 
+          className: 'btn-outline',
+          title: lang === 'ta' ? 'கள ஆபரேட்டர்' : 'Field Operator'
+        };
+      case 'driver':
+        return { 
+          label: lang === 'ta' ? 'டிரைவர் (Driver)' : 'Driver', 
+          icon: <Tractor size={15} />, 
+          className: 'btn-outline',
+          title: lang === 'ta' ? 'டிராக்டர் டிரைவர்' : 'Tractor Driver'
+        };
+      default:
+        return { 
+          label: role, 
+          icon: <ShieldAlert size={15} />, 
+          className: 'btn-outline',
+          title: role
+        };
+    }
+  };
 
   const handleRoleToggle = () => {
     if (role === 'operator') {
@@ -77,23 +120,25 @@ export default function Header({
 
       {/* Right Controls */}
       <div className="header-controls">
-        {/* Google Sheets Sync Pill */}
-        <div 
-          className="sheets-sync-pill"
-          onClick={onSyncNow}
-          title={syncStatus === 'syncing' ? 'Syncing with Google Sheets...' : syncStatus === 'connected' ? 'Google Sheets Active (Click to sync now)' : 'Google Sheets Offline (Click to retry)'}
-        >
-          {syncStatus === 'syncing' ? (
-            <RefreshCw size={14} className="spin-animation" style={{ color: 'var(--amber-500)' }} />
-          ) : syncStatus === 'connected' ? (
-            <CheckCircle2 size={14} style={{ color: 'var(--primary-600)' }} />
-          ) : (
-            <AlertCircle size={14} style={{ color: 'var(--text-light)' }} />
-          )}
-          <span className="sync-text" style={{ fontWeight: 600 }}>
-            {syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'connected' ? 'Sheets Active' : 'Sheets Offline'}
-          </span>
-        </div>
+        {/* Google Sheets Sync Pill - ONLY visible to Admin (backend auto-sync runs silently for others) */}
+        {role === 'admin' && (
+          <div 
+            className="sheets-sync-pill"
+            onClick={onSyncNow}
+            title={syncStatus === 'syncing' ? 'Syncing with Google Sheets...' : syncStatus === 'connected' ? 'Google Sheets Active (Click to sync now)' : 'Google Sheets Offline (Click to retry)'}
+          >
+            {syncStatus === 'syncing' ? (
+              <RefreshCw size={14} className="spin-animation" style={{ color: 'var(--amber-500)' }} />
+            ) : syncStatus === 'connected' ? (
+              <CheckCircle2 size={14} style={{ color: 'var(--primary-600)' }} />
+            ) : (
+              <AlertCircle size={14} style={{ color: 'var(--text-light)' }} />
+            )}
+            <span className="sync-text" style={{ fontWeight: 600 }}>
+              {syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'connected' ? 'Sheets Active' : 'Sheets Offline'}
+            </span>
+          </div>
+        )}
 
         {/* Launch / Install App Button */}
         <div className="header-install-wrapper">
@@ -112,15 +157,21 @@ export default function Header({
           <span className="lang-short-text">{lang === 'en' ? 'த' : 'EN'}</span>
         </button>
 
-        {/* Role Indicator / Switcher */}
-        <button 
-          className={`btn btn-sm ${role === 'admin' ? 'btn-primary' : 'btn-outline'} role-badge-btn`}
-          onClick={handleRoleToggle}
-          title={role === 'admin' ? 'Admin Mode (Full Access)' : 'Operator Mode (Click to unlock Admin)'}
-        >
-          {role === 'admin' ? <ShieldCheck size={15} /> : <ShieldAlert size={15} />}
-          <span className="role-btn-text">{role === 'admin' ? t.admin : t.operator}</span>
-        </button>
+        {/* Role Indicator Badge (Displays current role) */}
+        {(() => {
+          const badge = getRoleBadgeInfo();
+          return (
+            <button 
+              type="button"
+              className={`btn btn-sm ${badge.className} role-badge-btn`}
+              onClick={handleRoleToggle}
+              title={badge.title}
+            >
+              {badge.icon}
+              <span className="role-btn-text">{badge.label}</span>
+            </button>
+          );
+        })()}
 
         {/* Dark / Light Mode Switcher */}
         <button 

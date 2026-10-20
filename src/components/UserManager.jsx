@@ -18,6 +18,12 @@ import {
   Eye,
   EyeOff,
   UserCheck,
+  HelpCircle,
+  Check,
+  Minus,
+  ChevronUp,
+  ChevronDown,
+  Tractor
 } from 'lucide-react';
 import { translations } from '../translations/dictionary';
 import SearchableSelect from './common/SearchableSelect';
@@ -38,6 +44,7 @@ export default function UserManager({
   const [roleFilter, setRoleFilter] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [showPermGuide, setShowPermGuide] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -203,11 +210,202 @@ export default function UserManager({
               : 'Admin-exclusive user portal: Only users created by Admin can log in to this application.'}
           </p>
         </div>
-        <button className="btn btn-primary" onClick={handleOpenAdd}>
-          <UserPlus size={16} />
-          <span>{lang === 'ta' ? 'புதிய பயனர் உருவாக்கு' : 'Add Login User'}</span>
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button 
+            type="button" 
+            className="btn btn-outline"
+            onClick={() => setShowPermGuide(!showPermGuide)}
+            style={{ fontWeight: 600 }}
+          >
+            <HelpCircle size={16} />
+            <span>{lang === 'ta' ? '4 நிலைகள் & அனுமதிகள்' : 'Role Permissions Guide'}</span>
+            {showPermGuide ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          </button>
+          <button className="btn btn-primary" onClick={handleOpenAdd}>
+            <UserPlus size={16} />
+            <span>{lang === 'ta' ? 'புதிய பயனர் உருவாக்கு' : 'Add Login User'}</span>
+          </button>
+        </div>
       </div>
+
+      {/* Roles & Permissions Explanation Guide */}
+      {showPermGuide && (
+        <div className="content-card" style={{ 
+          marginBottom: '1.5rem', 
+          border: '1.5px solid var(--primary-300)',
+          background: 'var(--bg-card)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <ShieldCheck size={20} color="var(--primary-600)" />
+              {lang === 'ta' ? '4 பயனர் நிலைகள் மற்றும் அவற்றின் அனுமதிகள் விளக்கம்' : 'Explanation of 4 System Roles & Permissions'}
+            </h3>
+            <button 
+              type="button" 
+              className="btn btn-outline btn-sm"
+              onClick={() => setShowPermGuide(false)}
+            >
+              {lang === 'ta' ? 'மறை' : 'Hide'}
+            </button>
+          </div>
+
+          {/* Role Summary Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem' }}>
+            {/* 1. Admin */}
+            <div style={{ padding: '0.85rem', borderRadius: 'var(--radius-sm)', background: '#ecfdf5', border: '1px solid #a7f3d0' }}>
+              <div style={{ fontWeight: 800, color: '#065f46', fontSize: '0.9rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <ShieldCheck size={16} />
+                <span>1. {lang === 'ta' ? 'முதன்மை நிர்வாகி (Admin)' : 'Administrator'}</span>
+              </div>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: '#047857', lineHeight: 1.4 }}>
+                {lang === 'ta' 
+                  ? 'முழு அதிகாரம். அனைத்து தொகுதிகளையும் (Billing, Fleet, User Accounts, Google Sheets Sync, Audit Bin) நிர்வகிக்கலாம். பதிவுகளை நிரந்தரமாக நீக்கலாம்.' 
+                  : 'Full master access. Can manage billing, fleet, user credentials, Google Sheets integration, and permanent record deletions.'}
+              </p>
+            </div>
+
+            {/* 2. Manager */}
+            <div style={{ padding: '0.85rem', borderRadius: 'var(--radius-sm)', background: '#faf5ff', border: '1px solid #e9d5ff' }}>
+              <div style={{ fontWeight: 800, color: '#6b21a8', fontSize: '0.9rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Shield size={16} />
+                <span>2. {lang === 'ta' ? 'மேலாளர் (Manager)' : 'Operations Manager'}</span>
+              </div>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: '#7e22ce', lineHeight: 1.4 }}>
+                {lang === 'ta' 
+                  ? 'கள & அலுவலக மேற்பார்வையாளர். டிரிப்புகள், வண்டிகள், வாடிக்கையாளர்கள், செலவுகள், பங்குதாரர் வரவு செலவு ஆகியவற்றை பதிவிடலாம். நீக்க அனுமதி இல்லை.' 
+                  : 'Operational oversight. Manages trips, fleet, maintenance, rate cards, expenses, and partner splits. Cannot delete records or manage user logins.'}
+              </p>
+            </div>
+
+            {/* 3. Operator */}
+            <div style={{ padding: '0.85rem', borderRadius: 'var(--radius-sm)', background: '#fef3c7', border: '1px solid #fde68a' }}>
+              <div style={{ fontWeight: 800, color: '#92400e', fontSize: '0.9rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <UserCheck size={16} />
+                <span>3. {lang === 'ta' ? 'ஆபரேட்டர் (Field Operator)' : 'Field Billing Operator'}</span>
+              </div>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: '#b45309', lineHeight: 1.4 }}>
+                {lang === 'ta' 
+                  ? 'தினசரி உழவு பில்லிங், டிரிப் ரசீது அச்சிடுதல், வாடிக்கையாளர் விவரம் சேர்த்தல், டீசல்/பராமரிப்பு செலவு பதிவு செய்தல். பங்குதாரர் லாபம் மற்றும் அமைப்புகள் மறைக்கப்படும்.' 
+                  : 'Daily field billing, prints/shares trip slips, adds new customers, logs fuel & maintenance. Partner profits & settings are hidden.'}
+              </p>
+            </div>
+
+            {/* 4. Driver */}
+            <div style={{ padding: '0.85rem', borderRadius: 'var(--radius-sm)', background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+              <div style={{ fontWeight: 800, color: '#1e40af', fontSize: '0.9rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Tractor size={16} />
+                <span>4. {lang === 'ta' ? 'டிரைவர் (Tractor Driver)' : 'Tractor Driver'}</span>
+              </div>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: '#1d4ed8', lineHeight: 1.4 }}>
+                {lang === 'ta' 
+                  ? 'டிரைவர் சுய பார்வை. தங்களின் டிரிப் தாள்கள் மற்றும் ரசீதுகளை பார்க்கலாம், வண்டி விவரங்கள் மற்றும் டீசல்/பழுது விவரங்களை பதிவு செய்யலாம்.' 
+                  : 'Driver self-service. Views assigned trips & slips, inspects fleet machines, and logs fuel/breakdown notes.'}
+              </p>
+            </div>
+          </div>
+
+          {/* Matrix Table */}
+          <div className="table-responsive" style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
+            <table className="data-table" style={{ fontSize: '0.78rem' }}>
+              <thead>
+                <tr>
+                  <th style={{ minWidth: '180px' }}>{lang === 'ta' ? 'அம்சங்கள் / அனுமதிகள்' : 'Feature / Permission'}</th>
+                  <th style={{ textAlign: 'center', width: '90px', background: '#ecfdf5', color: '#065f46' }}>Admin</th>
+                  <th style={{ textAlign: 'center', width: '90px', background: '#faf5ff', color: '#6b21a8' }}>Manager</th>
+                  <th style={{ textAlign: 'center', width: '90px', background: '#fef3c7', color: '#92400e' }}>Operator</th>
+                  <th style={{ textAlign: 'center', width: '90px', background: '#eff6ff', color: '#1e40af' }}>Driver</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>{lang === 'ta' ? 'டாஷ்போர்டு & புள்ளிவிவரங்கள்' : 'Dashboard & Fleet Analytics'}</strong></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                </tr>
+                <tr>
+                  <td><strong>{lang === 'ta' ? 'டிரிப் ஷீட் பதிவு & பில் ரசீது' : 'Trip Sheets Entry & Trip Slips'}</strong></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                </tr>
+                <tr>
+                  <td><strong>{lang === 'ta' ? 'டிராக்டர் & இயந்திரங்கள் பட்டியல்' : 'Fleet & Machinery Roster'}</strong></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                </tr>
+                <tr>
+                  <td><strong>{lang === 'ta' ? 'டீசல் & பராமரிப்பு பதிவுகள்' : 'Fuel & Maintenance Logs'}</strong></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                </tr>
+                <tr>
+                  <td><strong>{lang === 'ta' ? 'வாடிக்கையாளர்கள் & டிரைவர்கள் மேலாண்மை' : 'Customers & Drivers Directory'}</strong></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                </tr>
+                <tr>
+                  <td><strong>{lang === 'ta' ? 'வாடகை விலை பட்டியல் (Rate Card)' : 'Combination Rate Matrix'}</strong></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                </tr>
+                <tr>
+                  <td><strong>{lang === 'ta' ? 'இதர வரவு & செலவு கணக்கு' : 'Income & Expense Ledger'}</strong></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                </tr>
+                <tr>
+                  <td><strong>{lang === 'ta' ? 'பங்குதாரர் லாபப் பகிர்வு (Partner Split)' : 'Partner Equity & Profit Split'}</strong></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                </tr>
+                <tr>
+                  <td><strong>{lang === 'ta' ? 'பயனர் கணக்குகள் மேலாண்மை (Staff Logins)' : 'Staff User Accounts Management'}</strong></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                </tr>
+                <tr>
+                  <td><strong>{lang === 'ta' ? 'நீக்கப்பட்டவை மீட்டெடுப்பு (Audit Trash)' : 'Audit Trash & Soft-Delete Restore'}</strong></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                </tr>
+                <tr>
+                  <td><strong>{lang === 'ta' ? 'கூகுள் ஷீட் மேகக்கணி இணைப்பு (Sheets Sync)' : 'Google Sheets Sync Configuration'}</strong></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                </tr>
+                <tr>
+                  <td><strong>{lang === 'ta' ? 'பதிவுகளை நீக்குதல் (Admin PIN தேவை)' : 'Delete Records (Admin PIN required)'}</strong></td>
+                  <td style={{ textAlign: 'center' }}><Check size={16} color="#059669" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                  <td style={{ textAlign: 'center' }}><Minus size={16} color="#94a3b8" /></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Global Success Banner */}
       {successMsg && (

@@ -229,8 +229,60 @@ export default function AuthScreen({ onLogin, lang, setLang }) {
           </button>
         </form>
 
+        {/* 4 Roles Quick Fill Helper */}
+        <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px dashed var(--border-color)' }}>
+          <p style={{ 
+            fontSize: '0.75rem', 
+            fontWeight: 700, 
+            color: 'var(--text-muted)', 
+            marginBottom: '0.5rem', 
+            textAlign: 'center',
+            textTransform: 'uppercase',
+            letterSpacing: '0.04em'
+          }}>
+            {lang === 'ta' ? '4 பயனர் நிலைகள் (சோதனை செய்ய தேர்வு செய்யவும்):' : '4 System Roles (Click to test staff login):'}
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.4rem' }}>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              style={{ fontSize: '0.74rem', padding: '0.4rem 0.5rem', justifyContent: 'center' }}
+              onClick={() => { setUsername('admin'); setPin('1234'); setError(''); }}
+            >
+              👑 {lang === 'ta' ? 'நிர்வாகி (Admin)' : 'Admin'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              style={{ fontSize: '0.74rem', padding: '0.4rem 0.5rem', justifyContent: 'center' }}
+              onClick={() => { setUsername('manager'); setPin('1234'); setError(''); }}
+            >
+              👔 {lang === 'ta' ? 'மேலாளர் (Manager)' : 'Manager'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              style={{ fontSize: '0.74rem', padding: '0.4rem 0.5rem', justifyContent: 'center' }}
+              onClick={() => { setUsername('operator'); setPin('1234'); setError(''); }}
+            >
+              ⚡ {lang === 'ta' ? 'ஆபரேட்டர் (Operator)' : 'Operator'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              style={{ fontSize: '0.74rem', padding: '0.4rem 0.5rem', justifyContent: 'center' }}
+              onClick={() => { setUsername('driver'); setPin('1234'); setError(''); }}
+            >
+              🚜 {lang === 'ta' ? 'டிரைவர் (Driver)' : 'Driver'}
+            </button>
+          </div>
+          <p style={{ fontSize: '0.7rem', color: 'var(--text-light)', textAlign: 'center', marginTop: '0.4rem', margin: '0.4rem 0 0 0' }}>
+            {lang === 'ta' ? 'இயல்பு கடவுச்சொல் / PIN: 1234' : 'Default PIN for roles: 1234'}
+          </p>
+        </div>
+
         {/* Footer info */}
-        <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+        <div style={{ marginTop: '1.25rem', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
           🔒 TractoMint • Secured Enterprise Fleet Ledger
         </div>
       </div>

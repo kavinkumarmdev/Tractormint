@@ -50,8 +50,19 @@ export default function Navigation({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Operational tabs based on Role (Admin, Manager, Operator, Driver)
+  const isDriver = role === 'driver';
+  const isOperator = role === 'operator';
+  const isManager = role === 'manager';
+  const isAdmin = role === 'admin';
+
   // Primary operational tabs (Always visible on desktop navbar)
-  const primaryTabs = [
+  const primaryTabs = isDriver ? [
+    { id: 'dashboard', label: t.dashboard, icon: LayoutDashboard },
+    { id: 'tripSheets', label: t.tripSheets, icon: FileSpreadsheet },
+    { id: 'fleet', label: t.fleet, icon: Tractor },
+    { id: 'maintenance', label: t.maintenance, icon: Wrench }
+  ] : [
     { id: 'dashboard', label: t.dashboard, icon: LayoutDashboard },
     { id: 'tripSheets', label: t.tripSheets, icon: FileSpreadsheet },
     { id: 'fleet', label: t.fleet, icon: Tractor },
@@ -62,16 +73,25 @@ export default function Navigation({
 
   // Secondary tools & settings tabs (Organized under "More" dropdown on desktop)
   const secondaryTabs = [
-    { id: 'rateMatrix', label: t.rateMatrix, icon: Tag },
-    { id: 'incomeExpense', label: t.incomeExpense, icon: Receipt },
-    { id: 'partnerSplit', label: t.partnerSplit, icon: Scale },
-    ...(role === 'admin' ? [{ 
+    ...((isAdmin || isManager) ? [{ id: 'rateMatrix', label: t.rateMatrix, icon: Tag }] : []),
+    ...((isAdmin || isManager || isOperator) ? [{ id: 'incomeExpense', label: t.incomeExpense, icon: Receipt }] : []),
+    ...((isAdmin || isManager) ? [{ id: 'partnerSplit', label: t.partnerSplit, icon: Scale }] : []),
+    ...(isAdmin ? [{ 
       id: 'userManagement', 
       label: lang === 'ta' ? 'பயனர்கள் (Users)' : 'Staff Logins', 
       icon: UserCog 
     }] : []),
-    { id: 'auditTrash', label: t.auditTrash, icon: Trash2, badge: deletedCount > 0 ? deletedCount : null },
-    { id: 'googleSheets', label: t.googleSheets, icon: CloudSun }
+    ...(isAdmin ? [{ 
+      id: 'auditTrash', 
+      label: t.auditTrash, 
+      icon: Trash2, 
+      badge: deletedCount > 0 ? deletedCount : null 
+    }] : []),
+    ...(isAdmin ? [{ 
+      id: 'googleSheets', 
+      label: t.googleSheets, 
+      icon: CloudSun 
+    }] : [])
   ];
 
   const allTabs = [...primaryTabs, ...secondaryTabs];
@@ -139,60 +159,68 @@ export default function Navigation({
                 </div>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-main)', lineHeight: 1.2 }}>
-                    {currentUser ? (currentUser.name || currentUser.username) : 'Admin User'}
+                    {currentUser ? (currentUser.displayName || currentUser.name || currentUser.username) : 'Master Admin'}
                   </div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                    {role === 'admin' ? (lang === 'ta' ? 'நிர்வாகி (Admin)' : 'Administrator') : (lang === 'ta' ? 'இயக்குனர் (Operator)' : 'Operator')}
+                    {role === 'admin' 
+                      ? (lang === 'ta' ? '👑 முதன்மை நிர்வாகி' : '👑 Administrator') 
+                      : role === 'manager' 
+                      ? (lang === 'ta' ? '👔 மேலாளர்' : '👔 Manager') 
+                      : role === 'operator' 
+                      ? (lang === 'ta' ? '⚡ கள ஆபரேட்டர்' : '⚡ Operator') 
+                      : (lang === 'ta' ? '🚜 டிரைவர்' : '🚜 Driver')}
                   </div>
                 </div>
               </div>
 
-              {onRoleToggle && (
+              {onRoleToggle && role === 'admin' && (
                 <button
                   type="button"
-                  className={`btn btn-sm ${role === 'admin' ? 'btn-primary' : 'btn-outline'}`}
+                  className="btn btn-sm btn-primary"
                   onClick={() => {
                     onRoleToggle();
                     setMobileNavOpen(false);
                   }}
                   style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
                 >
-                  {role === 'admin' ? 'Admin' : 'Operator'}
+                  Admin
                 </button>
               )}
             </div>
 
-            {/* Google Sheets Sync Quick Row */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0.4rem 0.6rem',
-              background: 'var(--bg-card)',
-              borderRadius: '6px',
-              border: '1px solid var(--border-color)',
-              fontSize: '0.75rem'
-            }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}>
-                <span style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  background: syncStatus === 'syncing' ? '#f59e0b' : syncStatus === 'connected' ? '#10b981' : '#94a3b8'
-                }} />
-                {syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'connected' ? 'Google Sheets Active' : 'Sheets Offline'}
-              </span>
-              {onSyncNow && (
-                <button
-                  type="button"
-                  onClick={onSyncNow}
-                  className="btn btn-outline btn-sm"
-                  style={{ fontSize: '0.7rem', padding: '0.15rem 0.45rem' }}
-                >
-                  {lang === 'ta' ? 'இணை' : 'Sync'}
-                </button>
-              )}
-            </div>
+            {/* Google Sheets Sync Quick Row - ONLY visible for Admin */}
+            {role === 'admin' && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.4rem 0.6rem',
+                background: 'var(--bg-card)',
+                borderRadius: '6px',
+                border: '1px solid var(--border-color)',
+                fontSize: '0.75rem'
+              }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}>
+                  <span style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: syncStatus === 'syncing' ? '#f59e0b' : syncStatus === 'connected' ? '#10b981' : '#94a3b8'
+                  }} />
+                  {syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'connected' ? 'Sheets Active' : 'Sheets Offline'}
+                </span>
+                {onSyncNow && (
+                  <button
+                    type="button"
+                    onClick={onSyncNow}
+                    className="btn btn-outline btn-sm"
+                    style={{ fontSize: '0.7rem', padding: '0.15rem 0.45rem' }}
+                  >
+                    {lang === 'ta' ? 'இணை' : 'Sync'}
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Logout button if currentUser */}
             {currentUser && onLogout && (

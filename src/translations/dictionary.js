@@ -20,7 +20,9 @@ export const translations = {
     // Roles & Access
     role: "Role",
     admin: "Admin",
+    manager: "Manager",
     operator: "Operator",
+    driver: "Driver",
     adminProtected: "Admin Only (Requires PIN)",
     enterAdminPin: "Enter Admin PIN to Delete",
     pinIncorrect: "Incorrect PIN! Deletion denied.",
@@ -230,7 +232,9 @@ export const translations = {
     // Roles & Access
     role: "பதவி",
     admin: "நிர்வாகி",
+    manager: "மேலாளர்",
     operator: "இயக்குபவர்",
+    driver: "டிரைவர்",
     adminProtected: "நிர்வாகிக்கு மட்டும் (PIN தேவை)",
     enterAdminPin: "நீக்குவதற்கு அட்மின் பின்னை உள்ளிடவும்",
     pinIncorrect: "தவறான PIN! நீக்க அனுமதி இல்லை.",

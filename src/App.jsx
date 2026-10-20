@@ -25,7 +25,6 @@ export default function App() {
   // Load Initial Settings
   const [settings, setSettings] = useState(() => StorageService.getSettings());
   const [lang, setLang] = useState(settings.language || 'en');
-  const [role, setRole] = useState(settings.currentRole || 'admin');
   const [darkMode, setDarkMode] = useState(settings.darkMode || false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -42,6 +41,17 @@ export default function App() {
     }
     // Default to null so initial opening displays the login page
     return null;
+  });
+
+  const [role, setRole] = useState(() => {
+    try {
+      const savedSession = localStorage.getItem(SESSION_KEY);
+      if (savedSession) {
+        const parsed = JSON.parse(savedSession);
+        if (parsed && parsed.role) return parsed.role;
+      }
+    } catch (e) {}
+    return settings.currentRole || 'admin';
   });
 
   // Load Entities from Storage
@@ -81,7 +91,8 @@ export default function App() {
   // Handle Login
   const handleLogin = (userObj, rememberMe) => {
     setCurrentUser(userObj);
-    setRole(userObj.role);
+    setRole(userObj.role || 'operator');
+    setActiveTab('dashboard');
     if (rememberMe) {
       localStorage.setItem(SESSION_KEY, JSON.stringify(userObj));
     }
@@ -91,6 +102,8 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem(SESSION_KEY);
     setCurrentUser(null);
+    setRole('operator');
+    setActiveTab('dashboard');
   };
 
   // Persist Settings
@@ -462,7 +475,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'partnerSplit' && (
+        {activeTab === 'partnerSplit' && (role === 'admin' || role === 'manager') && (
           <PartnerSplitManager
             partners={partners}
             partnerDrawings={partnerDrawings}
@@ -490,7 +503,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'auditTrash' && (
+        {activeTab === 'auditTrash' && role === 'admin' && (
           <AuditTrashManager
             deletedRecords={deletedRecords}
             onRestoreRecord={handleRestoreRecord}
@@ -499,7 +512,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'googleSheets' && (
+        {activeTab === 'googleSheets' && role === 'admin' && (
           <GoogleSheetsSettings
             settings={settings}
             onSaveSettings={handleSaveSettings}

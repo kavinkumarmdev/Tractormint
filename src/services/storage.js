@@ -27,7 +27,7 @@ const INITIAL_INCOME_EXPENSE = [];
 const INITIAL_PARTNERS = [];
 const INITIAL_PARTNER_DRAWINGS = [];
 
-// Initial Master Admin (Created by default - Only Admin can create additional login accounts)
+// Initial Users for the 4 System Roles
 const INITIAL_USERS = [
   {
     id: "usr-admin",
@@ -41,12 +41,51 @@ const INITIAL_USERS = [
     isDefault: true,
     created_at: "2026-01-01 00:00",
     created_by: "system"
+  },
+  {
+    id: "usr-manager",
+    username: "manager",
+    pin: "1234",
+    displayName: "Operations Manager",
+    displayName_ta: "செயல்பாட்டு மேலாளர்",
+    role: "manager",
+    phone: "",
+    status: "active",
+    isDefault: false,
+    created_at: "2026-01-01 00:00",
+    created_by: "system"
+  },
+  {
+    id: "usr-operator",
+    username: "operator",
+    pin: "1234",
+    displayName: "Field Operator",
+    displayName_ta: "கள ஆபரேட்டர்",
+    role: "operator",
+    phone: "",
+    status: "active",
+    isDefault: false,
+    created_at: "2026-01-01 00:00",
+    created_by: "system"
+  },
+  {
+    id: "usr-driver",
+    username: "driver",
+    pin: "1234",
+    displayName: "Tractor Driver",
+    displayName_ta: "டிராக்டர் டிரைவர்",
+    role: "driver",
+    phone: "",
+    status: "active",
+    isDefault: false,
+    created_at: "2026-01-01 00:00",
+    created_by: "system"
   }
 ];
 
 const INITIAL_SETTINGS = {
   adminPin: "1234",
-  currentRole: "admin", // 'admin' | 'operator'
+  currentRole: "admin", // 'admin' | 'manager' | 'operator' | 'driver'
   language: "en", // 'en' | 'ta'
   webAppUrl: ENV_GOOGLE_SHEETS_URL,
   autoSync: true,
@@ -82,60 +121,77 @@ function saveData(key, data) {
   }
 }
 
+// Robust is_deleted check preventing sheet boolean strings like "FALSE" from dropping records
+const isDeleted = (item) => {
+  if (!item) return false;
+  return item.is_deleted === true || 
+         item.is_deleted === 'true' || 
+         item.is_deleted === 'TRUE' || 
+         item.is_deleted === 1 || 
+         item.is_deleted === '1';
+};
+
 export const StorageService = {
   // Getters for active (non-soft-deleted) items
   getFleet: (includeDeleted = false) => {
     const list = loadData(STORAGE_KEYS.FLEET, INITIAL_FLEET);
-    return includeDeleted ? list : list.filter(item => !item.is_deleted);
+    return includeDeleted ? list : list.filter(item => !isDeleted(item));
   },
 
   getRateMatrix: (includeDeleted = false) => {
     const list = loadData(STORAGE_KEYS.RATE_MATRIX, INITIAL_RATE_MATRIX);
-    return includeDeleted ? list : list.filter(item => !item.is_deleted);
+    return includeDeleted ? list : list.filter(item => !isDeleted(item));
   },
 
   getDrivers: (includeDeleted = false) => {
     const list = loadData(STORAGE_KEYS.DRIVERS, INITIAL_DRIVERS);
-    return includeDeleted ? list : list.filter(item => !item.is_deleted);
+    return includeDeleted ? list : list.filter(item => !isDeleted(item));
   },
 
   getCustomers: (includeDeleted = false) => {
     const list = loadData(STORAGE_KEYS.CUSTOMERS, INITIAL_CUSTOMERS);
-    return includeDeleted ? list : list.filter(item => !item.is_deleted);
+    return includeDeleted ? list : list.filter(item => !isDeleted(item));
   },
 
   getTripSheets: (includeDeleted = false) => {
     const list = loadData(STORAGE_KEYS.TRIP_SHEETS, INITIAL_TRIP_SHEETS);
-    return includeDeleted ? list : list.filter(item => !item.is_deleted);
+    return includeDeleted ? list : list.filter(item => !isDeleted(item));
   },
 
   getMaintenance: (includeDeleted = false) => {
     const list = loadData(STORAGE_KEYS.MAINTENANCE, INITIAL_MAINTENANCE);
-    return includeDeleted ? list : list.filter(item => !item.is_deleted);
+    return includeDeleted ? list : list.filter(item => !isDeleted(item));
   },
 
   getIncomeExpense: (includeDeleted = false) => {
     const list = loadData(STORAGE_KEYS.INCOME_EXPENSE, INITIAL_INCOME_EXPENSE);
-    return includeDeleted ? list : list.filter(item => !item.is_deleted);
+    return includeDeleted ? list : list.filter(item => !isDeleted(item));
   },
 
   getPartners: (includeDeleted = false) => {
     const list = loadData(STORAGE_KEYS.PARTNERS, INITIAL_PARTNERS);
-    return includeDeleted ? list : list.filter(item => !item.is_deleted);
+    return includeDeleted ? list : list.filter(item => !isDeleted(item));
   },
 
   getPartnerDrawings: (includeDeleted = false) => {
     const list = loadData(STORAGE_KEYS.PARTNER_DRAWINGS, INITIAL_PARTNER_DRAWINGS);
-    return includeDeleted ? list : list.filter(item => !item.is_deleted);
+    return includeDeleted ? list : list.filter(item => !isDeleted(item));
   },
 
   getUsers: (includeDeleted = false) => {
     let list = loadData(STORAGE_KEYS.USERS, INITIAL_USERS);
-    if (!list || list.length === 0) {
+    if (!list || !Array.isArray(list) || list.length === 0) {
       list = INITIAL_USERS;
       saveData(STORAGE_KEYS.USERS, list);
+    } else {
+      // Ensure master admin always exists
+      const hasAdmin = list.some(u => u.username && String(u.username).trim().toLowerCase() === 'admin');
+      if (!hasAdmin) {
+        list.unshift(INITIAL_USERS[0]);
+        saveData(STORAGE_KEYS.USERS, list);
+      }
     }
-    return includeDeleted ? list : list.filter(item => !item.is_deleted);
+    return includeDeleted ? list : list.filter(item => !isDeleted(item));
   },
 
   getSettings: () => {
@@ -316,25 +372,38 @@ export const StorageService = {
 
   // Authenticate user login against admin-created accounts
   authenticateUser: (username, pin) => {
-    if (!username || !username.trim()) {
-      return { success: false, error: 'Please enter your username.' };
+    if (!username || !String(username).trim()) {
+      return { success: false, error: 'Please enter your username or phone number.' };
     }
     if (!pin || !String(pin).trim()) {
       return { success: false, error: 'Please enter your login PIN.' };
     }
-    const cleanUser = username.trim().toLowerCase();
+    const cleanUser = String(username).trim().toLowerCase();
     const cleanPin = String(pin).trim();
     const users = StorageService.getUsers();
     const settings = StorageService.getSettings();
 
-    const user = users.find(u => u.username && u.username.toLowerCase() === cleanUser);
+    // Match by username OR phone number (digits comparison)
+    const cleanDigits = cleanUser.replace(/\D/g, '');
+    const user = users.find(u => {
+      if (!u) return false;
+      const uUsername = String(u.username || '').trim().toLowerCase();
+      if (uUsername === cleanUser) return true;
+      if (cleanDigits && cleanDigits.length >= 7) {
+        const uPhoneDigits = String(u.phone || '').replace(/\D/g, '');
+        if (uPhoneDigits && (uPhoneDigits === cleanDigits || uPhoneDigits.endsWith(cleanDigits))) return true;
+      }
+      return false;
+    });
+
     if (!user) {
       return { 
         success: false, 
-        error: 'Account not found. Please verify your username.' 
+        error: 'Account not found. Please verify your username or registered phone.' 
       };
     }
-    if (user.status === 'inactive') {
+    const status = String(user.status || 'active').trim().toLowerCase();
+    if (status === 'inactive' || status === 'suspended') {
       return { 
         success: false, 
         error: 'This account has been deactivated. Please contact the Administrator.' 
@@ -342,8 +411,8 @@ export const StorageService = {
     }
 
     // Match user pin or Master Admin PIN override (robust type handling for sheet numbers/strings)
-    const userPinStr = String(user.pin !== undefined && user.pin !== null ? user.pin : '').trim();
-    const adminPinStr = String(settings.adminPin !== undefined && settings.adminPin !== null ? settings.adminPin : '1234').trim();
+    const userPinStr = String(user.pin !== undefined && user.pin !== null ? user.pin : '').replace(/\.0+$/, '').trim();
+    const adminPinStr = String(settings.adminPin !== undefined && settings.adminPin !== null ? settings.adminPin : '1234').replace(/\.0+$/, '').trim();
     const isPinValid = (userPinStr === cleanPin) || (user.role === 'admin' && (cleanPin === adminPinStr || cleanPin === '1234'));
     if (!isPinValid) {
       return { success: false, error: 'Incorrect PIN / password. Access denied.' };
@@ -390,7 +459,11 @@ export const StorageService = {
     if (Array.isArray(dataset.incomeExpense)) saveData(STORAGE_KEYS.INCOME_EXPENSE, dataset.incomeExpense);
     if (Array.isArray(dataset.partners)) saveData(STORAGE_KEYS.PARTNERS, dataset.partners);
     if (Array.isArray(dataset.partnerDrawings)) saveData(STORAGE_KEYS.PARTNER_DRAWINGS, dataset.partnerDrawings);
-    if (Array.isArray(dataset.users) && dataset.users.length > 0) saveData(STORAGE_KEYS.USERS, dataset.users);
+    if (Array.isArray(dataset.users) && dataset.users.length > 0) {
+      const hasAdmin = dataset.users.some(u => u.username && String(u.username).trim().toLowerCase() === 'admin');
+      const mergedUsers = hasAdmin ? dataset.users : [INITIAL_USERS[0], ...dataset.users];
+      saveData(STORAGE_KEYS.USERS, mergedUsers);
+    }
 
     const settings = StorageService.getSettings();
     settings.lastFetched = new Date().toLocaleString();
