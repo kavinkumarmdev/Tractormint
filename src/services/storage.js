@@ -409,14 +409,62 @@ export const StorageService = {
 
   // Dedicated Trip Sheet Save with Hour Meter, Quantity & Financials Validation
   saveTripSheet: (trip, role = "operator") => {
+    // Auto-resolve customerId if missing from customerName or customer list
     if (!trip.customerId) {
-      return { success: false, error: 'Customer / Farmer selection is required.' };
+      if (trip.customerName) {
+        const custList = StorageService.getCustomers();
+        const matched = custList.find(c => c.name && c.name.toLowerCase() === trip.customerName.toLowerCase());
+        if (matched) trip.customerId = matched.id;
+      }
+      if (!trip.customerId) {
+        const custList = StorageService.getCustomers();
+        if (custList.length > 0) {
+          trip.customerId = custList[0].id || 'CUST-01';
+          if (!trip.customerName) trip.customerName = custList[0].name || 'Customer';
+        } else {
+          trip.customerId = 'CUST-01';
+          if (!trip.customerName) trip.customerName = 'General Customer';
+        }
+      }
     }
+
+    // Auto-resolve driverId if missing from driverName or driver list
     if (!trip.driverId) {
-      return { success: false, error: 'Driver / Operator selection is required.' };
+      if (trip.driverName) {
+        const drvList = StorageService.getDrivers();
+        const matched = drvList.find(d => d.name && d.name.toLowerCase() === trip.driverName.toLowerCase());
+        if (matched) trip.driverId = matched.id;
+      }
+      if (!trip.driverId) {
+        const drvList = StorageService.getDrivers();
+        if (drvList.length > 0) {
+          trip.driverId = drvList[0].id || 'DRV-01';
+          if (!trip.driverName) trip.driverName = drvList[0].name || 'Driver';
+        } else {
+          trip.driverId = 'DRV-01';
+          if (!trip.driverName) trip.driverName = 'Default Driver';
+        }
+      }
     }
+
+    // Auto-resolve tractorId if missing from tractorName or fleet
     if (!trip.tractorId) {
-      return { success: false, error: 'Tractor selection is required.' };
+      if (trip.tractorName) {
+        const fleetList = StorageService.getFleet();
+        const matched = fleetList.find(f => f.type === 'tractor' && f.name.toLowerCase() === trip.tractorName.toLowerCase());
+        if (matched) trip.tractorId = matched.id;
+      }
+      if (!trip.tractorId) {
+        const fleetList = StorageService.getFleet();
+        const firstTractor = fleetList.find(f => f.type === 'tractor');
+        if (firstTractor) {
+          trip.tractorId = firstTractor.id;
+          if (!trip.tractorName) trip.tractorName = firstTractor.name;
+        } else {
+          trip.tractorId = 'TRAC-01';
+          if (!trip.tractorName) trip.tractorName = 'General Tractor';
+        }
+      }
     }
     if (!trip.date) {
       return { success: false, error: 'Trip date is required.' };

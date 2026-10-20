@@ -111,12 +111,26 @@ export default function TripSheetManager({
 
   // 1. From Rate Card combinations (Image 3)
   rateMatrix.forEach(r => {
+    let matchedT = tractors.find(t => (r.tractorId && t.id === r.tractorId) || (r.tractorName && t.name.toLowerCase() === r.tractorName.toLowerCase()));
+    const resolvedTractorId = matchedT ? matchedT.id : (r.tractorId || (tractors[0] ? tractors[0].id : 'TRAC-01'));
+    const resolvedTractorName = matchedT ? matchedT.name : (r.tractorName || (tractors[0] ? tractors[0].name : 'Tractor'));
+
+    let matchedI = implementsList.find(m => (r.implementId && m.id === r.implementId) || (r.implementName && m.name.toLowerCase() === r.implementName.toLowerCase()));
+    const resolvedImplementId = matchedI ? matchedI.id : (r.implementId || 'none');
+    const resolvedImplementName = matchedI ? matchedI.name : (r.implementName || 'Standalone Tractor');
+
     comboOptions.push({
       value: `rate_${r.id}`,
-      label: `${r.tractorName} + ${r.implementName || (lang === 'ta' ? 'கருவி இல்லை' : 'Standalone')}`,
+      label: `${resolvedTractorName} + ${resolvedImplementName}`,
       subLabel: `${resolveUnitLabel(r.unit)} • ₹${r.rate}`,
       badge: `₹${r.rate}`,
-      rateItem: r
+      rateItem: {
+        ...r,
+        tractorId: resolvedTractorId,
+        tractorName: resolvedTractorName,
+        implementId: resolvedImplementId,
+        implementName: resolvedImplementName
+      }
     });
   });
 
@@ -286,16 +300,24 @@ export default function TripSheetManager({
 
     if (selected.rateItem) {
       const r = selected.rateItem;
+      tracName = r.tractorName || (tractors[0] ? tractors[0].name : 'Tractor');
       tracId = r.tractorId;
-      tracName = r.tractorName;
+      if (!tracId) {
+        const foundT = tractors.find(t => r.tractorName && t.name.toLowerCase() === r.tractorName.toLowerCase());
+        tracId = foundT ? foundT.id : (tractors[0] ? tractors[0].id : 'TRAC-01');
+      }
       impId = r.implementId || 'none';
       impName = r.implementName || 'Standalone Tractor';
+      if (impId === 'none' && r.implementName && r.implementName !== 'Standalone Tractor') {
+        const foundI = implementsList.find(m => m.name.toLowerCase() === r.implementName.toLowerCase());
+        if (foundI) impId = foundI.id;
+      }
       unitVal = r.unit || 'per_hour';
       rateVal = (r.rate || '900').toString();
     } else if (selected.customCombo) {
       const c = selected.customCombo;
-      tracId = c.tractorId;
-      tracName = c.tractorName;
+      tracId = c.tractorId || (tractors[0] ? tractors[0].id : 'TRAC-01');
+      tracName = c.tractorName || (tractors[0] ? tractors[0].name : 'Tractor');
       impId = c.implementId;
       impName = c.implementName;
       unitVal = c.unit;
@@ -346,10 +368,10 @@ export default function TripSheetManager({
   };
 
   const handleOpenAdd = () => {
-    const defaultCust = customers[0] || { id: '', name: 'Customer' };
-    const defaultDrv = drivers[0] || { id: '', name: 'Driver' };
-    const defaultTrac = tractors[0] || { id: '', name: 'Tractor' };
-    const defaultImp = implementsList[0] || null;
+    const defaultCust = (customers && customers.length > 0) ? customers[0] : { id: 'CUST-01', name: 'General Customer' };
+    const defaultDrv = (drivers && drivers.length > 0) ? drivers[0] : { id: 'DRV-01', name: 'Default Driver' };
+    const defaultTrac = (tractors && tractors.length > 0) ? tractors[0] : { id: 'TRAC-01', name: 'Tractor' };
+    const defaultImp = (implementsList && implementsList.length > 0) ? implementsList[0] : null;
 
     let maxNum = 1000;
     tripSheets.forEach(t => {
@@ -368,24 +390,28 @@ export default function TripSheetManager({
     const newTripId = `TRP-${nextNum}`;
     const todayDate = new Date().toISOString().slice(0, 10);
 
-    // Initial default from Rate Card (Image 3) if available
-    let initialTracId = defaultTrac.id;
-    let initialTracName = defaultTrac.name;
-    let initialImpId = defaultImp ? defaultImp.id : 'none';
-    let initialImpName = defaultImp ? defaultImp.name : 'Standalone Tractor';
+    // Initial default from Rate Card if available
+    let initialTracId = defaultTrac.id || 'TRAC-01';
+    let initialTracName = defaultTrac.name || 'Tractor';
+    let initialImpId = defaultImp ? (defaultImp.id || 'none') : 'none';
+    let initialImpName = defaultImp ? (defaultImp.name || 'Standalone Tractor') : 'Standalone Tractor';
     let initialUnit = 'per_hour';
     let initialRate = '900';
 
     if (rateMatrix && rateMatrix.length > 0) {
       const firstRate = rateMatrix[0];
-      initialTracId = firstRate.tractorId || initialTracId;
-      initialTracName = firstRate.tractorName || initialTracName;
-      initialImpId = firstRate.implementId || initialImpId;
-      initialImpName = firstRate.implementName || initialImpName;
+      const matchT = tractors.find(t => (firstRate.tractorId && t.id === firstRate.tractorId) || (firstRate.tractorName && t.name.toLowerCase() === firstRate.tractorName.toLowerCase()));
+      initialTracId = matchT ? matchT.id : (firstRate.tractorId || initialTracId);
+      initialTracName = matchT ? matchT.name : (firstRate.tractorName || initialTracName);
+
+      const matchI = implementsList.find(m => (firstRate.implementId && m.id === firstRate.implementId) || (firstRate.implementName && m.name.toLowerCase() === firstRate.implementName.toLowerCase()));
+      initialImpId = matchI ? matchI.id : (firstRate.implementId || 'none');
+      initialImpName = matchI ? matchI.name : (firstRate.implementName || 'Standalone Tractor');
+
       initialUnit = firstRate.unit || initialUnit;
       initialRate = (firstRate.rate || initialRate).toString();
     } else {
-      const suggestedRate = lookupRate(defaultTrac.id, defaultImp ? defaultImp.id : 'none', todayDate, 'per_hour');
+      const suggestedRate = lookupRate(initialTracId, initialImpId, todayDate, 'per_hour');
       if (suggestedRate) initialRate = suggestedRate.toString();
     }
 
@@ -399,8 +425,8 @@ export default function TripSheetManager({
     const isDriverRole = loggedUserRole === 'driver';
     const initAssignment = isDriverRole ? 'driver' : 'collector';
 
-    let chosenDrvId = defaultDrv.id;
-    let chosenDrvName = defaultDrv.name;
+    let chosenDrvId = defaultDrv.id || 'DRV-01';
+    let chosenDrvName = defaultDrv.name || 'Default Driver';
     if (initAssignment === 'driver') {
       const matchDrv = drivers.find(d => 
         (d.name && d.name.toLowerCase() === loggedUserName.toLowerCase()) ||
@@ -470,6 +496,52 @@ export default function TripSheetManager({
   const handleOpenEdit = (trip, forceCollect = false) => {
     setEditingItem(trip);
     setFormError('');
+
+    let tracId = trip.tractorId;
+    let tracName = trip.tractorName;
+    if (!tracId && tracName) {
+      const matchT = tractors.find(t => t.name.toLowerCase() === tracName.toLowerCase());
+      if (matchT) tracId = matchT.id;
+    }
+    if (!tracId && tractors.length > 0) {
+      tracId = tractors[0].id;
+      if (!tracName) tracName = tractors[0].name;
+    }
+    if (!tracId) {
+      tracId = 'TRAC-01';
+      if (!tracName) tracName = 'General Tractor';
+    }
+
+    let drvId = trip.driverId;
+    let drvName = trip.driverName;
+    if (!drvId && drvName) {
+      const matchD = drivers.find(d => d.name.toLowerCase() === drvName.toLowerCase());
+      if (matchD) drvId = matchD.id;
+    }
+    if (!drvId && drivers.length > 0) {
+      drvId = drivers[0].id;
+      if (!drvName) drvName = drivers[0].name;
+    }
+    if (!drvId) {
+      drvId = 'DRV-01';
+      if (!drvName) drvName = 'General Driver';
+    }
+
+    let custId = trip.customerId;
+    let custName = trip.customerName;
+    if (!custId && custName) {
+      const matchC = customers.find(c => c.name && c.name.toLowerCase() === custName.toLowerCase());
+      if (matchC) custId = matchC.id;
+    }
+    if (!custId && customers.length > 0) {
+      custId = customers[0].id;
+      if (!custName) custName = customers[0].name;
+    }
+    if (!custId) {
+      custId = 'CUST-01';
+      if (!custName) custName = 'General Customer';
+    }
+
     let ids = [];
     if (Array.isArray(trip.implementIds) && trip.implementIds.length > 0) {
       ids = trip.implementIds;
@@ -490,7 +562,7 @@ export default function TripSheetManager({
     setTimerMessage('');
     setShowAdvancedFleet(ids.length > 1);
 
-    if (trip.driverName && trip.driverName.toLowerCase() === loggedUserName.toLowerCase()) {
+    if (drvName && drvName.toLowerCase() === loggedUserName.toLowerCase()) {
       setLoginUserAssignment('driver');
     } else if (trip.collectedBy && trip.collectedBy.toLowerCase().includes(loggedUserName.toLowerCase())) {
       setLoginUserAssignment('collector');
@@ -504,6 +576,12 @@ export default function TripSheetManager({
 
     setFormData({
       ...trip,
+      tractorId: tracId,
+      tractorName: tracName,
+      driverId: drvId,
+      driverName: drvName,
+      customerId: custId,
+      customerName: custName,
       paidAmount: paid.toString(),
       balanceAmount: bal,
       paymentStatus: forceCollect ? 'paid' : trip.paymentStatus,
@@ -812,15 +890,61 @@ export default function TripSheetManager({
     e.preventDefault();
     setFormError('');
 
-    if (!formData.customerId) {
+    // Auto-resolve tractorId, driverId & customerId if missing
+    let resolvedTractorId = formData.tractorId;
+    let resolvedTractorName = formData.tractorName;
+    if (!resolvedTractorId && resolvedTractorName) {
+      const matchT = tractors.find(t => t.name.toLowerCase() === resolvedTractorName.toLowerCase());
+      if (matchT) resolvedTractorId = matchT.id;
+    }
+    if (!resolvedTractorId && tractors.length > 0) {
+      resolvedTractorId = tractors[0].id;
+      if (!resolvedTractorName) resolvedTractorName = tractors[0].name;
+    }
+    if (!resolvedTractorId) {
+      resolvedTractorId = 'TRAC-01';
+      if (!resolvedTractorName) resolvedTractorName = 'General Tractor';
+    }
+
+    let resolvedDriverId = formData.driverId;
+    let resolvedDriverName = formData.driverName;
+    if (!resolvedDriverId && resolvedDriverName) {
+      const matchD = drivers.find(d => d.name.toLowerCase() === resolvedDriverName.toLowerCase());
+      if (matchD) resolvedDriverId = matchD.id;
+    }
+    if (!resolvedDriverId && drivers.length > 0) {
+      resolvedDriverId = drivers[0].id;
+      if (!resolvedDriverName) resolvedDriverName = drivers[0].name;
+    }
+    if (!resolvedDriverId) {
+      resolvedDriverId = 'DRV-01';
+      if (!resolvedDriverName) resolvedDriverName = 'General Driver';
+    }
+
+    let resolvedCustomerId = formData.customerId;
+    let resolvedCustomerName = formData.customerName;
+    if (!resolvedCustomerId && resolvedCustomerName) {
+      const matchC = customers.find(c => c.name && c.name.toLowerCase() === resolvedCustomerName.toLowerCase());
+      if (matchC) resolvedCustomerId = matchC.id;
+    }
+    if (!resolvedCustomerId && customers.length > 0) {
+      resolvedCustomerId = customers[0].id;
+      if (!resolvedCustomerName) resolvedCustomerName = customers[0].name;
+    }
+    if (!resolvedCustomerId) {
+      resolvedCustomerId = 'CUST-01';
+      if (!resolvedCustomerName) resolvedCustomerName = 'General Customer';
+    }
+
+    if (!resolvedCustomerId) {
       setFormError(lang === 'ta' ? 'விவசாயி / வாடிக்கையாளரை தேர்வு செய்யவும்!' : 'Please select a Customer / Farmer!');
       return;
     }
-    if (!formData.driverId) {
+    if (!resolvedDriverId) {
       setFormError(lang === 'ta' ? 'ஓட்டுநரை தேர்வு செய்யவும்!' : 'Please select a Driver / Operator!');
       return;
     }
-    if (!formData.tractorId) {
+    if (!resolvedTractorId) {
       setFormError(lang === 'ta' ? 'டிராக்டரை தேர்வு செய்யவும்!' : 'Please select a Tractor!');
       return;
     }
@@ -902,6 +1026,12 @@ export default function TripSheetManager({
     const finalPayload = {
       ...formData,
       _isEditing: Boolean(editingItem),
+      customerId: resolvedCustomerId,
+      customerName: resolvedCustomerName,
+      tractorId: resolvedTractorId,
+      tractorName: resolvedTractorName,
+      driverId: resolvedDriverId,
+      driverName: resolvedDriverName,
       grossAmount: gross,
       totalAmount: netTotal,
       paidAmount: finalPaid,
