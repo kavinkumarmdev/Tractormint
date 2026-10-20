@@ -106,6 +106,26 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
+  // Ensure activeTab is strictly allowed for the current role
+  useEffect(() => {
+    if (role === 'driver') {
+      const allowedDriverTabs = ['dashboard', 'tripSheets', 'fleet', 'maintenance'];
+      if (!allowedDriverTabs.includes(activeTab)) {
+        setActiveTab('dashboard');
+      }
+    } else if (role === 'operator') {
+      const forbiddenOperatorTabs = ['rateMatrix', 'partnerSplit', 'userManagement', 'auditTrash', 'googleSheets'];
+      if (forbiddenOperatorTabs.includes(activeTab)) {
+        setActiveTab('dashboard');
+      }
+    } else if (role === 'manager') {
+      const forbiddenManagerTabs = ['auditTrash', 'googleSheets'];
+      if (forbiddenManagerTabs.includes(activeTab)) {
+        setActiveTab('dashboard');
+      }
+    }
+  }, [role, activeTab]);
+
   // Persist Settings
   const handleSaveSettings = (newSettings) => {
     setSettings(newSettings);
@@ -421,7 +441,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'rateMatrix' && (
+        {activeTab === 'rateMatrix' && (role === 'admin' || role === 'manager') && (
           <RateMatrixManager
             rateMatrix={rateMatrix}
             fleet={fleet}
@@ -432,7 +452,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'drivers' && (
+        {activeTab === 'drivers' && role !== 'driver' && (
           <DriverList
             drivers={drivers}
             tripSheets={tripSheets}
@@ -443,7 +463,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'customers' && (
+        {activeTab === 'customers' && role !== 'driver' && (
           <CustomerManager
             customers={customers}
             tripSheets={tripSheets}
@@ -465,7 +485,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'incomeExpense' && (
+        {activeTab === 'incomeExpense' && role !== 'driver' && (
           <IncomeExpenseManager
             incomeExpense={incomeExpense}
             onSaveIncomeExpense={handleSaveIncomeExpense}
@@ -491,7 +511,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'userManagement' && role === 'admin' && (
+        {activeTab === 'userManagement' && (role === 'admin' || role === 'manager') && (
           <UserManager
             users={users}
             onSaveUser={handleSaveUser}

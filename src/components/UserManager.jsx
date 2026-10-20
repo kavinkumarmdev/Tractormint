@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, 
   UserPlus, 
@@ -23,9 +23,16 @@ import {
   Minus,
   ChevronUp,
   ChevronDown,
-  Tractor
+  Tractor,
+  History,
+  Clock,
+  Download,
+  RefreshCw,
+  Smartphone,
+  Laptop
 } from 'lucide-react';
 import { translations } from '../translations/dictionary';
+import { StorageService } from '../services/storage';
 import SearchableSelect from './common/SearchableSelect';
 import BilingualVoiceGroup from './common/BilingualVoiceGroup';
 import VoiceInput from './common/VoiceInput';
@@ -40,11 +47,24 @@ export default function UserManager({
   role
 }) {
   const t = translations[lang];
+  const [activeSubTab, setActiveSubTab] = useState('accounts'); // 'accounts' | 'history'
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [showPermGuide, setShowPermGuide] = useState(false);
+
+  // Login History State
+  const [loginLogs, setLoginLogs] = useState(() => StorageService.getLoginHistory());
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyStatusFilter, setHistoryStatusFilter] = useState('all');
+  const [showClearHistoryModal, setShowClearHistoryModal] = useState(false);
+  const [clearHistoryPin, setClearHistoryPin] = useState('');
+  const [clearHistoryError, setClearHistoryError] = useState('');
+
+  const refreshLoginLogs = () => {
+    setLoginLogs(StorageService.getLoginHistory());
+  };
 
   // Form State
   const [formData, setFormData] = useState({
@@ -195,6 +215,56 @@ export default function UserManager({
     }
   };
 
+  // Handle Export History CSV
+  const handleExportHistoryCSV = () => {
+    if (!loginLogs || loginLogs.length === 0) return;
+    const headers = ["Timestamp", "Username", "Staff Name", "Role", "Status", "Reason", "Device"];
+    const rows = loginLogs.map(l => [
+      `"${l.timestamp || ''}"`,
+      `"${l.username || ''}"`,
+      `"${l.displayName || ''}"`,
+      `"${l.role || ''}"`,
+      `"${l.status || ''}"`,
+      `"${(l.reason || '').replace(/"/g, '""')}"`,
+      `"${l.device || ''}"`
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `tractomint_login_audit_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Handle Clear History Confirmation
+  const handleConfirmClearHistory = () => {
+    setClearHistoryError('');
+    const res = StorageService.clearLoginHistory(clearHistoryPin);
+    if (res && res.success) {
+      setShowClearHistoryModal(false);
+      setClearHistoryPin('');
+      refreshLoginLogs();
+      setSuccessMsg(lang === 'ta' ? 'உள்நுழைவு வரலாறு அழிக்கப்பட்டது!' : 'Login history cleared successfully!');
+      setTimeout(() => setSuccessMsg(''), 3500);
+    } else {
+      setClearHistoryError(res?.error || 'Incorrect PIN.');
+    }
+  };
+
+  // Filter Login History Logs
+  const filteredHistoryLogs = loginLogs.filter((log) => {
+    const matchesSearch = 
+      (log.username || '').toLowerCase().includes(historySearch.toLowerCase()) ||
+      (log.displayName || '').toLowerCase().includes(historySearch.toLowerCase()) ||
+      (log.reason || '').toLowerCase().includes(historySearch.toLowerCase()) ||
+      (log.device || '').toLowerCase().includes(historySearch.toLowerCase());
+    
+    const matchesStatus = historyStatusFilter === 'all' || log.status === historyStatusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
   return (
     <div>
       {/* Header bar */}
@@ -202,33 +272,130 @@ export default function UserManager({
         <div className="card-title-group">
           <h2>
             <Users size={22} color="var(--primary-600)" />
-            {lang === 'ta' ? 'பயனர்கள் & உள்நுழைவு மேலாண்மை' : 'User Accounts & Staff Logins'}
+            {lang === 'ta' ? 'பணியாளர்கள் & உள்நுழைவு மேலாண்மை' : 'Staff Accounts & Login Management'}
           </h2>
           <p>
             {lang === 'ta' 
-              ? 'நிர்வாகி மட்டுமே இந்த அப்ளிகேஷனுக்கான உள்நுழைவு கணக்குகளை உருவாக்கவும் நிர்வகிக்கவும் முடியும்.' 
-              : 'Admin-exclusive user portal: Only users created by Admin can log in to this application.'}
+              ? 'பயனர் கணக்குகள் உருவாக்கம், அனுமதிகள் மற்றும் நிகழ்நேர உள்நுழைவு தணிக்கை வரலாறு.' 
+              : 'Create staff logins, assign role access levels, and monitor real-time login audit trails.'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button 
-            type="button" 
-            className="btn btn-outline"
-            onClick={() => setShowPermGuide(!showPermGuide)}
-            style={{ fontWeight: 600 }}
-          >
-            <HelpCircle size={16} />
-            <span>{lang === 'ta' ? '4 நிலைகள் & அனுமதிகள்' : 'Role Permissions Guide'}</span>
-            {showPermGuide ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-          </button>
-          <button className="btn btn-primary" onClick={handleOpenAdd}>
-            <UserPlus size={16} />
-            <span>{lang === 'ta' ? 'புதிய பயனர் உருவாக்கு' : 'Add Login User'}</span>
-          </button>
+          {activeSubTab === 'accounts' ? (
+            <>
+              <button 
+                type="button" 
+                className="btn btn-outline"
+                onClick={() => setShowPermGuide(!showPermGuide)}
+                style={{ fontWeight: 600 }}
+              >
+                <HelpCircle size={16} />
+                <span>{lang === 'ta' ? '4 நிலைகள் & அனுமதிகள்' : 'Role Permissions Guide'}</span>
+                {showPermGuide ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+              </button>
+              <button className="btn btn-primary" onClick={handleOpenAdd}>
+                <UserPlus size={16} />
+                <span>{lang === 'ta' ? 'புதிய பயனர் உருவாக்கு' : 'Add Login User'}</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button 
+                type="button" 
+                className="btn btn-outline btn-sm"
+                onClick={refreshLoginLogs}
+                title={lang === 'ta' ? 'புதுப்பி' : 'Refresh'}
+              >
+                <RefreshCw size={15} />
+                <span>{lang === 'ta' ? 'புதுப்பி' : 'Refresh'}</span>
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-outline btn-sm"
+                onClick={handleExportHistoryCSV}
+                disabled={loginLogs.length === 0}
+                title={lang === 'ta' ? 'பதிவிறக்கு' : 'Export CSV'}
+              >
+                <Download size={15} />
+                <span>{lang === 'ta' ? 'பதிவிறக்கு' : 'Export CSV'}</span>
+              </button>
+              {role === 'admin' && (
+                <button 
+                  type="button" 
+                  className="btn btn-outline btn-sm"
+                  style={{ color: '#ef4444', borderColor: '#fca5a5' }}
+                  onClick={() => {
+                    setShowClearHistoryModal(true);
+                    setClearHistoryPin('');
+                    setClearHistoryError('');
+                  }}
+                  disabled={loginLogs.length === 0}
+                  title={lang === 'ta' ? 'அழி' : 'Clear Log'}
+                >
+                  <Trash2 size={15} />
+                  <span>{lang === 'ta' ? 'அழி' : 'Clear Log'}</span>
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
 
-      {/* Roles & Permissions Explanation Guide */}
+      {/* Sub Tabs: Staff Accounts vs Login Audit History */}
+      <div style={{ 
+        display: 'flex', 
+        gap: '0.5rem', 
+        marginBottom: '1.25rem', 
+        borderBottom: '1px solid var(--border-color)', 
+        paddingBottom: '0.75rem',
+        flexWrap: 'wrap'
+      }}>
+        <button
+          type="button"
+          className={`btn ${activeSubTab === 'accounts' ? 'btn-primary' : 'btn-outline'}`}
+          onClick={() => setActiveSubTab('accounts')}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem' }}
+        >
+          <Users size={16} />
+          <span>{lang === 'ta' ? 'பணியாளர் கணக்குகள்' : 'Staff Accounts'}</span>
+          <span style={{ 
+            background: activeSubTab === 'accounts' ? 'rgba(255,255,255,0.25)' : 'var(--bg-main)', 
+            padding: '0.1rem 0.45rem', 
+            borderRadius: '10px', 
+            fontSize: '0.75rem',
+            fontWeight: 700
+          }}>
+            {users.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className={`btn ${activeSubTab === 'history' ? 'btn-primary' : 'btn-outline'}`}
+          onClick={() => {
+            refreshLoginLogs();
+            setActiveSubTab('history');
+          }}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.85rem' }}
+        >
+          <History size={16} />
+          <span>{lang === 'ta' ? 'உள்நுழைவு வரலாறு & தணிக்கை' : 'Login Audit History'}</span>
+          <span style={{ 
+            background: activeSubTab === 'history' ? 'rgba(255,255,255,0.25)' : 'var(--bg-main)', 
+            padding: '0.1rem 0.45rem', 
+            borderRadius: '10px', 
+            fontSize: '0.75rem',
+            fontWeight: 700
+          }}>
+            {loginLogs.length}
+          </span>
+        </button>
+      </div>
+
+      {/* Staff Accounts Sub-Tab */}
+      {activeSubTab === 'accounts' && (
+        <>
+          {/* Roles & Permissions Explanation Guide */}
       {showPermGuide && (
         <div className="content-card" style={{ 
           marginBottom: '1.5rem', 
@@ -699,11 +866,189 @@ export default function UserManager({
           </table>
         </div>
       </div>
+        </>
+      )}
+
+      {/* Login History Sub-Tab */}
+      {activeSubTab === 'history' && (
+        <div>
+          {/* History KPIs */}
+          <div className="kpi-grid" style={{ marginBottom: '1.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
+            <div className="kpi-card">
+              <span className="kpi-label">{lang === 'ta' ? 'மொத்த உள்நுழைவு நிகழ்வுகள்' : 'Total Login Events'}</span>
+              <span className="kpi-value">{loginLogs.length}</span>
+              <span className="kpi-subtext">{lang === 'ta' ? 'பதிவான நடவடிக்கைகள்' : 'Lifetime audit events'}</span>
+            </div>
+            <div className="kpi-card">
+              <span className="kpi-label">{lang === 'ta' ? 'வெற்றிகரமான உள்நுழைவுகள்' : 'Successful Logins'}</span>
+              <span className="kpi-value" style={{ color: '#059669' }}>
+                {loginLogs.filter(l => l.status === 'success').length}
+              </span>
+              <span className="kpi-subtext" style={{ color: '#059669' }}>
+                <CheckCircle2 size={12} style={{ display: 'inline', marginRight: 4 }} />
+                {lang === 'ta' ? 'அங்கீகரிக்கப்பட்டது' : 'Authorized access'}
+              </span>
+            </div>
+            <div className="kpi-card">
+              <span className="kpi-label">{lang === 'ta' ? 'தோல்வியுற்ற முயற்சிகள்' : 'Failed Attempts'}</span>
+              <span className="kpi-value" style={{ color: loginLogs.filter(l => l.status === 'failed').length > 0 ? '#dc2626' : '#64748b' }}>
+                {loginLogs.filter(l => l.status === 'failed').length}
+              </span>
+              <span className="kpi-subtext" style={{ color: loginLogs.filter(l => l.status === 'failed').length > 0 ? '#dc2626' : 'var(--text-light)' }}>
+                {loginLogs.filter(l => l.status === 'failed').length > 0 ? 'Blocked attempts' : 'Zero security flags'}
+              </span>
+            </div>
+            <div className="kpi-card">
+              <span className="kpi-label">{lang === 'ta' ? 'பயன்படுத்தப்படும் தளங்கள்' : 'Active Platforms'}</span>
+              <span className="kpi-value" style={{ color: '#2563eb' }}>
+                {new Set(loginLogs.map(l => l.device).filter(Boolean)).size || 1}
+              </span>
+              <span className="kpi-subtext">Web & Mobile devices</span>
+            </div>
+          </div>
+
+          {/* History Controls Bar */}
+          <div className="table-controls-bar" style={{ marginBottom: '1rem' }}>
+            <div className="search-input-wrapper">
+              <Search size={16} className="search-icon" />
+              <input
+                type="text"
+                className="form-control search-input"
+                placeholder={lang === 'ta' ? 'பயனர், சாதனம் அல்லது காரணத்தை தேட...' : 'Search by username, staff name, device, reason...'}
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <Filter size={15} color="var(--text-light)" />
+              <select 
+                className="form-control" 
+                style={{ width: 'auto', minWidth: '140px' }}
+                value={historyStatusFilter}
+                onChange={(e) => setHistoryStatusFilter(e.target.value)}
+              >
+                <option value="all">{lang === 'ta' ? 'அனைத்து நிலைகளும்' : 'All Statuses'}</option>
+                <option value="success">{lang === 'ta' ? 'வெற்றி (Success)' : 'Success Only'}</option>
+                <option value="failed">{lang === 'ta' ? 'தோல்வி (Failed)' : 'Failed Attempts'}</option>
+              </select>
+            </div>
+          </div>
+
+          {/* History Table */}
+          <div className="content-card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="table-responsive">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '170px' }}>{lang === 'ta' ? 'தேதி & நேரம்' : 'Date & Time'}</th>
+                    <th>{lang === 'ta' ? 'பணியாளர் / பயனர் பெயர்' : 'Staff / Username'}</th>
+                    <th style={{ width: '130px' }}>{lang === 'ta' ? 'நிலை / பதவி' : 'System Role'}</th>
+                    <th style={{ width: '120px', textAlign: 'center' }}>{lang === 'ta' ? 'முடிவு' : 'Status'}</th>
+                    <th>{lang === 'ta' ? 'விவரம் / காரணம்' : 'Details / Reason'}</th>
+                    <th style={{ width: '150px' }}>{lang === 'ta' ? 'சாதனம்' : 'Platform / Device'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredHistoryLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-light)' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                          <History size={36} color="var(--text-light)" />
+                          <p style={{ margin: 0, fontWeight: 600 }}>
+                            {lang === 'ta' ? 'உள்நுழைவு பதிவுகள் எதுவும் கிடைக்கவில்லை' : 'No login history records found.'}
+                          </p>
+                          <span style={{ fontSize: '0.8rem' }}>
+                            {lang === 'ta' ? 'பணியாளர்கள் உள்நுழையும்போது இங்கு தணிக்கை செய்யப்படும்.' : 'Staff logins and PIN verification attempts will appear here in real-time.'}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredHistoryLogs.map((log) => {
+                      const badge = getRoleBadge(log.role);
+                      const isSuccess = log.status === 'success';
+                      return (
+                        <tr key={log.id}>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                              <Clock size={13} color="var(--text-muted)" />
+                              <span>{log.timestamp || 'Just now'}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-main)' }}>
+                                {log.displayName || log.username}
+                              </div>
+                              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                                @{log.username}
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              padding: '0.2rem 0.55rem',
+                              borderRadius: '12px',
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              background: badge.bg,
+                              color: badge.color,
+                              border: `1px solid ${badge.border}`
+                            }}>
+                              {badge.label}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.3rem',
+                              padding: '0.25rem 0.6rem',
+                              borderRadius: '20px',
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              background: isSuccess ? '#ecfdf5' : '#fee2e2',
+                              color: isSuccess ? '#065f46' : '#991b1b',
+                              border: `1px solid ${isSuccess ? '#a7f3d0' : '#fca5a5'}`
+                            }}>
+                              {isSuccess ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                              <span>{isSuccess ? (lang === 'ta' ? 'வெற்றி' : 'Success') : (lang === 'ta' ? 'தோல்வி' : 'Failed')}</span>
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '0.82rem', color: isSuccess ? 'var(--text-muted)' : '#b91c1c', fontWeight: isSuccess ? 400 : 600 }}>
+                              {log.reason || (isSuccess ? 'Login Authorized' : 'Verification Denied')}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                              {log.device?.toLowerCase().includes('phone') || log.device?.toLowerCase().includes('ios') || log.device?.toLowerCase().includes('android') ? (
+                                <Smartphone size={14} />
+                              ) : (
+                                <Laptop size={14} />
+                              )}
+                              <span>{log.device || 'Web Browser'}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add / Edit User Modal */}
       {isModalOpen && (
-        <div className="modal-backdrop">
-          <div className="modal-dialog" style={{ maxWidth: '480px' }}>
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 style={{ fontSize: '1.15rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <UserCheck size={18} color="var(--primary-600)" />
@@ -713,8 +1058,9 @@ export default function UserManager({
               </h3>
               <button 
                 type="button" 
-                className="modal-close-btn"
+                className="btn btn-outline btn-sm"
                 onClick={() => setIsModalOpen(false)}
+                style={{ padding: '0.2rem 0.5rem', borderRadius: '50%', minWidth: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 &times;
               </button>
@@ -861,8 +1207,8 @@ export default function UserManager({
 
       {/* Delete Confirmation Modal (Protected with Admin PIN) */}
       {deleteTarget && (
-        <div className="modal-backdrop">
-          <div className="modal-dialog" style={{ maxWidth: '420px' }}>
+        <div className="modal-overlay" onClick={() => setDeleteTarget(null)}>
+          <div className="modal-content" style={{ maxWidth: '420px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header" style={{ borderBottomColor: '#fecaca' }}>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <Trash2 size={18} />
@@ -870,8 +1216,9 @@ export default function UserManager({
               </h3>
               <button 
                 type="button" 
-                className="modal-close-btn"
+                className="btn btn-outline btn-sm"
                 onClick={() => setDeleteTarget(null)}
+                style={{ padding: '0.2rem 0.5rem', borderRadius: '50%', minWidth: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 &times;
               </button>
@@ -929,6 +1276,84 @@ export default function UserManager({
                   disabled={!deletePinInput}
                 >
                   {lang === 'ta' ? 'உறுதி செய்து நீக்கு' : 'Confirm & Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear Login History Modal (Protected with Admin PIN) */}
+      {showClearHistoryModal && (
+        <div className="modal-overlay" onClick={() => setShowClearHistoryModal(false)}>
+          <div className="modal-content" style={{ maxWidth: '420px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ borderBottomColor: '#fecaca' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Trash2 size={18} />
+                {lang === 'ta' ? 'உள்நுழைவு வரலாற்றை அழிக்கவும்' : 'Clear Login Audit History'}
+              </h3>
+              <button 
+                type="button" 
+                className="btn btn-outline btn-sm"
+                onClick={() => setShowClearHistoryModal(false)}
+                style={{ padding: '0.2rem 0.5rem', borderRadius: '50%', minWidth: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <div style={{ padding: '1.25rem' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-main)', marginBottom: '1rem' }}>
+                {lang === 'ta' 
+                  ? 'நீங்கள் நிச்சயமாக அனைத்து உள்நுழைவு பதிவு வரலாற்றையும் அழிக்க விரும்புகிறீர்களா? இது நிரந்தரமானது.' 
+                  : 'Are you sure you want to permanently clear the login audit history log? This action cannot be undone.'}
+              </p>
+
+              {clearHistoryError && (
+                <div style={{
+                  background: '#fee2e2',
+                  color: '#991b1b',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.8rem',
+                  marginBottom: '1rem',
+                  border: '1px solid #fca5a5'
+                }}>
+                  {clearHistoryError}
+                </div>
+              )}
+
+              <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#dc2626' }}>
+                  {t.enterAdminPin} (Default: 1234)
+                </label>
+                <input
+                  type="password"
+                  className="form-control"
+                  placeholder="Enter Admin PIN"
+                  value={clearHistoryPin}
+                  onChange={(e) => setClearHistoryPin(e.target.value)}
+                  maxLength={8}
+                  autoFocus
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => setShowClearHistoryModal(false)}
+                >
+                  {t.cancel}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ background: '#dc2626', borderColor: '#b91c1c' }}
+                  onClick={handleConfirmClearHistory}
+                  disabled={!clearHistoryPin}
+                >
+                  {lang === 'ta' ? 'அழித்திடுக' : 'Clear History'}
                 </button>
               </div>
             </div>

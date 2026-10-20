@@ -76,9 +76,9 @@ export default function Navigation({
     ...((isAdmin || isManager) ? [{ id: 'rateMatrix', label: t.rateMatrix, icon: Tag }] : []),
     ...((isAdmin || isManager || isOperator) ? [{ id: 'incomeExpense', label: t.incomeExpense, icon: Receipt }] : []),
     ...((isAdmin || isManager) ? [{ id: 'partnerSplit', label: t.partnerSplit, icon: Scale }] : []),
-    ...(isAdmin ? [{ 
+    ...((isAdmin || isManager) ? [{ 
       id: 'userManagement', 
-      label: lang === 'ta' ? 'பயனர்கள் (Users)' : 'Staff Logins', 
+      label: t.userManagement || (lang === 'ta' ? 'பணியாளர் கணக்குகள்' : 'Staff User Accounts'), 
       icon: UserCog 
     }] : []),
     ...(isAdmin ? [{ 
@@ -173,17 +173,17 @@ export default function Navigation({
                 </div>
               </div>
 
-              {onRoleToggle && role === 'admin' && (
+              {onRoleToggle && (currentUser?.role === 'admin' || role === 'admin') && (
                 <button
                   type="button"
-                  className="btn btn-sm btn-primary"
+                  className={`btn btn-sm ${role === 'admin' ? 'btn-primary' : 'btn-outline'}`}
                   onClick={() => {
                     onRoleToggle();
                     setMobileNavOpen(false);
                   }}
                   style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
                 >
-                  Admin
+                  {role === 'admin' ? 'Admin' : 'Operator'}
                 </button>
               )}
             </div>
@@ -317,96 +317,98 @@ export default function Navigation({
               })}
 
               {/* Compact "More" Dropdown Button */}
-              <div ref={moreDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
-                <button
-                  type="button"
-                  className={`nav-tab-btn ${isSecondaryActive ? 'active' : ''}`}
-                  onClick={() => setMoreDropdownOpen(!moreDropdownOpen)}
-                  style={{
-                    gap: '0.4rem'
-                  }}
-                  title={lang === 'ta' ? 'மேலும் அமைப்புகள் & மேலாண்மை' : 'More tools, finance & settings'}
-                >
-                  {isSecondaryActive && activeSecondaryTab ? (
-                    <>
-                      {React.createElement(activeSecondaryTab.icon, { size: 17, className: 'nav-icon' })}
-                      <span className="nav-text">{activeSecondaryTab.label}</span>
-                    </>
-                  ) : (
-                    <>
-                      <MoreHorizontal size={17} className="nav-icon" />
-                      <span className="nav-text">{lang === 'ta' ? 'மேலும்' : 'More'}</span>
-                    </>
-                  )}
-                  {deletedCount > 0 && !isSecondaryActive && (
-                    <span className="nav-badge" style={{ margin: 0, padding: '0.1rem 0.35rem' }}>
-                      {deletedCount}
-                    </span>
-                  )}
-                  <ChevronDown size={14} style={{ transform: moreDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-                </button>
-
-                {/* Dropdown Popover */}
-                {moreDropdownOpen && (
-                  <div 
-                    className="nav-more-popover"
+              {secondaryTabs.length > 0 && (
+                <div ref={moreDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+                  <button
+                    type="button"
+                    className={`nav-tab-btn ${isSecondaryActive ? 'active' : ''}`}
+                    onClick={() => setMoreDropdownOpen(!moreDropdownOpen)}
                     style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 6px)',
-                      right: 0,
-                      zIndex: 1000,
-                      background: 'var(--bg-card)',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: 'var(--radius-md)',
-                      boxShadow: 'var(--shadow-lg), 0 10px 25px rgba(0,0,0,0.15)',
-                      minWidth: '220px',
-                      padding: '0.4rem',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.2rem',
-                      animation: 'fadeIn 0.15s ease'
+                      gap: '0.4rem'
                     }}
+                    title={lang === 'ta' ? 'மேலும் அமைப்புகள் & மேலாண்மை' : 'More tools, finance & settings'}
                   >
-                    {secondaryTabs.map((tab) => {
-                      const Icon = tab.icon;
-                      const isActive = activeTab === tab.id;
-                      return (
-                        <button
-                          key={tab.id}
-                          className={`nav-dropdown-item ${isActive ? 'active' : ''}`}
-                          onClick={() => handleTabClick(tab.id)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            width: '100%',
-                            padding: '0.6rem 0.85rem',
-                            fontSize: '0.85rem',
-                            fontWeight: isActive ? 700 : 500,
-                            color: isActive ? 'var(--primary-600)' : 'var(--text-main)',
-                            background: isActive ? 'var(--primary-50)' : 'transparent',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            textAlign: 'left',
-                            transition: 'all 0.15s'
-                          }}
-                        >
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                            <Icon size={16} />
-                            <span>{tab.label}</span>
-                          </span>
-                          {tab.badge && (
-                            <span className="nav-badge" style={{ margin: 0 }}>
-                              {tab.badge}
+                    {isSecondaryActive && activeSecondaryTab ? (
+                      <>
+                        {React.createElement(activeSecondaryTab.icon, { size: 17, className: 'nav-icon' })}
+                        <span className="nav-text">{activeSecondaryTab.label}</span>
+                      </>
+                    ) : (
+                      <>
+                        <MoreHorizontal size={17} className="nav-icon" />
+                        <span className="nav-text">{lang === 'ta' ? 'மேலும்' : 'More'}</span>
+                      </>
+                    )}
+                    {deletedCount > 0 && !isSecondaryActive && (
+                      <span className="nav-badge" style={{ margin: 0, padding: '0.1rem 0.35rem' }}>
+                        {deletedCount}
+                      </span>
+                    )}
+                    <ChevronDown size={14} style={{ transform: moreDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                  </button>
+
+                  {/* Dropdown Popover */}
+                  {moreDropdownOpen && (
+                    <div 
+                      className="nav-more-popover"
+                      style={{
+                        position: 'absolute',
+                        top: 'calc(100% + 6px)',
+                        right: 0,
+                        zIndex: 1000,
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: 'var(--radius-md)',
+                        boxShadow: 'var(--shadow-lg), 0 10px 25px rgba(0,0,0,0.15)',
+                        minWidth: '220px',
+                        padding: '0.4rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.2rem',
+                        animation: 'fadeIn 0.15s ease'
+                      }}
+                    >
+                      {secondaryTabs.map((tab) => {
+                        const Icon = tab.icon;
+                        const isActive = activeTab === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            className={`nav-dropdown-item ${isActive ? 'active' : ''}`}
+                            onClick={() => handleTabClick(tab.id)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              width: '100%',
+                              padding: '0.6rem 0.85rem',
+                              fontSize: '0.85rem',
+                              fontWeight: isActive ? 700 : 500,
+                              color: isActive ? 'var(--primary-600)' : 'var(--text-main)',
+                              background: isActive ? 'var(--primary-50)' : 'transparent',
+                              border: 'none',
+                              borderRadius: 'var(--radius-sm)',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                              <Icon size={16} />
+                              <span>{tab.label}</span>
                             </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                            {tab.badge && (
+                              <span className="nav-badge" style={{ margin: 0 }}>
+                                {tab.badge}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>

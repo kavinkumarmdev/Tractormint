@@ -129,10 +129,10 @@ export default function AuthScreen({ onLogin, lang, setLang }) {
           {/* Username with Voice Input */}
           <div className="form-group" style={{ marginBottom: '1.15rem' }}>
             <VoiceInput
-              label={lang === 'ta' ? 'பயனர் பெயர் (Username)' : 'Username'}
+              label={lang === 'ta' ? 'பயனர் பெயர் / அலைபேசி எண்' : 'Username or Mobile Number'}
               value={username}
               onChange={(val) => setUsername(val.toLowerCase().trim())}
-              placeholder={lang === 'ta' ? 'பயனர் பெயர் உள்ளிடவும் (எ.கா. admin)' : 'Enter username (e.g. admin)'}
+              placeholder={lang === 'ta' ? 'பயனர் பெயர் அல்லது போன் எண் (எ.கா. admin)' : 'Enter username or phone (e.g. admin)'}
               speechLang="en-IN"
               showMagicTranslate={false}
               required

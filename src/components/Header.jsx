@@ -81,14 +81,14 @@ export default function Header({
   };
 
   const handleRoleToggle = () => {
-    if (role === 'operator') {
-      // Switching to Admin requires PIN
+    if (role === 'admin') {
+      // Admin can drop back to Operator freely to preview field view
+      setRole('operator');
+    } else {
+      // Non-admin roles (operator, driver, manager) require Admin PIN to elevate
       setShowPinModal(true);
       setEnteredPin('');
       setPinError('');
-    } else {
-      // Admin can drop back to Operator freely
-      setRole('operator');
     }
   };
 

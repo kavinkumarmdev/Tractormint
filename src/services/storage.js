@@ -13,7 +13,8 @@ const STORAGE_KEYS = {
   PARTNERS: "tractomint_partners",
   PARTNER_DRAWINGS: "tractomint_partner_drawings",
   SETTINGS: "tractomint_settings",
-  USERS: "tractomint_users"
+  USERS: "tractomint_users",
+  LOGIN_HISTORY: "tractomint_login_history"
 };
 
 // Initial Clean State - No Dummy Data
@@ -370,6 +371,54 @@ export const StorageService = {
     return { success: true };
   },
 
+  // Login History & Audit Trail Management
+  getLoginHistory: () => {
+    return loadData(STORAGE_KEYS.LOGIN_HISTORY, []);
+  },
+
+  recordLoginAttempt: (attempt) => {
+    try {
+      const history = StorageService.getLoginHistory();
+      const now = new Date();
+      const timestamp = now.toISOString().replace('T', ' ').slice(0, 19);
+      const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+      let platform = 'Web Browser';
+      if (/Android/i.test(userAgent)) platform = 'Android Phone';
+      else if (/iPhone|iPad/i.test(userAgent)) platform = 'iPhone / iOS';
+      else if (/Windows/i.test(userAgent)) platform = 'Windows PC';
+      else if (/Mac/i.test(userAgent)) platform = 'Mac OS';
+      else if (/Linux/i.test(userAgent)) platform = 'Linux';
+
+      const entry = {
+        id: `login-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        username: attempt.username || 'unknown',
+        displayName: attempt.displayName || attempt.username || 'Unknown',
+        role: attempt.role || 'unassigned',
+        status: attempt.status || 'success', // 'success' | 'failed'
+        reason: attempt.reason || (attempt.status === 'success' ? 'Authenticated' : 'Failed'),
+        device: platform,
+        timestamp: timestamp
+      };
+      const updated = [entry, ...history].slice(0, 200); // retain up to 200 logs
+      saveData(STORAGE_KEYS.LOGIN_HISTORY, updated);
+      return entry;
+    } catch (e) {
+      console.warn("Could not record login attempt:", e);
+      return null;
+    }
+  },
+
+  clearLoginHistory: (pin) => {
+    const settings = StorageService.getSettings();
+    const inputPin = String(pin || '').trim();
+    const adminPin = String(settings.adminPin || '1234').trim();
+    if (inputPin !== adminPin && inputPin !== '1234') {
+      return { success: false, error: 'Incorrect Admin PIN! Clearing audit history is restricted to Admin.' };
+    }
+    saveData(STORAGE_KEYS.LOGIN_HISTORY, []);
+    return { success: true };
+  },
+
   // Authenticate user login against admin-created accounts
   authenticateUser: (username, pin) => {
     if (!username || !String(username).trim()) {
@@ -397,6 +446,11 @@ export const StorageService = {
     });
 
     if (!user) {
+      StorageService.recordLoginAttempt({
+        username: cleanUser,
+        status: 'failed',
+        reason: 'Account not found'
+      });
       return { 
         success: false, 
         error: 'Account not found. Please verify your username or registered phone.' 
@@ -404,6 +458,13 @@ export const StorageService = {
     }
     const status = String(user.status || 'active').trim().toLowerCase();
     if (status === 'inactive' || status === 'suspended') {
+      StorageService.recordLoginAttempt({
+        username: cleanUser,
+        displayName: user.displayName || user.username,
+        role: user.role,
+        status: 'failed',
+        reason: 'Account deactivated'
+      });
       return { 
         success: false, 
         error: 'This account has been deactivated. Please contact the Administrator.' 
@@ -415,10 +476,17 @@ export const StorageService = {
     const adminPinStr = String(settings.adminPin !== undefined && settings.adminPin !== null ? settings.adminPin : '1234').replace(/\.0+$/, '').trim();
     const isPinValid = (userPinStr === cleanPin) || (user.role === 'admin' && (cleanPin === adminPinStr || cleanPin === '1234'));
     if (!isPinValid) {
+      StorageService.recordLoginAttempt({
+        username: cleanUser,
+        displayName: user.displayName || user.username,
+        role: user.role,
+        status: 'failed',
+        reason: 'Incorrect PIN'
+      });
       return { success: false, error: 'Incorrect PIN / password. Access denied.' };
     }
 
-    // Record last login
+    // Record last login & log audit trail
     user.last_login = new Date().toISOString().replace('T', ' ').slice(0, 16);
     const allUsers = loadData(STORAGE_KEYS.USERS, INITIAL_USERS);
     const uIdx = allUsers.findIndex(x => x.id === user.id);
@@ -426,6 +494,14 @@ export const StorageService = {
       allUsers[uIdx].last_login = user.last_login;
       saveData(STORAGE_KEYS.USERS, allUsers);
     }
+
+    StorageService.recordLoginAttempt({
+      username: user.username,
+      displayName: user.displayName || user.username,
+      role: user.role,
+      status: 'success',
+      reason: 'Login Successful'
+    });
 
     return { success: true, user };
   },
