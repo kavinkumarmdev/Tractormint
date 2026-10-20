@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Tag, Plus, Edit3, Trash2, Calendar, Search, X } from 'lucide-react';
+import { Tag, Plus, Edit3, Trash2, Calendar, Search, X, AlertCircle } from 'lucide-react';
 import { translations } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
 import VoiceInput from './common/VoiceInput';
+import { validatePositiveNumber } from '../services/storage';
 
 export default function RateMatrixManager({ 
   rateMatrix, 
@@ -19,6 +20,7 @@ export default function RateMatrixManager({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deleteModalState, setDeleteModalState] = useState({ isOpen: false, item: null });
+  const [formError, setFormError] = useState('');
 
   const tractors = fleet.filter(f => f.type === 'tractor');
   const implementsList = fleet.filter(f => f.type === 'implement');
@@ -58,6 +60,7 @@ export default function RateMatrixManager({
     const defaultImplement = implementsList[0] || { id: 'IMP-01', name: 'Standard Implement' };
     
     setEditingItem(null);
+    setFormError('');
     setFormData({
       id: generateUniqueRateId(),
       tractorId: defaultTractor.id,
@@ -74,6 +77,7 @@ export default function RateMatrixManager({
 
   const handleOpenEdit = (item) => {
     setEditingItem(item);
+    setFormError('');
     setFormData({ ...item });
     setIsModalOpen(true);
   };
@@ -100,11 +104,50 @@ export default function RateMatrixManager({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setFormError('');
+
+    if (!formData.tractorId) {
+      setFormError(lang === 'ta' ? 'டிராக்டரை தேர்வு செய்யவும்!' : 'Please select a Tractor!');
+      return;
+    }
+
+    const rateVal = validatePositiveNumber(formData.rate, lang === 'ta' ? 'வாடகை கட்டணம்' : 'Rate Amount', false);
+    if (!rateVal.valid) {
+      setFormError(rateVal.error);
+      return;
+    }
+
+    // Check duplicate active combination on same effective date
+    const impId = formData.implementId || 'none';
+    const effDate = formData.effectiveDate || '';
+    const duplicate = rateMatrix.find(r => {
+      if (editingItem && r.id === editingItem.id) return false;
+      return r.tractorId === formData.tractorId &&
+             (r.implementId || 'none') === impId &&
+             r.unit === formData.unit &&
+             (r.effectiveDate || '') === effDate;
+    });
+
+    if (duplicate) {
+      setFormError(
+        lang === 'ta'
+          ? `இந்த டிராக்டர் + கருவி சேர்க்கைக்கு ஏற்கனவே அதே தேதியில் (${effDate}) கட்டணம் உள்ளது!`
+          : `A rate card entry already exists for this Tractor + Implement combination on date ${effDate}!`
+      );
+      return;
+    }
+
     let finalId = formData.id;
     if (!editingItem && (!finalId || rateMatrix.some(r => r.id === finalId))) {
       finalId = generateUniqueRateId();
     }
-    onSaveRate({ ...formData, id: finalId, _isEditing: Boolean(editingItem) });
+
+    const res = onSaveRate({ ...formData, id: finalId, _isEditing: Boolean(editingItem) });
+    if (res && res.success === false) {
+      setFormError(res.error || 'Failed to save rate card.');
+      return;
+    }
+
     setIsModalOpen(false);
   };
 
@@ -233,6 +276,24 @@ export default function RateMatrixManager({
                 <span>{t.cancel || 'Cancel'}</span>
               </button>
             </div>
+            {formError && (
+              <div style={{
+                margin: '1rem 1.25rem 0',
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius-sm)',
+                background: '#fee2e2',
+                color: '#991b1b',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                border: '1px solid #fca5a5'
+              }}>
+                <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                <span>{formError}</span>
+              </div>
+            )}
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">
                 

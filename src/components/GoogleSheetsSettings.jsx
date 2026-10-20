@@ -18,6 +18,7 @@ import {
 import { translations } from '../translations/dictionary';
 import { APPS_SCRIPT_TEMPLATE, testGoogleSheetConnection } from '../services/googleSheets';
 import { ENV_GOOGLE_SHEETS_URL } from '../config/env';
+import { validatePhone10 } from '../services/storage';
 
 export const convertToCsv = (data) => {
   if (!data || data.length === 0) return '';
@@ -66,6 +67,7 @@ export default function GoogleSheetsSettings({
   const [syncMessage, setSyncMessage] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [showCodePreview, setShowCodePreview] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
 
   const handleCopyScript = () => {
     navigator.clipboard.writeText(APPS_SCRIPT_TEMPLATE);
@@ -107,16 +109,40 @@ export default function GoogleSheetsSettings({
 
   const handleSaveAllSettings = (e) => {
     e.preventDefault();
-    onSaveSettings({
+    setSettingsError('');
+
+    const pin = String(adminPin || '').trim();
+    if (pin.length < 4) {
+      setSettingsError(lang === 'ta' ? 'அட்மின் பாதுகாப்பு PIN குறைந்தது 4 இலக்கங்கள் இருக்க வேண்டும்!' : 'Admin Security PIN must be at least 4 digits!');
+      return;
+    }
+
+    let cleanPhone = '';
+    if (contactPhone && contactPhone.trim()) {
+      const pVal = validatePhone10(contactPhone, lang === 'ta' ? 'தொடர்பு எண்' : 'Contact Phone');
+      if (!pVal.valid) {
+        setSettingsError(pVal.error);
+        return;
+      }
+      cleanPhone = pVal.phone;
+    }
+
+    const res = onSaveSettings({
       ...settings,
       webAppUrl,
       autoSync,
-      adminPin,
+      adminPin: pin,
       companyName,
       companyName_ta,
-      contactPhone,
+      contactPhone: cleanPhone,
       address
     });
+
+    if (res && res.success === false) {
+      setSettingsError(res.error || 'Failed to save settings.');
+      return;
+    }
+
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);
   };
@@ -387,6 +413,24 @@ export default function GoogleSheetsSettings({
           </p>
 
           <form onSubmit={handleSaveAllSettings} className="form-grid">
+            {settingsError && (
+              <div className="col-full" style={{
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius-sm)',
+                background: '#fee2e2',
+                color: '#991b1b',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                border: '1px solid #fca5a5',
+                marginBottom: '0.5rem'
+              }}>
+                <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                <span>{settingsError}</span>
+              </div>
+            )}
             <div className="form-group col-full">
               <label>Company / Business Name (English)</label>
               <input
@@ -410,13 +454,17 @@ export default function GoogleSheetsSettings({
             </div>
 
             <div className="form-group">
-              <label>Contact Phone Number</label>
+              <label>{lang === 'ta' ? 'தொடர்பு அலைபேசி எண் (10 இலக்கங்கள்)' : 'Contact Phone Number (10 digits)'}</label>
               <input
-                type="text"
+                type="tel"
                 className="form-control"
                 value={contactPhone}
-                onChange={(e) => setContactPhone(e.target.value)}
-                placeholder="+91 98422 99881"
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                  setContactPhone(digits);
+                  if (settingsError) setSettingsError('');
+                }}
+                placeholder="9842299881"
               />
             </div>
 

@@ -19,6 +19,7 @@ import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
 import VoiceInput from './common/VoiceInput';
+import { validatePositiveNumber } from '../services/storage';
 
 export default function TripSheetManager({ 
   tripSheets, 
@@ -38,6 +39,7 @@ export default function TripSheetManager({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deleteModalState, setDeleteModalState] = useState({ isOpen: false, item: null });
+  const [formError, setFormError] = useState('');
 
   const tractors = fleet.filter(f => f.type === 'tractor');
   const implementsList = fleet.filter(f => f.type === 'implement');
@@ -104,6 +106,7 @@ export default function TripSheetManager({
     const newTripId = `TRP-${nextNum}`;
 
     setEditingItem(null);
+    setFormError('');
     setFormData({
       id: newTripId,
       date: new Date().toISOString().slice(0, 10),
@@ -143,6 +146,7 @@ export default function TripSheetManager({
 
   const handleOpenEdit = (trip) => {
     setEditingItem(trip);
+    setFormError('');
     let ids = [];
     if (Array.isArray(trip.implementIds) && trip.implementIds.length > 0) {
       ids = trip.implementIds;
@@ -399,6 +403,72 @@ export default function TripSheetManager({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setFormError('');
+
+    if (!formData.customerId) {
+      setFormError(lang === 'ta' ? 'விவசாயி / வாடிக்கையாளரை தேர்வு செய்யவும்!' : 'Please select a Customer / Farmer!');
+      return;
+    }
+    if (!formData.driverId) {
+      setFormError(lang === 'ta' ? 'ஓட்டுநரை தேர்வு செய்யவும்!' : 'Please select a Driver / Operator!');
+      return;
+    }
+    if (!formData.tractorId) {
+      setFormError(lang === 'ta' ? 'டிராக்டரை தேர்வு செய்யவும்!' : 'Please select a Tractor!');
+      return;
+    }
+    if (!formData.date) {
+      setFormError(lang === 'ta' ? 'டிரிப் தேதி அவசியம்!' : 'Trip date is required!');
+      return;
+    }
+
+    // Hour Meter validation if readings are entered
+    if (formData.startMeter !== '' && formData.startMeter !== undefined &&
+        formData.endMeter !== '' && formData.endMeter !== undefined) {
+      const s = Number(formData.startMeter);
+      const e = Number(formData.endMeter);
+      if (isNaN(s) || s < 0) {
+        setFormError(lang === 'ta' ? 'தொடக்க மீட்டர் அளவு செல்லுபடியாகவில்லை!' : 'Start Hour Meter must be a valid non-negative number!');
+        return;
+      }
+      if (isNaN(e) || e < 0) {
+        setFormError(lang === 'ta' ? 'முடிவு மீட்டர் அளவு செல்லுபடியாகவில்லை!' : 'End Hour Meter must be a valid non-negative number!');
+        return;
+      }
+      if (e < s) {
+        setFormError(lang === 'ta' ? `முடிவு மீட்டர் (${e}) தொடக்க மீட்டரை (${s}) விட குறைவாக இருக்க முடியாது!` : `End Hour Meter (${e}) cannot be less than Start Hour Meter (${s})!`);
+        return;
+      }
+    }
+
+    // Quantity / Units validation
+    const qtyVal = validatePositiveNumber(formData.quantity, lang === 'ta' ? 'வேலை அளவு (மணி / ஏக்கர்)' : 'Quantity / Hours', false);
+    if (!qtyVal.valid) {
+      setFormError(qtyVal.error);
+      return;
+    }
+
+    // Rate validation
+    const rateVal = validatePositiveNumber(formData.rate, lang === 'ta' ? 'வாடகை கட்டணம்' : 'Billing Rate', false);
+    if (!rateVal.valid) {
+      setFormError(rateVal.error);
+      return;
+    }
+
+    // Discount validation
+    const gross = qtyVal.value * rateVal.value;
+    if (formData.discount !== undefined && formData.discount !== '') {
+      const disc = Number(formData.discount);
+      if (isNaN(disc) || disc < 0) {
+        setFormError(lang === 'ta' ? 'தள்ளுபடி தொகை செல்லுபடியாகவில்லை!' : 'Discount must be a valid non-negative number!');
+        return;
+      }
+      if (disc > gross) {
+        setFormError(lang === 'ta' ? `தள்ளுபடி (₹${disc}) மொத்த தொகையை (₹${gross}) விட அதிகமாக இருக்க முடியாது!` : `Discount (₹${disc}) cannot exceed Gross Total Amount (₹${gross})!`);
+        return;
+      }
+    }
+
     const finalIds = formData.implementIds || [];
     const finalNames = finalIds.map(id => {
       const found = implementsList.find(m => m.id === id);
@@ -412,7 +482,13 @@ export default function TripSheetManager({
       implementId: finalIds.length > 0 ? finalIds.join(',') : (formData.implementId || 'none'),
       implementName: finalNames.length > 0 ? finalNames.join(' + ') : (formData.implementName || 'Standalone Tractor')
     };
-    onSaveTrip(finalPayload);
+
+    const res = onSaveTrip(finalPayload);
+    if (res && res.success === false) {
+      setFormError(res.error || 'Failed to save trip sheet.');
+      return;
+    }
+
     setIsModalOpen(false);
   };
 
@@ -604,6 +680,24 @@ export default function TripSheetManager({
                 <span>{t.cancel || 'Cancel'}</span>
               </button>
             </div>
+            {formError && (
+              <div style={{
+                margin: '1rem 1.25rem 0',
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius-sm)',
+                background: '#fee2e2',
+                color: '#991b1b',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                border: '1px solid #fca5a5'
+              }}>
+                <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                <span>{formError}</span>
+              </div>
+            )}
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">
                 

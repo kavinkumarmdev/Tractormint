@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Receipt, Plus, Search, Edit3, Trash2, ArrowUpRight, ArrowDownRight, CheckCircle2, Clock, X } from 'lucide-react';
+import { Receipt, Plus, Search, Edit3, Trash2, ArrowUpRight, ArrowDownRight, CheckCircle2, Clock, X, AlertCircle } from 'lucide-react';
 import { translations, resolveBilingual } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
+import { validatePositiveNumber } from '../services/storage';
 
 export default function IncomeExpenseManager({ 
   incomeExpense, 
@@ -19,6 +20,7 @@ export default function IncomeExpenseManager({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deleteModalState, setDeleteModalState] = useState({ isOpen: false, item: null });
+  const [formError, setFormError] = useState('');
 
   const [formData, setFormData] = useState({
     id: '',
@@ -52,6 +54,7 @@ export default function IncomeExpenseManager({
 
   const handleOpenAdd = (defaultType = 'income') => {
     setEditingItem(null);
+    setFormError('');
     setFormData({
       id: generateUniqueIncomeExpenseId(),
       date: new Date().toISOString().slice(0, 10),
@@ -68,6 +71,7 @@ export default function IncomeExpenseManager({
 
   const handleOpenEdit = (item) => {
     setEditingItem(item);
+    setFormError('');
     setFormData({ ...item });
     setIsModalOpen(true);
   };
@@ -86,11 +90,34 @@ export default function IncomeExpenseManager({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setFormError('');
+
+    if (!formData.category || !formData.category.trim()) {
+      setFormError(lang === 'ta' ? 'வகைப் பெயர் அல்லது விளக்கம் அவசியம்!' : 'Category or description is required!');
+      return;
+    }
+    if (!formData.date) {
+      setFormError(lang === 'ta' ? 'தேதி அவசியம்!' : 'Date is required!');
+      return;
+    }
+
+    const amtVal = validatePositiveNumber(formData.amount, lang === 'ta' ? 'தொகை' : 'Amount', false);
+    if (!amtVal.valid) {
+      setFormError(amtVal.error);
+      return;
+    }
+
     let finalId = formData.id;
     if (!editingItem && (!finalId || incomeExpense.some(i => i.id === finalId))) {
       finalId = generateUniqueIncomeExpenseId();
     }
-    onSaveIncomeExpense({ ...formData, id: finalId, _isEditing: Boolean(editingItem) });
+
+    const res = onSaveIncomeExpense({ ...formData, id: finalId, _isEditing: Boolean(editingItem) });
+    if (res && res.success === false) {
+      setFormError(res.error || 'Failed to save entry.');
+      return;
+    }
+
     setIsModalOpen(false);
   };
 
@@ -271,6 +298,24 @@ export default function IncomeExpenseManager({
                 <span>{t.cancel || 'Cancel'}</span>
               </button>
             </div>
+            {formError && (
+              <div style={{
+                margin: '1rem 1.25rem 0',
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius-sm)',
+                background: '#fee2e2',
+                color: '#991b1b',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                border: '1px solid #fca5a5'
+              }}>
+                <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                <span>{formError}</span>
+              </div>
+            )}
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">
                 

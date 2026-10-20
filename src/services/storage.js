@@ -37,7 +37,7 @@ const INITIAL_USERS = [
     displayName: "Master Administrator",
     displayName_ta: "முதன்மை நிர்வாகி",
     role: "admin",
-    phone: "",
+    phone: "9842211001",
     status: "active",
     isDefault: true,
     created_at: "2026-01-01 00:00",
@@ -50,7 +50,7 @@ const INITIAL_USERS = [
     displayName: "Operations Manager",
     displayName_ta: "செயல்பாட்டு மேலாளர்",
     role: "manager",
-    phone: "",
+    phone: "9842211002",
     status: "active",
     isDefault: false,
     created_at: "2026-01-01 00:00",
@@ -63,7 +63,7 @@ const INITIAL_USERS = [
     displayName: "Field Operator",
     displayName_ta: "கள ஆபரேட்டர்",
     role: "operator",
-    phone: "",
+    phone: "9842211003",
     status: "active",
     isDefault: false,
     created_at: "2026-01-01 00:00",
@@ -76,7 +76,7 @@ const INITIAL_USERS = [
     displayName: "Tractor Driver",
     displayName_ta: "டிராக்டர் டிரைவர்",
     role: "driver",
-    phone: "",
+    phone: "9842211004",
     status: "active",
     isDefault: false,
     created_at: "2026-01-01 00:00",
@@ -132,6 +132,52 @@ const isDeleted = (item) => {
          item.is_deleted === '1';
 };
 
+// Normalize any phone number string into clean 10-digit format
+export const normalizePhone = (phone) => {
+  if (!phone) return '';
+  const digits = String(phone).replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return digits.slice(2);
+  }
+  if (digits.length === 11 && digits.startsWith('0')) {
+    return digits.slice(1);
+  }
+  return digits;
+};
+
+// Validate 10-digit mobile number format
+export const validatePhone10 = (phone, entityName = 'Mobile') => {
+  const digits = normalizePhone(phone);
+  if (!digits || digits.length !== 10) {
+    return { valid: false, error: `${entityName} phone number must be exactly 10 digits (e.g. 9843312345).` };
+  }
+  if (!/^[6-9]\d{9}$/.test(digits)) {
+    return { valid: false, error: `${entityName} phone number must be a valid 10-digit Indian mobile starting with 6, 7, 8, or 9.` };
+  }
+  return { valid: true, phone: digits };
+};
+
+// Validate positive numbers (e.g. rates, quantities, amounts)
+export const validatePositiveNumber = (val, fieldName = 'Value', allowZero = false) => {
+  if (val === '' || val === null || val === undefined) {
+    return { valid: false, error: `${fieldName} is required.` };
+  }
+  const num = Number(val);
+  if (isNaN(num)) {
+    return { valid: false, error: `${fieldName} must be a valid number.` };
+  }
+  if (allowZero ? num < 0 : num <= 0) {
+    return { valid: false, error: `${fieldName} must be ${allowZero ? 'zero or positive (≥ 0)' : 'greater than zero (> 0)'}.` };
+  }
+  return { valid: true, value: num };
+};
+
+// Normalize vehicle / machine registration numbers (removes spaces, hyphens, uppercase)
+export const normalizeRegNumber = (reg) => {
+  if (!reg) return '';
+  return String(reg).toUpperCase().replace(/[\s\-_]/g, '');
+};
+
 export const StorageService = {
   // Getters for active (non-soft-deleted) items
   getFleet: (includeDeleted = false) => {
@@ -185,10 +231,13 @@ export const StorageService = {
       list = INITIAL_USERS;
       saveData(STORAGE_KEYS.USERS, list);
     } else {
-      // Ensure master admin always exists
-      const hasAdmin = list.some(u => u.username && String(u.username).trim().toLowerCase() === 'admin');
-      if (!hasAdmin) {
+      // Ensure master admin always exists and has default phone
+      const adminIdx = list.findIndex(u => u.username && String(u.username).trim().toLowerCase() === 'admin');
+      if (adminIdx === -1) {
         list.unshift(INITIAL_USERS[0]);
+        saveData(STORAGE_KEYS.USERS, list);
+      } else if (!list[adminIdx].phone) {
+        list[adminIdx].phone = INITIAL_USERS[0].phone;
         saveData(STORAGE_KEYS.USERS, list);
       }
     }
@@ -205,7 +254,380 @@ export const StorageService = {
     return s;
   },
 
-  saveSettings: (settings) => saveData(STORAGE_KEYS.SETTINGS, settings),
+  saveSettings: (settings) => {
+    if (!settings) return { success: false, error: 'Settings object is required.' };
+    const pin = String(settings.adminPin || '').trim();
+    if (pin.length < 4) {
+      return { success: false, error: 'Admin PIN must be at least 4 digits.' };
+    }
+    if (settings.contactPhone && settings.contactPhone.trim()) {
+      const pVal = validatePhone10(settings.contactPhone, 'Contact');
+      if (!pVal.valid) return { success: false, error: pVal.error };
+      settings.contactPhone = pVal.phone;
+    }
+    saveData(STORAGE_KEYS.SETTINGS, settings);
+    return { success: true, settings };
+  },
+
+  // Dedicated Farmer / Customer Save with 10-Digit & Uniqueness Validation
+  saveCustomer: (customer, role = "admin") => {
+    if (!customer.name || !customer.name.trim()) {
+      return { success: false, error: 'Customer / Farmer name is required.' };
+    }
+    const val = validatePhone10(customer.phone, 'Farmer');
+    if (!val.valid) {
+      return { success: false, error: val.error };
+    }
+    const cleanPhone = val.phone;
+
+    const list = StorageService.getCustomers(true);
+    const duplicate = list.find(c => {
+      if (c.id === customer.id) return false;
+      return normalizePhone(c.phone) === cleanPhone;
+    });
+
+    if (duplicate) {
+      const dupName = duplicate.name_ta || duplicate.name;
+      return {
+        success: false,
+        error: `Mobile number "${cleanPhone}" is already registered for farmer "${dupName}" (${duplicate.id}).`
+      };
+    }
+
+    const customerToSave = {
+      ...customer,
+      name: customer.name.trim(),
+      phone: cleanPhone
+    };
+
+    const saved = StorageService.saveItem(STORAGE_KEYS.CUSTOMERS, customerToSave, role);
+    return { success: true, item: saved };
+  },
+
+  // Dedicated Driver Save with 10-Digit & Uniqueness Validation
+  saveDriver: (driver, role = "admin") => {
+    if (!driver.name || !driver.name.trim()) {
+      return { success: false, error: 'Driver name is required.' };
+    }
+
+    // 10-digit mobile number format
+    const val = validatePhone10(driver.phone, 'Driver');
+    if (!val.valid) {
+      return { success: false, error: val.error };
+    }
+    const cleanPhone = val.phone;
+
+    // Strict uniqueness check across all drivers
+    const list = StorageService.getDrivers(true);
+    const duplicate = list.find(d => {
+      if (d.id === driver.id) return false;
+      return normalizePhone(d.phone) === cleanPhone;
+    });
+
+    if (duplicate) {
+      const dupName = duplicate.name_ta || duplicate.name;
+      return {
+        success: false,
+        error: `Mobile number "${cleanPhone}" is already registered for driver "${dupName}" (${duplicate.id}).`
+      };
+    }
+
+    // Wage rate validation
+    if (driver.defaultWage !== undefined && driver.defaultWage !== '') {
+      const wageVal = validatePositiveNumber(driver.defaultWage, 'Default Wage', true);
+      if (!wageVal.valid) return { success: false, error: wageVal.error };
+    }
+
+    const driverToSave = {
+      ...driver,
+      name: driver.name.trim(),
+      phone: cleanPhone
+    };
+
+    const saved = StorageService.saveItem(STORAGE_KEYS.DRIVERS, driverToSave, role);
+    return { success: true, item: saved };
+  },
+
+  // Dedicated Fleet (Tractor & Implements) Save with Unique Reg Number Validation
+  saveFleet: (item, role = "admin") => {
+    if (!item.name || !item.name.trim()) {
+      return { success: false, error: 'Tractor / Machine name is required.' };
+    }
+    if (!item.type) {
+      return { success: false, error: 'Machine type (tractor or implement) is required.' };
+    }
+
+    // Tractors should have registration number, and if provided, must be unique across entire fleet
+    const rawReg = (item.regNumber || '').trim();
+    if (item.type === 'tractor' && !rawReg) {
+      return { success: false, error: 'Tractor Registration / ID Number is required.' };
+    }
+
+    if (rawReg) {
+      const cleanReg = normalizeRegNumber(rawReg);
+      const list = StorageService.getFleet(true);
+      const duplicate = list.find(f => {
+        if (f.id === item.id) return false;
+        return f.regNumber && normalizeRegNumber(f.regNumber) === cleanReg;
+      });
+
+      if (duplicate) {
+        return {
+          success: false,
+          error: `Registration / Reg ID "${rawReg}" is already registered to machine "${duplicate.name}" (${duplicate.id}).`
+        };
+      }
+    }
+
+    // Hour meter check
+    if (item.currentHours !== undefined && item.currentHours !== '') {
+      const hrVal = validatePositiveNumber(item.currentHours, 'Current Hour Meter', true);
+      if (!hrVal.valid) return { success: false, error: hrVal.error };
+    }
+
+    // Purchase Price check
+    if (item.purchasePrice !== undefined && item.purchasePrice !== '') {
+      const priceVal = validatePositiveNumber(item.purchasePrice, 'Purchase Price', true);
+      if (!priceVal.valid) return { success: false, error: priceVal.error };
+    }
+
+    // Monthly EMI check
+    if (item.emiMonthly !== undefined && item.emiMonthly !== '') {
+      const emiVal = validatePositiveNumber(item.emiMonthly, 'Monthly EMI', true);
+      if (!emiVal.valid) return { success: false, error: emiVal.error };
+    }
+
+    const fleetToSave = {
+      ...item,
+      name: item.name.trim(),
+      regNumber: rawReg.toUpperCase()
+    };
+
+    const saved = StorageService.saveItem(STORAGE_KEYS.FLEET, fleetToSave, role);
+    return { success: true, item: saved };
+  },
+
+  // Dedicated Trip Sheet Save with Hour Meter, Quantity & Financials Validation
+  saveTripSheet: (trip, role = "operator") => {
+    if (!trip.customerId) {
+      return { success: false, error: 'Customer / Farmer selection is required.' };
+    }
+    if (!trip.driverId) {
+      return { success: false, error: 'Driver / Operator selection is required.' };
+    }
+    if (!trip.tractorId) {
+      return { success: false, error: 'Tractor selection is required.' };
+    }
+    if (!trip.date) {
+      return { success: false, error: 'Trip date is required.' };
+    }
+
+    // Validate Hour Meter sequence if both meter readings provided
+    if (trip.startMeter !== undefined && trip.startMeter !== '' && 
+        trip.endMeter !== undefined && trip.endMeter !== '') {
+      const s = Number(trip.startMeter);
+      const e = Number(trip.endMeter);
+      if (isNaN(s) || s < 0) {
+        return { success: false, error: 'Start Hour Meter must be a valid non-negative number.' };
+      }
+      if (isNaN(e) || e < 0) {
+        return { success: false, error: 'End Hour Meter must be a valid non-negative number.' };
+      }
+      if (e < s) {
+        return { 
+          success: false, 
+          error: `End Hour Meter (${e}) cannot be less than Start Hour Meter (${s})!` 
+        };
+      }
+    }
+
+    // Validate Quantity / Work Units
+    const qtyVal = validatePositiveNumber(trip.quantity, 'Total units (Hours / Acres)', false);
+    if (!qtyVal.valid) return { success: false, error: qtyVal.error };
+
+    // Validate Rate
+    const rateVal = validatePositiveNumber(trip.rate, 'Billing Rate (₹)', false);
+    if (!rateVal.valid) return { success: false, error: rateVal.error };
+
+    // Validate Discount
+    const gross = qtyVal.value * rateVal.value;
+    if (trip.discount !== undefined && trip.discount !== '') {
+      const disc = Number(trip.discount);
+      if (isNaN(disc) || disc < 0) {
+        return { success: false, error: 'Discount must be a valid non-negative number.' };
+      }
+      if (disc > gross) {
+        return { success: false, error: `Discount (₹${disc}) cannot exceed Gross Total Amount (₹${gross})!` };
+      }
+    }
+
+    // Validate Paid Amount
+    if (trip.paidAmount !== undefined && trip.paidAmount !== '') {
+      const paid = Number(trip.paidAmount);
+      if (isNaN(paid) || paid < 0) {
+        return { success: false, error: 'Amount Collected / Paid cannot be negative.' };
+      }
+    }
+
+    const saved = StorageService.saveItem(STORAGE_KEYS.TRIP_SHEETS, trip, role);
+    return { success: true, item: saved };
+  },
+
+  // Dedicated Rate Card Save with Positive Amount & Duplicate Combo Validation
+  saveRate: (rateItem, role = "admin") => {
+    if (!rateItem.tractorId) {
+      return { success: false, error: 'Tractor selection is required for Rate Card.' };
+    }
+    if (!rateItem.unit) {
+      return { success: false, error: 'Billing Unit (per hour / per acre / etc.) is required.' };
+    }
+    const rateVal = validatePositiveNumber(rateItem.rate, 'Rental Rate (₹)', false);
+    if (!rateVal.valid) return { success: false, error: rateVal.error };
+
+    // Check duplicate active combination
+    const list = StorageService.getRateMatrix(true);
+    const impId = rateItem.implementId || 'none';
+    const effDate = rateItem.effectiveDate || new Date().toISOString().slice(0, 10);
+
+    const duplicate = list.find(r => {
+      if (r.id === rateItem.id) return false;
+      return r.tractorId === rateItem.tractorId &&
+             (r.implementId || 'none') === impId &&
+             r.unit === rateItem.unit &&
+             (r.effectiveDate || '') === effDate;
+    });
+
+    if (duplicate) {
+      return {
+        success: false,
+        error: `A rate card already exists for this Tractor + Implement combination with unit "${rateItem.unit}" on date ${effDate}!`
+      };
+    }
+
+    const saved = StorageService.saveItem(STORAGE_KEYS.RATE_MATRIX, rateItem, role);
+    return { success: true, item: saved };
+  },
+
+  // Dedicated Fuel & Maintenance Save with Quantity & Cost Validation
+  saveMaintenance: (item, role = "operator") => {
+    if (!item.assetId) {
+      return { success: false, error: 'Tractor / Machine asset selection is required.' };
+    }
+    if (!item.category) {
+      return { success: false, error: 'Expense category (Diesel, Spares, Oil, Service) is required.' };
+    }
+    if (!item.date) {
+      return { success: false, error: 'Maintenance / Fuel date is required.' };
+    }
+
+    const qtyVal = validatePositiveNumber(item.quantity, 'Quantity', false);
+    if (!qtyVal.valid) return { success: false, error: qtyVal.error };
+
+    const totalVal = validatePositiveNumber(item.totalAmount, 'Total Cost (₹)', false);
+    if (!totalVal.valid) return { success: false, error: totalVal.error };
+
+    if (item.hourMeter !== undefined && item.hourMeter !== '') {
+      const hrVal = validatePositiveNumber(item.hourMeter, 'Hour Meter reading', true);
+      if (!hrVal.valid) return { success: false, error: hrVal.error };
+    }
+
+    const saved = StorageService.saveItem(STORAGE_KEYS.MAINTENANCE, item, role);
+    return { success: true, item: saved };
+  },
+
+  // Dedicated Income & Expense Save with Positive Amount Validation
+  saveIncomeExpense: (item, role = "operator") => {
+    if (!item.category || !item.category.trim()) {
+      return { success: false, error: 'Category or Description is required.' };
+    }
+    if (!item.type || !['income', 'expense'].includes(item.type)) {
+      return { success: false, error: 'Type must be either Income or Expense.' };
+    }
+    if (!item.date) {
+      return { success: false, error: 'Date is required.' };
+    }
+
+    const amtVal = validatePositiveNumber(item.amount, 'Amount (₹)', false);
+    if (!amtVal.valid) return { success: false, error: amtVal.error };
+
+    const saved = StorageService.saveItem(STORAGE_KEYS.INCOME_EXPENSE, item, role);
+    return { success: true, item: saved };
+  },
+
+  // Dedicated Partner Save with Share Percentage & 10-Digit Mobile Validation
+  savePartner: (partner, role = "admin") => {
+    if (!partner.name || !partner.name.trim()) {
+      return { success: false, error: 'Partner name is required.' };
+    }
+
+    const shareVal = validatePositiveNumber(partner.sharePercent, 'Profit Share Percentage', false);
+    if (!shareVal.valid) return { success: false, error: shareVal.error };
+    if (shareVal.value > 100) {
+      return { success: false, error: 'Partner profit share cannot exceed 100%.' };
+    }
+
+    // Verify sum of all active partner shares <= 100%
+    const allPartners = StorageService.getPartners();
+    const otherPartners = allPartners.filter(p => p.id !== partner.id);
+    const currentSum = otherPartners.reduce((acc, p) => acc + (Number(p.sharePercent) || 0), 0);
+    const newSum = currentSum + shareVal.value;
+    if (newSum > 100) {
+      const maxAvailable = Math.max(0, 100 - currentSum);
+      return {
+        success: false,
+        error: `Total partner shares cannot exceed 100%! Active partners hold ${currentSum}%. Maximum share available is ${maxAvailable}%.`
+      };
+    }
+
+    // Mobile number validation if provided
+    let cleanPhone = '';
+    if (partner.phone && partner.phone.trim()) {
+      const phoneVal = validatePhone10(partner.phone, 'Partner');
+      if (!phoneVal.valid) return { success: false, error: phoneVal.error };
+      cleanPhone = phoneVal.phone;
+
+      // Unique phone check across partners
+      const duplicatePhone = otherPartners.find(p => p.phone && normalizePhone(p.phone) === cleanPhone);
+      if (duplicatePhone) {
+        return {
+          success: false,
+          error: `Mobile number "${cleanPhone}" is already assigned to partner "${duplicatePhone.name}".`
+        };
+      }
+    }
+
+    // Capital check if provided
+    if (partner.investedCapital !== undefined && partner.investedCapital !== '') {
+      const capVal = validatePositiveNumber(partner.investedCapital, 'Invested Capital', true);
+      if (!capVal.valid) return { success: false, error: capVal.error };
+    }
+
+    const partnerToSave = {
+      ...partner,
+      name: partner.name.trim(),
+      phone: cleanPhone,
+      sharePercent: shareVal.value
+    };
+
+    const saved = StorageService.saveItem(STORAGE_KEYS.PARTNERS, partnerToSave, role);
+    return { success: true, item: saved };
+  },
+
+  // Dedicated Partner Drawing Save with Positive Amount Validation
+  savePartnerDrawing: (drawing, role = "admin") => {
+    if (!drawing.partnerId) {
+      return { success: false, error: 'Partner selection is required.' };
+    }
+    if (!drawing.date) {
+      return { success: false, error: 'Drawing date is required.' };
+    }
+
+    const amtVal = validatePositiveNumber(drawing.amount, 'Drawing Amount (₹)', false);
+    if (!amtVal.valid) return { success: false, error: amtVal.error };
+
+    const saved = StorageService.saveItem(STORAGE_KEYS.PARTNER_DRAWINGS, drawing, role);
+    return { success: true, item: saved };
+  },
 
   // Unified save (Create or Update)
   saveItem: (tableKey, item, role = "admin") => {
@@ -216,6 +638,11 @@ export const StorageService = {
       updated_at: now,
       updated_by: role
     };
+
+    // Auto-normalize phone if saving customers
+    if (tableKey === STORAGE_KEYS.CUSTOMERS && updatedItem.phone) {
+      updatedItem.phone = normalizePhone(updatedItem.phone);
+    }
 
     const isEditMode = item._isEditing === true;
     delete updatedItem._isEditing;
@@ -318,6 +745,22 @@ export const StorageService = {
     if (existing) {
       return { success: false, error: `Username "${cleanUsername}" is already taken.` };
     }
+
+    // 10-digit mobile number validation and uniqueness check
+    const phoneVal = validatePhone10(user.phone, 'User');
+    if (!phoneVal.valid) {
+      return { success: false, error: phoneVal.error };
+    }
+    const cleanPhone = phoneVal.phone;
+
+    const duplicatePhone = list.find(u => u.id !== user.id && normalizePhone(u.phone) === cleanPhone);
+    if (duplicatePhone) {
+      return { 
+        success: false, 
+        error: `Mobile number "${cleanPhone}" is already assigned to user @${duplicatePhone.username}.` 
+      };
+    }
+
     if (!user.pin || String(user.pin).trim().length < 4) {
       return { success: false, error: 'Login PIN / Password must be at least 4 digits.' };
     }
@@ -331,7 +774,7 @@ export const StorageService = {
       displayName_ta: user.displayName_ta || user.displayName || user.username,
       role: user.role || 'operator',
       status: user.status || 'active',
-      phone: user.phone || '',
+      phone: cleanPhone,
       updated_at: now,
       updated_by: currentRole
     };

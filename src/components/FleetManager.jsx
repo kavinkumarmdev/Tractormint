@@ -7,9 +7,10 @@ import {
   Edit3, 
   Trash2, 
   Filter, 
-  Info,
-  DollarSign,
-  X
+  Info, 
+  DollarSign, 
+  X, 
+  AlertCircle 
 } from 'lucide-react';
 import { translations, resolveBilingual } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
@@ -17,6 +18,7 @@ import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
 import BilingualVoiceGroup from './common/BilingualVoiceGroup';
 import VoiceInput from './common/VoiceInput';
+import { normalizeRegNumber, validatePositiveNumber } from '../services/storage';
 
 export default function FleetManager({ 
   fleet, 
@@ -34,6 +36,7 @@ export default function FleetManager({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deleteModalState, setDeleteModalState] = useState({ isOpen: false, item: null });
+  const [formError, setFormError] = useState('');
 
   // Form State
   const [formData, setFormData] = useState({
@@ -78,6 +81,7 @@ export default function FleetManager({
     const newId = generateUniqueFleetId(defaultType);
     
     setEditingItem(null);
+    setFormError('');
     setFormData({
       id: newId,
       name: '',
@@ -101,6 +105,7 @@ export default function FleetManager({
 
   const handleOpenEdit = (item) => {
     setEditingItem(item);
+    setFormError('');
     setFormData({ ...item });
     setIsModalOpen(true);
   };
@@ -148,13 +153,75 @@ export default function FleetManager({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setFormError('');
+
+    if (!formData.name.trim()) {
+      setFormError(lang === 'ta' ? 'டிராக்டர் / கருவி பெயர் அவசியம்!' : 'Machine name is required!');
+      return;
+    }
+
+    // Tractors require Registration Number
+    const rawReg = (formData.regNumber || '').trim();
+    if (formData.type === 'tractor' && !rawReg) {
+      setFormError(lang === 'ta' ? 'டிராக்டர் பதிவு எண் (Reg No.) அவசியம்!' : 'Tractor Registration Number (e.g. TN 45 AB 1234) is required!');
+      return;
+    }
+
+    // Strict Uniqueness Check for Registration Number across entire Fleet
+    if (rawReg) {
+      const cleanReg = normalizeRegNumber(rawReg);
+      const duplicate = fleet.find(f => {
+        if (editingItem && f.id === editingItem.id) return false;
+        return f.regNumber && normalizeRegNumber(f.regNumber) === cleanReg;
+      });
+
+      if (duplicate) {
+        setFormError(
+          lang === 'ta'
+            ? `வண்டி பதிவு எண் "${rawReg}" ஏற்கனவே "${duplicate.name}" (${duplicate.id}) வண்டியில் பதிவாகியுள்ளது!`
+            : `Registration number "${rawReg}" is already registered to machine "${duplicate.name}" (${duplicate.id})!`
+        );
+        return;
+      }
+    }
+
+    // Validate Non-negative Hour Meter
+    if (formData.currentHours !== undefined && formData.currentHours !== '') {
+      const hrVal = validatePositiveNumber(formData.currentHours, lang === 'ta' ? 'இயங்கிய மணி நேரம்' : 'Current Hour Meter', true);
+      if (!hrVal.valid) {
+        setFormError(hrVal.error);
+        return;
+      }
+    }
+
+    // Validate Purchase Cost
+    if (formData.purchasePrice !== undefined && formData.purchasePrice !== '') {
+      const pVal = validatePositiveNumber(formData.purchasePrice, lang === 'ta' ? 'வாங்கிய விலை' : 'Purchase Price', true);
+      if (!pVal.valid) {
+        setFormError(pVal.error);
+        return;
+      }
+    }
+
     let finalId = formData.id;
     if (!editingItem) {
       if (!finalId || fleet.some(f => f.id === finalId)) {
         finalId = generateUniqueFleetId(formData.type);
       }
     }
-    onSaveFleet({ ...formData, id: finalId, _isEditing: Boolean(editingItem) });
+
+    const res = onSaveFleet({ 
+      ...formData, 
+      id: finalId, 
+      regNumber: rawReg.toUpperCase(),
+      _isEditing: Boolean(editingItem) 
+    });
+
+    if (res && res.success === false) {
+      setFormError(res.error || 'Failed to save fleet item.');
+      return;
+    }
+
     setIsModalOpen(false);
   };
 
@@ -336,6 +403,24 @@ export default function FleetManager({
                 <span>{t.cancel || 'Cancel'}</span>
               </button>
             </div>
+            {formError && (
+              <div style={{
+                margin: '1rem 1.25rem 0',
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius-sm)',
+                background: '#fee2e2',
+                color: '#991b1b',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                border: '1px solid #fca5a5'
+              }}>
+                <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                <span>{formError}</span>
+              </div>
+            )}
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">
                 

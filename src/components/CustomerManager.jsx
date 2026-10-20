@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Users2, Plus, Edit3, Trash2, Phone, MapPin, Search, MessageSquareShare, X } from 'lucide-react';
+import { Users2, Plus, Edit3, Trash2, Phone, MapPin, Search, MessageSquareShare, X, AlertCircle } from 'lucide-react';
 import { translations, resolveBilingual } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import BilingualVoiceGroup from './common/BilingualVoiceGroup';
 import VoiceInput from './common/VoiceInput';
+import { normalizePhone, validatePhone10 } from '../services/storage';
 
 export default function CustomerManager({ 
   customers, 
@@ -18,6 +19,7 @@ export default function CustomerManager({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deleteModalState, setDeleteModalState] = useState({ isOpen: false, item: null });
+  const [formError, setFormError] = useState('');
 
   const [formData, setFormData] = useState({
     id: '',
@@ -49,6 +51,7 @@ export default function CustomerManager({
 
   const handleOpenAdd = () => {
     setEditingItem(null);
+    setFormError('');
     setFormData({
       id: generateUniqueCustomerId(),
       name: '',
@@ -63,17 +66,61 @@ export default function CustomerManager({
 
   const handleOpenEdit = (item) => {
     setEditingItem(item);
+    setFormError('');
     setFormData({ ...item });
     setIsModalOpen(true);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setFormError('');
+
+    // 10-digit Indian Mobile Validation
+    const phoneVal = validatePhone10(formData.phone, lang === 'ta' ? 'விவசாயி' : 'Farmer');
+    if (!phoneVal.valid) {
+      setFormError(
+        lang === 'ta'
+          ? 'மொபைல் எண் சரியாக 10 இலக்கங்களாக இருக்க வேண்டும் (எ.கா. 9843312345) மற்றும் 6, 7, 8, அல்லது 9-ல் தொடங்க வேண்டும்.'
+          : phoneVal.error
+      );
+      return;
+    }
+
+    const cleanPhone = phoneVal.phone;
+
+    // Strict Uniqueness Check across all registered Farmers
+    const duplicate = customers.find(c => {
+      if (editingItem && c.id === editingItem.id) return false;
+      return normalizePhone(c.phone) === cleanPhone;
+    });
+
+    if (duplicate) {
+      const dupName = (lang === 'ta' && duplicate.name_ta) ? duplicate.name_ta : (duplicate.name || duplicate.id);
+      setFormError(
+        lang === 'ta'
+          ? `அலைபேசி எண் "${cleanPhone}" ஏற்கனவே விவசாயி "${dupName}" (${duplicate.id}) பெயரில் பதிவாகியுள்ளது!`
+          : `Mobile number "${cleanPhone}" is already registered for farmer "${dupName}" (${duplicate.id})!`
+      );
+      return;
+    }
+
     let finalId = formData.id;
     if (!editingItem && (!finalId || customers.some(c => c.id === finalId))) {
       finalId = generateUniqueCustomerId();
     }
-    onSaveCustomer({ ...formData, id: finalId, _isEditing: Boolean(editingItem) });
+
+    const res = onSaveCustomer({
+      ...formData,
+      phone: cleanPhone,
+      id: finalId,
+      _isEditing: Boolean(editingItem)
+    });
+
+    if (res && res.success === false) {
+      setFormError(res.error || 'Failed to save customer.');
+      return;
+    }
+
     setIsModalOpen(false);
   };
 
@@ -238,6 +285,24 @@ export default function CustomerManager({
                 <span>{t.cancel || 'Cancel'}</span>
               </button>
             </div>
+            {formError && (
+              <div style={{
+                margin: '1rem 1.25rem 0',
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius-sm)',
+                background: '#fee2e2',
+                color: '#991b1b',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                border: '1px solid #fca5a5'
+              }}>
+                <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                <span>{formError}</span>
+              </div>
+            )}
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">
                 
@@ -267,17 +332,24 @@ export default function CustomerManager({
                   required
                 />
 
-                {/* Phone */}
+                {/* Phone - Strictly 10 digits & Unique */}
                 <div className="form-group">
                   <VoiceInput
-                    label={t.phone}
+                    label={lang === 'ta' ? 'அலைபேசி எண் (10 இலக்கங்கள்) *' : 'Mobile Number (10 digits) *'}
                     type="tel"
-                    placeholder="e.g. 98433 12345"
+                    placeholder="9843312345"
                     value={formData.phone}
-                    onChange={(val) => setFormData(prev => ({ ...prev, phone: val }))}
+                    onChange={(val) => {
+                      const digits = val.replace(/\D/g, '').slice(0, 10);
+                      setFormData(prev => ({ ...prev, phone: digits }));
+                      if (formError) setFormError('');
+                    }}
                     speechLang="en-IN"
                     required
                   />
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginTop: '0.25rem', display: 'block' }}>
+                    {lang === 'ta' ? '10 இலக்க தனித்துவமான அலைபேசி எண் (எ.கா: 9843312345)' : '10-digit unique Indian mobile number (e.g. 9843312345)'}
+                  </span>
                 </div>
 
                 {/* Farm Land Address / Notes */}

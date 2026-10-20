@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Wrench, Plus, Search, Edit3, Trash2, Fuel, Filter, X } from 'lucide-react';
+import { Wrench, Plus, Search, Edit3, Trash2, Fuel, Filter, X, AlertCircle } from 'lucide-react';
 import { translations, resolveBilingual } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
 import VoiceInput from './common/VoiceInput';
+import { validatePositiveNumber } from '../services/storage';
 
 export default function MaintenanceManager({ 
   maintenance, 
@@ -20,6 +21,7 @@ export default function MaintenanceManager({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deleteModalState, setDeleteModalState] = useState({ isOpen: false, item: null });
+  const [formError, setFormError] = useState('');
 
   const categories = [
     { id: 'diesel', name: 'Diesel / Fuel', name_ta: 'டீசல்', unit: 'liters' },
@@ -76,6 +78,7 @@ export default function MaintenanceManager({
   const handleOpenAdd = () => {
     const defaultAsset = fleet[0] || { id: '', name: 'General Fleet' };
     setEditingItem(null);
+    setFormError('');
     setFormData({
       id: generateUniqueMaintenanceId(),
       date: new Date().toISOString().slice(0, 10),
@@ -98,6 +101,7 @@ export default function MaintenanceManager({
 
   const handleOpenEdit = (item) => {
     setEditingItem(item);
+    setFormError('');
     setFormData({ ...item });
     setIsModalOpen(true);
   };
@@ -133,11 +137,52 @@ export default function MaintenanceManager({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setFormError('');
+
+    if (!formData.assetId) {
+      setFormError(lang === 'ta' ? 'டிராக்டர் / இயந்திரத்தை தேர்வு செய்யவும்!' : 'Please select a Tractor / Machine!');
+      return;
+    }
+    if (!formData.category) {
+      setFormError(lang === 'ta' ? 'செலவு வகையை தேர்வு செய்யவும்!' : 'Please select an expense category!');
+      return;
+    }
+    if (!formData.date) {
+      setFormError(lang === 'ta' ? 'தேதி அவசியம்!' : 'Date is required!');
+      return;
+    }
+
+    const qtyVal = validatePositiveNumber(formData.quantity, lang === 'ta' ? 'அளவு' : 'Quantity', false);
+    if (!qtyVal.valid) {
+      setFormError(qtyVal.error);
+      return;
+    }
+
+    const totalVal = validatePositiveNumber(formData.totalAmount, lang === 'ta' ? 'மொத்த தொகை' : 'Total Amount', false);
+    if (!totalVal.valid) {
+      setFormError(totalVal.error);
+      return;
+    }
+
+    if (formData.hourMeter !== undefined && formData.hourMeter !== '') {
+      const hrVal = validatePositiveNumber(formData.hourMeter, lang === 'ta' ? 'மீட்டர் அளவு' : 'Hour Meter', true);
+      if (!hrVal.valid) {
+        setFormError(hrVal.error);
+        return;
+      }
+    }
+
     let finalId = formData.id;
     if (!editingItem && (!finalId || maintenance.some(m => m.id === finalId))) {
       finalId = generateUniqueMaintenanceId();
     }
-    onSaveMaintenance({ ...formData, id: finalId, _isEditing: Boolean(editingItem) });
+
+    const res = onSaveMaintenance({ ...formData, id: finalId, _isEditing: Boolean(editingItem) });
+    if (res && res.success === false) {
+      setFormError(res.error || 'Failed to save maintenance record.');
+      return;
+    }
+
     setIsModalOpen(false);
   };
 
@@ -283,6 +328,24 @@ export default function MaintenanceManager({
                 <span>{t.cancel || 'Cancel'}</span>
               </button>
             </div>
+            {formError && (
+              <div style={{
+                margin: '1rem 1.25rem 0',
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius-sm)',
+                background: '#fee2e2',
+                color: '#991b1b',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                border: '1px solid #fca5a5'
+              }}>
+                <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                <span>{formError}</span>
+              </div>
+            )}
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">
                 

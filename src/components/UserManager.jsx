@@ -32,7 +32,7 @@ import {
   Laptop
 } from 'lucide-react';
 import { translations } from '../translations/dictionary';
-import { StorageService } from '../services/storage';
+import { StorageService, normalizePhone, validatePhone10 } from '../services/storage';
 import SearchableSelect from './common/SearchableSelect';
 import BilingualVoiceGroup from './common/BilingualVoiceGroup';
 import VoiceInput from './common/VoiceInput';
@@ -129,6 +129,39 @@ export default function UserManager({
       return;
     }
 
+    // 10-digit Mobile Phone Validation
+    if (!formData.phone || !formData.phone.trim()) {
+      setFormError(lang === 'ta' ? 'பணியாளர் அலைபேசி எண் அவசியம்!' : 'Staff mobile number is required!');
+      return;
+    }
+
+    const phoneVal = validatePhone10(formData.phone, lang === 'ta' ? 'பணியாளர்' : 'Staff User');
+    if (!phoneVal.valid) {
+      setFormError(
+        lang === 'ta'
+          ? 'மொபைல் எண் சரியாக 10 இலக்கங்களாக இருக்க வேண்டும் (எ.கா. 9842211223) மற்றும் 6, 7, 8, அல்லது 9-ல் தொடங்க வேண்டும்.'
+          : phoneVal.error
+      );
+      return;
+    }
+
+    const cleanPhone = phoneVal.phone;
+
+    // Strict Uniqueness Check across all staff user logins
+    const duplicate = users.find(u => {
+      if (editingUser && u.id === editingUser.id) return false;
+      return normalizePhone(u.phone) === cleanPhone;
+    });
+
+    if (duplicate) {
+      setFormError(
+        lang === 'ta'
+          ? `அலைபேசி எண் "${cleanPhone}" ஏற்கனவே பயனர் @${duplicate.username} (${duplicate.displayName || ''}) கணக்கில் உள்ளது!`
+          : `Mobile number "${cleanPhone}" is already assigned to user @${duplicate.username}!`
+      );
+      return;
+    }
+
     if (!formData.pin || String(formData.pin).trim().length < 4) {
       setFormError(lang === 'ta' ? 'கடவுச்சொல்/PIN குறைந்தது 4 எழுத்துக்கள் இருக்க வேண்டும்!' : 'PIN must be at least 4 digits!');
       return;
@@ -141,7 +174,7 @@ export default function UserManager({
       displayName_ta: formData.displayName_ta.trim() || formData.displayName.trim() || formData.username.trim(),
       pin: String(formData.pin).trim(),
       role: formData.role,
-      phone: formData.phone.trim(),
+      phone: cleanPhone,
       status: formData.status
     };
 
@@ -1176,13 +1209,21 @@ export default function UserManager({
 
               <div className="form-group" style={{ marginBottom: '1.25rem' }}>
                 <VoiceInput
-                  label={lang === 'ta' ? 'தொலைபேசி எண் (Phone)' : 'Phone Number (Optional)'}
+                  label={lang === 'ta' ? 'அலைபேசி எண் (10 இலக்கங்கள்) *' : 'Mobile Number (10 digits) *'}
                   type="tel"
-                  placeholder="+91 98422 11223"
+                  placeholder="9842211223"
                   value={formData.phone}
-                  onChange={(val) => setFormData(prev => ({ ...prev, phone: val }))}
+                  onChange={(val) => {
+                    const digits = val.replace(/\D/g, '').slice(0, 10);
+                    setFormData(prev => ({ ...prev, phone: digits }));
+                    if (formError) setFormError('');
+                  }}
                   speechLang="en-IN"
+                  required
                 />
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginTop: '0.25rem', display: 'block' }}>
+                  {lang === 'ta' ? '10 இலக்க தனித்துவமான எண் (உள்நுழையவும் பயன்படுத்தலாம்)' : '10-digit unique mobile number (can also be used to log in)'}
+                </span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>

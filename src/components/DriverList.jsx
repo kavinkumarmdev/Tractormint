@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { UserCheck, Plus, Edit3, Trash2, Phone, Search, X } from 'lucide-react';
+import { UserCheck, Plus, Edit3, Trash2, Phone, Search, X, AlertCircle } from 'lucide-react';
 import { translations } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
 import BilingualVoiceGroup from './common/BilingualVoiceGroup';
 import VoiceInput from './common/VoiceInput';
+import { normalizePhone, validatePhone10, validatePositiveNumber } from '../services/storage';
 
 export default function DriverList({ 
   drivers, 
@@ -20,6 +21,7 @@ export default function DriverList({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deleteModalState, setDeleteModalState] = useState({ isOpen: false, item: null });
+  const [formError, setFormError] = useState('');
 
   const [formData, setFormData] = useState({
     id: '',
@@ -53,6 +55,7 @@ export default function DriverList({
 
   const handleOpenAdd = () => {
     setEditingItem(null);
+    setFormError('');
     setFormData({
       id: generateUniqueDriverId(),
       name: '',
@@ -69,17 +72,75 @@ export default function DriverList({
 
   const handleOpenEdit = (item) => {
     setEditingItem(item);
+    setFormError('');
     setFormData({ ...item });
     setIsModalOpen(true);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setFormError('');
+
+    if (!formData.name.trim()) {
+      setFormError(lang === 'ta' ? 'ஓட்டுநர் பெயர் அவசியம்!' : 'Driver name is required!');
+      return;
+    }
+
+    // 10-digit Indian Mobile Validation
+    const phoneVal = validatePhone10(formData.phone, lang === 'ta' ? 'ஓட்டுநர்' : 'Driver');
+    if (!phoneVal.valid) {
+      setFormError(
+        lang === 'ta'
+          ? 'மொபைல் எண் சரியாக 10 இலக்கங்களாக இருக்க வேண்டும் (எ.கா. 9842156780) மற்றும் 6, 7, 8, அல்லது 9-ல் தொடங்க வேண்டும்.'
+          : phoneVal.error
+      );
+      return;
+    }
+
+    const cleanPhone = phoneVal.phone;
+
+    // Strict Uniqueness Check across all registered Drivers
+    const duplicate = drivers.find(d => {
+      if (editingItem && d.id === editingItem.id) return false;
+      return normalizePhone(d.phone) === cleanPhone;
+    });
+
+    if (duplicate) {
+      const dupName = (lang === 'ta' && duplicate.name_ta) ? duplicate.name_ta : (duplicate.name || duplicate.id);
+      setFormError(
+        lang === 'ta'
+          ? `அலைபேசி எண் "${cleanPhone}" ஏற்கனவே ஓட்டுநர் "${dupName}" (${duplicate.id}) பெயரில் பதிவாகியுள்ளது!`
+          : `Mobile number "${cleanPhone}" is already registered for driver "${dupName}" (${duplicate.id})!`
+      );
+      return;
+    }
+
+    // Validate Wage Rate
+    if (formData.defaultWage !== undefined && formData.defaultWage !== '') {
+      const wageVal = validatePositiveNumber(formData.defaultWage, lang === 'ta' ? 'சம்பளம் / கூலி' : 'Default Wage', true);
+      if (!wageVal.valid) {
+        setFormError(wageVal.error);
+        return;
+      }
+    }
+
     let finalId = formData.id;
     if (!editingItem && (!finalId || drivers.some(d => d.id === finalId))) {
       finalId = generateUniqueDriverId();
     }
-    onSaveDriver({ ...formData, id: finalId, _isEditing: Boolean(editingItem) });
+
+    const res = onSaveDriver({ 
+      ...formData, 
+      phone: cleanPhone, 
+      id: finalId, 
+      _isEditing: Boolean(editingItem) 
+    });
+
+    if (res && res.success === false) {
+      setFormError(res.error || 'Failed to save driver.');
+      return;
+    }
+
     setIsModalOpen(false);
   };
 
@@ -225,6 +286,24 @@ export default function DriverList({
                 <span>{t.cancel || 'Cancel'}</span>
               </button>
             </div>
+            {formError && (
+              <div style={{
+                margin: '1rem 1.25rem 0',
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius-sm)',
+                background: '#fee2e2',
+                color: '#991b1b',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                border: '1px solid #fca5a5'
+              }}>
+                <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                <span>{formError}</span>
+              </div>
+            )}
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">
                 
@@ -241,17 +320,24 @@ export default function DriverList({
                   required
                 />
 
-                {/* Phone */}
+                {/* Phone - Strictly 10 digits & Unique */}
                 <div className="form-group">
                   <VoiceInput
-                    label={t.phone}
+                    label={lang === 'ta' ? 'அலைபேசி எண் (10 இலக்கங்கள்) *' : 'Mobile Number (10 digits) *'}
                     type="tel"
-                    placeholder="e.g. 98421 56780"
+                    placeholder="9842156780"
                     value={formData.phone}
-                    onChange={(val) => setFormData(prev => ({ ...prev, phone: val }))}
+                    onChange={(val) => {
+                      const digits = val.replace(/\D/g, '').slice(0, 10);
+                      setFormData(prev => ({ ...prev, phone: digits }));
+                      if (formError) setFormError('');
+                    }}
                     speechLang="en-IN"
                     required
                   />
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginTop: '0.25rem', display: 'block' }}>
+                    {lang === 'ta' ? '10 இலக்க தனித்துவமான அலைபேசி எண் (எ.கா: 9842156780)' : '10-digit unique mobile number (e.g. 9842156780)'}
+                  </span>
                 </div>
 
                 {/* License No */}

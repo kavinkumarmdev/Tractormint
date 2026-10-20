@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Scale, Plus, Search, Edit3, Trash2, IndianRupee, PieChart, ArrowDownRight, User, X } from 'lucide-react';
+import { Scale, Plus, Search, Edit3, Trash2, IndianRupee, PieChart, ArrowDownRight, User, X, AlertCircle } from 'lucide-react';
 import { translations } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
+import { normalizePhone, validatePhone10, validatePositiveNumber } from '../services/storage';
 
 export default function PartnerSplitManager({ 
   partners, 
@@ -28,6 +29,8 @@ export default function PartnerSplitManager({
   const [editingDrawing, setEditingDrawing] = useState(null);
   const [editingPartner, setEditingPartner] = useState(null);
   const [deleteModalState, setDeleteModalState] = useState({ isOpen: false, item: null, type: 'drawing' });
+  const [drawingFormError, setDrawingFormError] = useState('');
+  const [partnerFormError, setPartnerFormError] = useState('');
 
   // Partner Form State
   const [partnerForm, setPartnerForm] = useState({
@@ -117,6 +120,7 @@ export default function PartnerSplitManager({
   const handleOpenAddDrawing = () => {
     const defaultPartner = partners[0] || { id: '', name: 'Partner' };
     setEditingDrawing(null);
+    setDrawingFormError('');
     setDrawingForm({
       id: generateUniqueDrawingId(),
       date: new Date().toISOString().slice(0, 10),
@@ -131,12 +135,14 @@ export default function PartnerSplitManager({
 
   const handleOpenEditDrawing = (item) => {
     setEditingDrawing(item);
+    setDrawingFormError('');
     setDrawingForm({ ...item });
     setIsDrawingModalOpen(true);
   };
 
   const handleOpenAddPartner = () => {
     setEditingPartner(null);
+    setPartnerFormError('');
     setPartnerForm({
       id: generateUniquePartnerId(),
       name: '',
@@ -150,27 +156,116 @@ export default function PartnerSplitManager({
 
   const handleOpenEditPartner = (p) => {
     setEditingPartner(p);
+    setPartnerFormError('');
     setPartnerForm({ ...p });
     setIsPartnerModalOpen(true);
   };
 
   const handleDrawingSubmit = (e) => {
     e.preventDefault();
+    setDrawingFormError('');
+
+    if (!drawingForm.partnerId) {
+      setDrawingFormError(lang === 'ta' ? 'பங்குதாரரை தேர்வு செய்யவும்!' : 'Please select a Partner!');
+      return;
+    }
+    if (!drawingForm.date) {
+      setDrawingFormError(lang === 'ta' ? 'தேதி அவசியம்!' : 'Date is required!');
+      return;
+    }
+
+    const amtVal = validatePositiveNumber(drawingForm.amount, lang === 'ta' ? 'பணம் எடுத்த தொகை' : 'Withdrawal Amount', false);
+    if (!amtVal.valid) {
+      setDrawingFormError(amtVal.error);
+      return;
+    }
+
     let finalId = drawingForm.id;
     if (!editingDrawing && (!finalId || partnerDrawings.some(d => d.id === finalId))) {
       finalId = generateUniqueDrawingId();
     }
-    onSaveDrawing({ ...drawingForm, id: finalId, _isEditing: Boolean(editingDrawing) });
+
+    const res = onSaveDrawing({ ...drawingForm, id: finalId, _isEditing: Boolean(editingDrawing) });
+    if (res && res.success === false) {
+      setDrawingFormError(res.error || 'Failed to save drawing.');
+      return;
+    }
+
     setIsDrawingModalOpen(false);
   };
 
   const handlePartnerSubmit = (e) => {
     e.preventDefault();
+    setPartnerFormError('');
+
+    if (!partnerForm.name || !partnerForm.name.trim()) {
+      setPartnerFormError(lang === 'ta' ? 'பங்குதாரர் பெயர் அவசியம்!' : 'Partner name is required!');
+      return;
+    }
+
+    const shareVal = validatePositiveNumber(partnerForm.sharePercent, lang === 'ta' ? 'பங்கு சதவீதம்' : 'Share Percentage', false);
+    if (!shareVal.valid) {
+      setPartnerFormError(shareVal.error);
+      return;
+    }
+    if (shareVal.value > 100) {
+      setPartnerFormError(lang === 'ta' ? 'பங்கு சதவீதம் 100%க்கு மேல் இருக்க முடியாது!' : 'Share percentage cannot exceed 100%!');
+      return;
+    }
+
+    // Verify sum of active partners' shares <= 100%
+    const otherPartners = partners.filter(p => editingPartner ? p.id !== editingPartner.id : true);
+    const existingTotal = otherPartners.reduce((acc, p) => acc + (Number(p.sharePercent) || 0), 0);
+    const newTotal = existingTotal + shareVal.value;
+    if (newTotal > 100) {
+      const maxAvailable = Math.max(0, 100 - existingTotal);
+      setPartnerFormError(
+        lang === 'ta'
+          ? `பங்குதாரர்களின் மொத்த பங்கு 100%க்கு மேல் இருக்க முடியாது! ஏற்கனவே உள்ள பங்குதாரர்கள் ${existingTotal}% வைத்துள்ளனர். அதிகபட்சம் ${maxAvailable}% மட்டுமே ஒதுக்க முடியும்.`
+          : `Total partner shares cannot exceed 100%! Active partners hold ${existingTotal}%. Maximum available share is ${maxAvailable}%.`
+      );
+      return;
+    }
+
+    // 10-digit mobile number and uniqueness if provided
+    let cleanPhone = '';
+    if (partnerForm.phone && partnerForm.phone.trim()) {
+      const pVal = validatePhone10(partnerForm.phone, lang === 'ta' ? 'பங்குதாரர்' : 'Partner');
+      if (!pVal.valid) {
+        setPartnerFormError(pVal.error);
+        return;
+      }
+      cleanPhone = pVal.phone;
+
+      const duplicate = otherPartners.find(p => p.phone && normalizePhone(p.phone) === cleanPhone);
+      if (duplicate) {
+        setPartnerFormError(
+          lang === 'ta'
+            ? `அலைபேசி எண் "${cleanPhone}" ஏற்கனவே பங்குதாரர் "${duplicate.name}" பெயரில் உள்ளது!`
+            : `Mobile number "${cleanPhone}" is already assigned to partner "${duplicate.name}"!`
+        );
+        return;
+      }
+    }
+
     let finalId = partnerForm.id;
     if (!editingPartner && (!finalId || partners.some(p => p.id === finalId))) {
       finalId = generateUniquePartnerId();
     }
-    onSavePartner({ ...partnerForm, id: finalId, _isEditing: Boolean(editingPartner) });
+
+    const res = onSavePartner({ 
+      ...partnerForm, 
+      phone: cleanPhone, 
+      sharePercent: shareVal.value, 
+      id: finalId, 
+      _isEditing: Boolean(editingPartner) 
+    });
+
+    if (res && res.success === false) {
+      setPartnerFormError(res.error || 'Failed to save partner.');
+      return;
+    }
+
     setIsPartnerModalOpen(false);
   };
 
@@ -434,6 +529,24 @@ export default function PartnerSplitManager({
                 <span>{t.cancel || 'Cancel'}</span>
               </button>
             </div>
+            {drawingFormError && (
+              <div style={{
+                margin: '1rem 1.25rem 0',
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius-sm)',
+                background: '#fee2e2',
+                color: '#991b1b',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                border: '1px solid #fca5a5'
+              }}>
+                <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                <span>{drawingFormError}</span>
+              </div>
+            )}
             <form onSubmit={handleDrawingSubmit}>
               <div className="modal-body form-grid">
                 
@@ -544,6 +657,24 @@ export default function PartnerSplitManager({
                 <span>{t.cancel || 'Cancel'}</span>
               </button>
             </div>
+            {partnerFormError && (
+              <div style={{
+                margin: '1rem 1.25rem 0',
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius-sm)',
+                background: '#fee2e2',
+                color: '#991b1b',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                border: '1px solid #fca5a5'
+              }}>
+                <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                <span>{partnerFormError}</span>
+              </div>
+            )}
             <form onSubmit={handlePartnerSubmit}>
               <div className="modal-body form-grid">
                 
@@ -589,14 +720,21 @@ export default function PartnerSplitManager({
 
                 {/* Phone */}
                 <div className="form-group">
-                  <label>{t.phone}</label>
+                  <label>{lang === 'ta' ? 'அலைபேசி எண் (10 இலக்கங்கள்)' : 'Phone Number (10 digits)'}</label>
                   <input
                     type="tel"
                     className="form-control"
-                    placeholder="e.g. 98422 99881"
+                    placeholder="9842299881"
                     value={partnerForm.phone}
-                    onChange={(e) => setPartnerForm({ ...partnerForm, phone: e.target.value })}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setPartnerForm({ ...partnerForm, phone: digits });
+                      if (partnerFormError) setPartnerFormError('');
+                    }}
                   />
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-light)', marginTop: '0.2rem', display: 'block' }}>
+                    {lang === 'ta' ? '10 இலக்க தனித்துவமான எண்' : '10-digit unique mobile number'}
+                  </span>
                 </div>
 
                 {/* Invested Capital */}

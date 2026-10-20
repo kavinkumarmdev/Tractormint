@@ -128,12 +128,15 @@ export default function App() {
 
   // Persist Settings
   const handleSaveSettings = (newSettings) => {
-    setSettings(newSettings);
-    setLang(newSettings.language || lang);
-    StorageService.saveSettings(newSettings);
-    if (getEffectiveGoogleSheetUrl(newSettings.webAppUrl)) {
-      setSyncStatus('connected');
+    const res = StorageService.saveSettings(newSettings);
+    if (res && res.success) {
+      setSettings(newSettings);
+      setLang(newSettings.language || lang);
+      if (getEffectiveGoogleSheetUrl(newSettings.webAppUrl)) {
+        setSyncStatus('connected');
+      }
     }
+    return res;
   };
 
   // Cloud Auto-Save to Google Sheets
@@ -174,10 +177,11 @@ export default function App() {
     }
   }, []);
 
-  // Save Handlers
+  // Save Handlers with Backend Validation
   const handleSaveFleet = (item) => {
-    StorageService.saveItem(StorageService.TABLE_KEYS.FLEET, item, role);
-    refreshAllData();
+    const res = StorageService.saveFleet(item, role);
+    if (res.success) refreshAllData();
+    return res;
   };
 
   const handleDeleteFleet = (id, pin) => {
@@ -187,8 +191,9 @@ export default function App() {
   };
 
   const handleSaveRate = (item) => {
-    StorageService.saveItem(StorageService.TABLE_KEYS.RATE_MATRIX, item, role);
-    refreshAllData();
+    const res = StorageService.saveRate(item, role);
+    if (res.success) refreshAllData();
+    return res;
   };
 
   const handleDeleteRate = (id, pin) => {
@@ -198,8 +203,9 @@ export default function App() {
   };
 
   const handleSaveDriver = (item) => {
-    StorageService.saveItem(StorageService.TABLE_KEYS.DRIVERS, item, role);
-    refreshAllData();
+    const res = StorageService.saveDriver(item, role);
+    if (res.success) refreshAllData();
+    return res;
   };
 
   const handleDeleteDriver = (id, pin) => {
@@ -209,8 +215,9 @@ export default function App() {
   };
 
   const handleSaveCustomer = (item) => {
-    StorageService.saveItem(StorageService.TABLE_KEYS.CUSTOMERS, item, role);
-    refreshAllData();
+    const res = StorageService.saveCustomer(item, role);
+    if (res.success) refreshAllData();
+    return res;
   };
 
   const handleDeleteCustomer = (id, pin) => {
@@ -220,8 +227,9 @@ export default function App() {
   };
 
   const handleSaveTrip = (item) => {
-    StorageService.saveItem(StorageService.TABLE_KEYS.TRIP_SHEETS, item, role);
-    refreshAllData();
+    const res = StorageService.saveTripSheet(item, role);
+    if (res.success) refreshAllData();
+    return res;
   };
 
   const handleDeleteTrip = (id, pin) => {
@@ -231,8 +239,9 @@ export default function App() {
   };
 
   const handleSaveMaintenance = (item) => {
-    StorageService.saveItem(StorageService.TABLE_KEYS.MAINTENANCE, item, role);
-    refreshAllData();
+    const res = StorageService.saveMaintenance(item, role);
+    if (res.success) refreshAllData();
+    return res;
   };
 
   const handleDeleteMaintenance = (id, pin) => {
@@ -242,8 +251,9 @@ export default function App() {
   };
 
   const handleSaveIncomeExpense = (item) => {
-    StorageService.saveItem(StorageService.TABLE_KEYS.INCOME_EXPENSE, item, role);
-    refreshAllData();
+    const res = StorageService.saveIncomeExpense(item, role);
+    if (res.success) refreshAllData();
+    return res;
   };
 
   const handleDeleteIncomeExpense = (id, pin) => {
@@ -253,8 +263,9 @@ export default function App() {
   };
 
   const handleSavePartner = (item) => {
-    StorageService.saveItem(StorageService.TABLE_KEYS.PARTNERS, item, role);
-    refreshAllData();
+    const res = StorageService.savePartner(item, role);
+    if (res.success) refreshAllData();
+    return res;
   };
 
   const handleDeletePartner = (id, pin) => {
@@ -264,8 +275,9 @@ export default function App() {
   };
 
   const handleSaveDrawing = (item) => {
-    StorageService.saveItem(StorageService.TABLE_KEYS.PARTNER_DRAWINGS, item, role);
-    refreshAllData();
+    const res = StorageService.savePartnerDrawing(item, role);
+    if (res.success) refreshAllData();
+    return res;
   };
 
   const handleDeleteDrawing = (id, pin) => {
