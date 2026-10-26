@@ -303,15 +303,10 @@ export default function UserManager({
       {/* Header bar */}
       <div className="card-header-bar">
         <div className="card-title-group">
-          <h2>
+          <h2 style={{ margin: 0 }}>
             <Users size={22} color="var(--primary-600)" />
             {lang === 'ta' ? 'பணியாளர்கள் & உள்நுழைவு மேலாண்மை' : 'Staff Accounts & Login Management'}
           </h2>
-          <p>
-            {lang === 'ta' 
-              ? 'பயனர் கணக்குகள் உருவாக்கம், அனுமதிகள் மற்றும் நிகழ்நேர உள்நுழைவு தணிக்கை வரலாறு.' 
-              : 'Create staff logins, assign role access levels, and monitor real-time login audit trails.'}
-          </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           {activeSubTab === 'accounts' ? (

@@ -186,8 +186,7 @@ export default function RateMatrixManager({
       {/* Header bar */}
       <div className="card-header-bar">
         <div className="card-title-group">
-          <h2><Tag size={22} /> {t.rateMatrix}</h2>
-          <p>{lang === 'ta' ? 'டிராக்டர் + கருவி சேர்க்கைக்கான மணி நேரம்/ஏக்கர்/கி.மீ கட்டணம் மற்றும் நடைமுறை தேதி' : 'Combination rate cards with effective revision dates'}</p>
+          <h2 style={{ margin: 0 }}><Tag size={22} /> {t.rateMatrix}</h2>
         </div>
         <button className="btn btn-primary" onClick={handleOpenAdd}>
           <Plus size={16} />

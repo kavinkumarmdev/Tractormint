@@ -22,10 +22,7 @@ export default function AuditTrashManager({
       {/* Header bar */}
       <div className="card-header-bar">
         <div className="card-title-group">
-          <h2><History size={22} /> {t.auditTrash}</h2>
-          <p>{lang === 'ta' 
-            ? 'வாழ்நாள் கணக்கு தணிக்கை மற்றும் நீக்கப்பட்ட பதிவுகளின் பெட்டகம் (அட்மின் மட்டுமே மீட்டெடுக்க முடியும்)' 
-            : 'Lifetime audit trail and archived records repository (Admin restore only)'}</p>
+          <h2 style={{ margin: 0 }}><History size={22} /> {t.auditTrash}</h2>
         </div>
       </div>
 

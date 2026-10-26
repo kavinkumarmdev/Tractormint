@@ -70,14 +70,9 @@ export default function Dashboard({
             }} 
           />
           <div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>
-              {lang === 'ta' ? 'வணக்கம்! டிராக்டோமின்ட் மேலாண்மை பலகை' : 'Welcome to TractoMint Overview'}
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>
+              {lang === 'ta' ? 'டிராக்டோமின்ட் மேலாண்மை பலகை' : 'TractoMint Overview'}
             </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-              {lang === 'ta' 
-                ? 'டிராக்டர் உழவு, வாடகை வருவாய், டீசல் மற்றும் பராமரிப்பு செலவுகளின் நேரடி நிலவரம்' 
-                : 'Live tracking of tractor operations, customer dues, fuel & maintenance'}
-            </p>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -189,7 +184,6 @@ export default function Dashboard({
           <div className="card-header-bar">
             <div className="card-title-group">
               <h2><FileText size={18} /> {lang === 'ta' ? 'சமீபத்திய உழவு பதிவுகள்' : 'Recent Trip Sheets'}</h2>
-              <p>{lang === 'ta' ? 'கடைசியாக பதிவு செய்யப்பட்ட 5 டிரிப்புகள்' : 'Latest work log entries'}</p>
             </div>
             <button className="btn btn-outline btn-sm" onClick={() => onNavigate('tripSheets')}>
               {lang === 'ta' ? 'அனைத்தையும் பார்க்க' : 'View All'}
@@ -258,7 +252,6 @@ export default function Dashboard({
           <div className="card-header-bar">
             <div className="card-title-group">
               <h2><Fuel size={18} /> {lang === 'ta' ? 'டீசல் & உதிரிபாகங்கள் செலவு' : 'Fuel & Spares Maintenance'}</h2>
-              <p>{lang === 'ta' ? 'சமீபத்திய பராமரிப்பு மற்றும் வாங்குதல்கள்' : 'Latest spares, blades and fuel expenses'}</p>
             </div>
             <button className="btn btn-outline btn-sm" onClick={() => onNavigate('maintenance')}>
               {lang === 'ta' ? 'அனைத்தையும் பார்க்க' : 'View All'}

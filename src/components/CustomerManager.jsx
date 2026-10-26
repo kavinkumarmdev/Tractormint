@@ -174,8 +174,7 @@ export default function CustomerManager({
       {/* Header bar */}
       <div className="card-header-bar">
         <div className="card-title-group">
-          <h2><Users2 size={22} /> {t.customers}</h2>
-          <p>{lang === 'ta' ? 'விவசாயிகள் மற்றும் வாடிக்கையாளர்கள் கணக்கு புத்தகம் மற்றும் நிலுவைத் தொகை' : 'Customer records, village locations and outstanding ledger balances'}</p>
+          <h2 style={{ margin: 0 }}><Users2 size={22} /> {t.customers}</h2>
         </div>
         <button className="btn btn-primary" onClick={handleOpenAdd}>
           <Plus size={16} />

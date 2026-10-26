@@ -154,8 +154,7 @@ export default function IncomeExpenseManager({
       {/* Header bar */}
       <div className="card-header-bar">
         <div className="card-title-group">
-          <h2><Receipt size={22} /> {t.incomeExpense}</h2>
-          <p>{lang === 'ta' ? 'மானியம், பழைய இரும்பு விற்பனை, கடன் தவணை, காப்பீடு மற்றும் இதர வரவு செலவுகள்' : 'Government subsidies, scrap sales, loan EMI, taxes, yard rent and miscellaneous expenses'}</p>
+          <h2 style={{ margin: 0 }}><Receipt size={22} /> {t.incomeExpense}</h2>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button className="btn btn-primary" onClick={() => handleOpenAdd('income')}>

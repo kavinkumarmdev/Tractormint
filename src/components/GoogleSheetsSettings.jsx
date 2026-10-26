@@ -152,8 +152,7 @@ export default function GoogleSheetsSettings({
       {/* Header bar */}
       <div className="card-header-bar">
         <div className="card-title-group">
-          <h2><CloudSun size={22} /> {lang === 'ta' ? 'கூகுள் ஷீட் இணைப்பு & அமைப்புகள்' : t.googleSheetsTitle}</h2>
-          <p>{lang === 'ta' ? 'கூகுள் ஷீட் நேரடி இருவழி ஒத்திசைவு மற்றும் வணிக அமைப்புகள்' : 'Two-way synchronization between TractoMint and your private Google Spreadsheet'}</p>
+          <h2 style={{ margin: 0 }}><CloudSun size={22} /> {lang === 'ta' ? 'கூகுள் ஷீட் இணைப்பு & அமைப்புகள்' : t.googleSheetsTitle}</h2>
         </div>
       </div>
 

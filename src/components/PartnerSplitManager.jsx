@@ -295,8 +295,7 @@ export default function PartnerSplitManager({
       {/* Header bar */}
       <div className="card-header-bar">
         <div className="card-title-group">
-          <h2><Scale size={22} /> {t.partnerSplit}</h2>
-          <p>{lang === 'ta' ? 'பங்குதாரர்கள் யார் யார் எவ்வளவு பணம் எடுத்தார்கள் (Drawings) மற்றும் நிகர லாபப் பங்கீட்டு விவரம்' : 'Partner profit sharing reconciliation and individual drawings ledger'}</p>
+          <h2 style={{ margin: 0 }}><Scale size={22} /> {t.partnerSplit}</h2>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button className="btn btn-primary" onClick={handleOpenAddDrawing}>

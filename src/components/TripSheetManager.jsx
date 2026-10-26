@@ -1445,8 +1445,7 @@ export default function TripSheetManager({
       {/* Header bar */}
       <div className="card-header-bar">
         <div className="card-title-group">
-          <h2><FileSpreadsheet size={22} /> {t.tripSheets}</h2>
-          <p>{lang === 'ta' ? 'உழவு வேலை டிரிப் சீட்டுகள், கட்டணம் கணக்கீடு, வசூலித்தவர் மற்றும் நிலுவை பாக்கி' : 'Tractor work trip sheets, hourly/acre billing, collection and balance dues'}</p>
+          <h2 style={{ margin: 0 }}><FileSpreadsheet size={22} /> {t.tripSheets}</h2>
         </div>
         <button className="btn btn-primary" onClick={handleOpenAdd}>
           <Plus size={16} />

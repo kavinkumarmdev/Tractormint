@@ -174,8 +174,7 @@ export default function DriverList({
       {/* Header bar */}
       <div className="card-header-bar">
         <div className="card-title-group">
-          <h2><UserCheck size={22} /> {t.drivers}</h2>
-          <p>{lang === 'ta' ? 'டிராக்டர் டிரைவர்கள் மற்றும் தொழிலாளர்கள் விவரம், தினசரி படி (பாட்டா) மற்றும் சம்பள விவரங்கள்' : 'Manage Drivers, Bata rates, Salary logs and work statistics'}</p>
+          <h2 style={{ margin: 0 }}><UserCheck size={22} /> {t.drivers}</h2>
         </div>
         <button className="btn btn-primary" onClick={handleOpenAdd}>
           <Plus size={16} />

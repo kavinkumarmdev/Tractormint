@@ -260,8 +260,7 @@ export default function FleetManager({
       {/* Header bar */}
       <div className="card-header-bar" style={{ marginBottom: '1.25rem' }}>
         <div className="card-title-group">
-          <h2><Tractor size={22} /> {t.fleet}</h2>
-          <p>{lang === 'ta' ? 'டிராக்டர் மற்றும் கருவிகள் (ரோட்டாவேட்டர், 5 கொழு கலப்பை போன்றவை) பதிவு' : 'Manage Tractors, Implements, Acquisition & EMI details'}</p>
+          <h2 style={{ margin: 0 }}><Tractor size={22} /> {t.fleet}</h2>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button className="btn btn-primary" onClick={() => handleOpenAdd('tractor')}>

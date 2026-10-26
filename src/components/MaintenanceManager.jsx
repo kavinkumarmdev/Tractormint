@@ -222,8 +222,7 @@ export default function MaintenanceManager({
       {/* Header bar */}
       <div className="card-header-bar">
         <div className="card-title-group">
-          <h2><Wrench size={22} /> {t.maintenance}</h2>
-          <p>{lang === 'ta' ? 'டீசல், என்ஜின் ஆயில், ரோட்டாவேட்டர்/5 கொழு பிளேடுகள், நட்டுகள்-போல்ட்டுகள் மற்றும் சர்வீஸ் செலவுகள்' : 'Fuel, Engine Oil, Rotavator & 5-Tyne Blades, Nuts & Bolts, Battery & Repairs'}</p>
+          <h2 style={{ margin: 0 }}><Wrench size={22} /> {t.maintenance}</h2>
         </div>
         <button className="btn btn-primary" onClick={handleOpenAdd}>
           <Plus size={16} />
