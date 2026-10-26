@@ -27,7 +27,8 @@ import {
   Compass,
   CreditCard,
   Wallet,
-  Activity
+  Activity,
+  Save
 } from 'lucide-react';
 import { translations, resolveBilingual } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
@@ -36,6 +37,11 @@ import SearchableSelect from './common/SearchableSelect';
 import VoiceInput from './common/VoiceInput';
 import { validatePositiveNumber } from '../services/storage';
 import { formatDateDDMMYYYY, formatTimeDisplay } from '../utils/dateUtils';
+import { 
+  parseAgriDuration, 
+  formatDurationLabel, 
+  calculateTimeDifferenceHours 
+} from '../utils/timeCalcUtils';
 
 export default function TripSheetManager({ 
   tripSheets, 
@@ -90,8 +96,28 @@ export default function TripSheetManager({
   const tractors = fleet.filter(f => f.type === 'tractor');
   const implementsList = fleet.filter(f => f.type === 'implement');
 
+  const [quickSettleState, setQuickSettleState] = useState({
+    isOpen: false,
+    trip: null,
+    amount: '',
+    paymentMode: 'cash',
+    cashInHandStatus: 'settled',
+    notes: ''
+  });
+
   const loggedUserName = currentUser?.displayName || currentUser?.username || 'Operator';
   const loggedUserRole = currentUser?.role || role || 'operator';
+
+  // Compute selected farmer's previous total outstanding due
+  const customerPreviousDue = useMemo(() => {
+    if (!formData.customerId && !formData.customerName) return 0;
+    return tripSheets
+      .filter(t => (
+        (formData.customerId && t.customerId === formData.customerId) || 
+        (formData.customerName && t.customerName && t.customerName.toLowerCase() === formData.customerName.toLowerCase())
+      ) && t.id !== formData.id)
+      .reduce((sum, t) => sum + (parseFloat(t.balanceAmount) || 0), 0);
+  }, [formData.customerId, formData.customerName, formData.id, tripSheets]);
 
   // Live Timer Interval
   useEffect(() => {
@@ -572,12 +598,12 @@ export default function TripSheetManager({
     });
   };
 
-  // Rule 8 & 11: Set Paid Status Toggle
-  const handleSetPaidStatus = (isPaid) => {
+  // Payment Status Handlers: Supports 'paid', 'partial', and 'unpaid'
+  const handleSelectPaymentStatus = (status) => {
+    setIsCollectionActive(status !== 'unpaid');
     setFormData(prev => {
       const net = parseFloat(prev.totalAmount) || 0;
-      if (isPaid) {
-        setIsCollectionActive(true);
+      if (status === 'paid') {
         return {
           ...prev,
           paymentStatus: 'paid',
@@ -588,8 +614,20 @@ export default function TripSheetManager({
           collectedBy: prev.collectedBy || `${loggedUserName} (${lang === 'ta' ? 'நீங்கள்' : 'You'})`,
           collectedWhen: prev.collectedWhen || `${prev.date || new Date().toISOString().slice(0, 10)} 12:00`
         };
+      } else if (status === 'partial') {
+        const curPaid = parseFloat(prev.paidAmount) || 0;
+        const initialPaid = (curPaid > 0 && curPaid < net) ? curPaid : Math.round(net / 2);
+        return {
+          ...prev,
+          paymentStatus: 'partial',
+          paidAmount: initialPaid.toString(),
+          balanceAmount: Math.max(0, Math.round((net - initialPaid) * 100) / 100),
+          paidOnDate: prev.paidOnDate || prev.date || new Date().toISOString().slice(0, 10),
+          paymentMode: (!prev.paymentMode || prev.paymentMode === 'credit') ? 'cash' : prev.paymentMode,
+          collectedBy: prev.collectedBy || `${loggedUserName} (${lang === 'ta' ? 'நீங்கள்' : 'You'})`,
+          collectedWhen: prev.collectedWhen || `${prev.date || new Date().toISOString().slice(0, 10)} 12:00`
+        };
       } else {
-        setIsCollectionActive(false);
         return {
           ...prev,
           paymentStatus: 'unpaid',
@@ -599,6 +637,10 @@ export default function TripSheetManager({
         };
       }
     });
+  };
+
+  const handleSetPaidStatus = (isPaid) => {
+    handleSelectPaymentStatus(isPaid ? 'paid' : 'unpaid');
   };
 
   // Handle Login User Assignment (Driver vs Collector)
@@ -962,6 +1004,32 @@ export default function TripSheetManager({
     });
   };
 
+  const handleSaveQuickSettle = () => {
+    if (!quickSettleState.trip) return;
+    const trip = quickSettleState.trip;
+    const collAmt = parseFloat(quickSettleState.amount) || 0;
+    const prevPaid = parseFloat(trip.paidAmount) || 0;
+    const netTotal = parseFloat(trip.totalAmount) || 0;
+    const newPaid = Math.min(netTotal, prevPaid + collAmt);
+    const newBal = Math.max(0, Math.round((netTotal - newPaid) * 100) / 100);
+    const newStatus = newBal === 0 ? 'paid' : (newPaid > 0 ? 'partial' : 'unpaid');
+
+    const updated = {
+      ...trip,
+      paidAmount: newPaid,
+      balanceAmount: newBal,
+      paymentStatus: newStatus,
+      cashInHandStatus: quickSettleState.cashInHandStatus || 'settled',
+      paymentMode: quickSettleState.paymentMode || trip.paymentMode || 'cash',
+      collectedBy: quickSettleState.collectedBy || trip.collectedBy || loggedUserName,
+      collectedWhen: new Date().toISOString().slice(0, 16).replace('T', ' '),
+      paidOnDate: new Date().toISOString().slice(0, 10)
+    };
+
+    onSaveTrip(updated);
+    setQuickSettleState({ isOpen: false, trip: null, amount: '', paymentMode: 'cash', cashInHandStatus: 'settled', collectedBy: '', notes: '' });
+  };
+
   // Stopwatch / Live Timer actions
   const handleStartPauseTimer = () => {
     setTimerRunning(prev => !prev);
@@ -1014,22 +1082,29 @@ export default function TripSheetManager({
 
       if (field === 'customerId') {
         const found = customers.find(c => c.id === value);
-        if (found) updated.customerName = found.name;
+        if (found) {
+          updated.customerName = found.name;
+          updated.customerName_ta = found.name_ta || found.name;
+        }
       }
 
       if (field === 'driverId') {
         const found = drivers.find(d => d.id === value);
         if (found) {
           updated.driverName = found.name;
+          updated.driverName_ta = found.name_ta || found.name;
           if (loginUserAssignment !== 'collector' && (!prev.collectedBy || prev.collectedBy.includes('Driver'))) {
-            updated.collectedBy = `${found.name} (Driver)`;
+            updated.collectedBy = `${found.name_ta || found.name} (Driver)`;
           }
         }
       }
 
       if (field === 'tractorId') {
         const found = tractors.find(t => t.id === value);
-        if (found) updated.tractorName = found.name;
+        if (found) {
+          updated.tractorName = found.name;
+          updated.tractorName_ta = found.name_ta || found.name;
+        }
         const suggestedRate = lookupRate(value, updated.implementId, updated.date, updated.billingUnit);
         if (suggestedRate) updated.rate = suggestedRate;
       }
@@ -1037,6 +1112,7 @@ export default function TripSheetManager({
       if (field === 'implementId') {
         const found = implementsList.find(m => m.id === value);
         updated.implementName = found ? found.name : 'Standalone Tractor';
+        updated.implementName_ta = found ? (found.name_ta || found.name) : 'தனி டிராக்டர்';
         const suggestedRate = lookupRate(updated.tractorId, value, updated.date, updated.billingUnit);
         if (suggestedRate) updated.rate = suggestedRate;
       }
@@ -1054,38 +1130,41 @@ export default function TripSheetManager({
         }
       }
 
-      // Start & End Time duration calculation
+      // Start & End Time duration calculation (e.g. 10:00 to 12:30 -> 2.5 hrs)
       if (field === 'startTime' || field === 'endTime') {
         const sTime = field === 'startTime' ? value : updated.startTime;
         const eTime = field === 'endTime' ? value : updated.endTime;
         if (sTime && eTime) {
-          const [sh, sm] = sTime.split(':').map(Number);
-          const [eh, em] = eTime.split(':').map(Number);
-          if (!isNaN(sh) && !isNaN(sm) && !isNaN(eh) && !isNaN(em)) {
-            const startMins = sh * 60 + sm;
-            const endMins = eh * 60 + em;
-            const diffMins = endMins >= startMins ? (endMins - startMins) : (endMins + 1440 - startMins);
-            if (diffMins > 0) {
-              const diffHours = diffMins / 60;
-              const roundedHours = Math.max(0.1, Math.round(diffHours * 100) / 100);
-              if (updated.billingUnit === 'per_hour') {
-                updated.quantity = roundedHours.toString();
-              }
+          const diff = calculateTimeDifferenceHours(sTime, eTime);
+          if (diff && diff.decimalHours > 0) {
+            if (updated.billingUnit === 'per_hour') {
+              updated.quantity = diff.decimalHours.toString();
+              updated._durationInfo = diff;
             }
           }
         }
       }
 
-      const qty = parseFloat(field === 'quantity' ? value : updated.quantity) || 0;
+      // Intelligent Agricultural Duration Parsing:
+      // Supports "1:30" -> 1.5, ".45" -> 0.75, "1.30" -> 1.5, "2:15" -> 2.25
+      let qty = 0;
+      if (field === 'quantity') {
+        const parsed = parseAgriDuration(value);
+        qty = parsed.decimalHours;
+      } else {
+        const parsed = parseAgriDuration(updated.quantity);
+        qty = parsed.decimalHours;
+      }
+
       const rt = parseFloat(field === 'rate' ? value : updated.rate) || 0;
       const disc = parseFloat(field === 'discount' ? value : updated.discount) || 0;
       
-      const gross = qty * rt;
-      const net = Math.max(0, gross - disc);
+      const gross = Math.round(qty * rt * 100) / 100;
+      const net = Math.max(0, Math.round((gross - disc) * 100) / 100);
       updated.grossAmount = gross;
       updated.totalAmount = net;
 
-      if (!isCollectionActive) {
+      if (!isCollectionActive && field !== 'paidAmount' && field !== 'paymentStatus') {
         updated.paidAmount = '0';
         updated.balanceAmount = net;
         updated.paymentStatus = 'unpaid';
@@ -1095,14 +1174,22 @@ export default function TripSheetManager({
           if (value === 'paid') {
             updated.paidAmount = net.toString();
             updated.balanceAmount = 0;
+            if (updated.paymentMode === 'credit') updated.paymentMode = 'cash';
           } else if (value === 'unpaid') {
             updated.paidAmount = '0';
             updated.balanceAmount = net;
             updated.paymentMode = 'credit';
+          } else if (value === 'partial') {
+            updated.paymentStatus = 'partial';
+            const curPaid = parseFloat(updated.paidAmount) || 0;
+            const p = (curPaid > 0 && curPaid < net) ? curPaid : Math.round(net / 2);
+            updated.paidAmount = p.toString();
+            updated.balanceAmount = Math.max(0, Math.round((net - p) * 100) / 100);
+            if (updated.paymentMode === 'credit') updated.paymentMode = 'cash';
           }
         } else if (field === 'paidAmount') {
           const paid = parseFloat(value) || 0;
-          updated.balanceAmount = Math.max(0, net - paid);
+          updated.balanceAmount = Math.max(0, Math.round((net - paid) * 100) / 100);
           if (paid >= net && net > 0) {
             updated.paymentStatus = 'paid';
           } else if (paid > 0 && paid < net) {
@@ -1115,9 +1202,12 @@ export default function TripSheetManager({
           if (updated.paymentStatus === 'paid') {
             updated.paidAmount = net.toString();
             updated.balanceAmount = 0;
+          } else if (updated.paymentStatus === 'partial') {
+            const paid = parseFloat(updated.paidAmount) || 0;
+            updated.balanceAmount = Math.max(0, Math.round((net - paid) * 100) / 100);
           } else {
             const paid = parseFloat(updated.paidAmount) || 0;
-            updated.balanceAmount = Math.max(0, net - paid);
+            updated.balanceAmount = Math.max(0, Math.round((net - paid) * 100) / 100);
           }
         }
       }
@@ -1383,15 +1473,32 @@ export default function TripSheetManager({
       finalCollectedWhen = '';
     }
 
+    const matchedCust = customers.find(c => c.id === resolvedCustomerId || c.name === resolvedCustomerName);
+    const resolvedCustomerName_ta = formData.customerName_ta || matchedCust?.name_ta || resolvedCustomerName;
+
+    const matchedDrv = drivers.find(d => d.id === resolvedDriverId || d.name === resolvedDriverName);
+    const resolvedDriverName_ta = formData.driverName_ta || matchedDrv?.name_ta || resolvedDriverName;
+
+    const matchedTrac = tractors.find(t => t.id === resolvedTractorId || t.name === resolvedTractorName);
+    const resolvedTractorName_ta = formData.tractorName_ta || matchedTrac?.name_ta || resolvedTractorName;
+
+    const matchedImp = implementsList.find(m => m.id === formData.implementId);
+    const resolvedImplementName_ta = formData.implementName_ta || matchedImp?.name_ta || formData.implementName;
+
     const finalPayload = {
       ...formData,
       _isEditing: Boolean(editingItem),
       customerId: resolvedCustomerId,
       customerName: resolvedCustomerName,
+      customerName_ta: resolvedCustomerName_ta,
       tractorId: resolvedTractorId,
       tractorName: resolvedTractorName,
+      tractorName_ta: resolvedTractorName_ta,
       driverId: resolvedDriverId,
       driverName: resolvedDriverName,
+      driverName_ta: resolvedDriverName_ta,
+      implementName_ta: resolvedImplementName_ta,
+      cashInHandStatus: formData.cashInHandStatus || 'settled',
       grossAmount: gross,
       totalAmount: netTotal,
       paidAmount: finalPaid,
@@ -1561,6 +1668,31 @@ export default function TripSheetManager({
                 const formattedDate = formatDateDDMMYYYY(trip.date);
                 const startT = formatTimeDisplay(trip.startTime);
                 const endT = formatTimeDisplay(trip.endTime);
+
+                const foundCust = customers.find(c => c.id === trip.customerId || (c.name && c.name.toLowerCase() === (trip.customerName || '').toLowerCase()));
+                const dispCustomer = (lang === 'ta' && (trip.customerName_ta || foundCust?.name_ta)) 
+                  ? (trip.customerName_ta || foundCust?.name_ta) 
+                  : (trip.customerName || '---');
+
+                const foundDrv = drivers.find(d => d.id === trip.driverId || (d.name && d.name.toLowerCase() === (trip.driverName || '').toLowerCase()));
+                const dispDriver = (lang === 'ta' && (trip.driverName_ta || foundDrv?.name_ta)) 
+                  ? (trip.driverName_ta || foundDrv?.name_ta) 
+                  : (trip.driverName || '---');
+
+                const foundTrac = tractors.find(t => t.id === trip.tractorId || (t.name && t.name.toLowerCase() === (trip.tractorName || '').toLowerCase()));
+                const dispTractor = (lang === 'ta' && (trip.tractorName_ta || foundTrac?.name_ta)) 
+                  ? (trip.tractorName_ta || foundTrac?.name_ta) 
+                  : (trip.tractorName || '---');
+
+                const foundImp = implementsList.find(m => m.id === trip.implementId);
+                const dispImplement = (lang === 'ta' && (trip.implementName_ta || foundImp?.name_ta)) 
+                  ? (trip.implementName_ta || foundImp?.name_ta) 
+                  : (trip.implementName || '');
+
+                const dispDuration = trip.billingUnit === 'per_hour' 
+                  ? formatDurationLabel(trip.quantity, lang) 
+                  : `${trip.quantity} ${trip.billingUnit === 'per_acre' ? (lang === 'ta' ? 'ஏக்கர்' : 'acres') : (lang === 'ta' ? 'டிரிப்' : trip.billingUnit)}`;
+
                 return (
                   <tr 
                     key={trip.id} 
@@ -1578,16 +1710,16 @@ export default function TripSheetManager({
                       ) : null}
                     </td>
                     <td>
-                      <div style={{ fontWeight: 600 }}>{trip.customerName}</div>
+                      <div style={{ fontWeight: 700 }}>{dispCustomer}</div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>{trip.workType}</div>
                     </td>
                     <td style={{ fontSize: '0.85rem' }}>
-                      <span style={{ fontWeight: 600 }}>{trip.driverName}</span>
+                      <span style={{ fontWeight: 600 }}>{dispDriver}</span>
                     </td>
                     <td>
-                      <div style={{ fontSize: '0.825rem', fontWeight: 600 }}>{trip.tractorName}</div>
+                      <div style={{ fontSize: '0.825rem', fontWeight: 600 }}>{dispTractor}</div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', display: 'flex', flexWrap: 'wrap', gap: '3px', marginTop: '2px' }}>
-                        {trip.implementName ? trip.implementName.split(' + ').map((name, idx) => (
+                        {dispImplement ? dispImplement.split(' + ').map((name, idx) => (
                           <span key={idx} style={{
                             background: 'rgba(99, 102, 241, 0.1)',
                             color: 'var(--primary-700, #4338ca)',
@@ -1602,13 +1734,13 @@ export default function TripSheetManager({
                       </div>
                     </td>
                     <td>
-                      <div style={{ fontWeight: 600 }}>
-                        {trip.quantity} {trip.billingUnit === 'per_hour' ? (lang === 'ta' ? 'மணி' : 'hrs') : trip.billingUnit === 'per_acre' ? (lang === 'ta' ? 'ஏக்கர்' : 'acres') : (lang === 'ta' ? 'டிரிப்' : trip.billingUnit)}
+                      <div style={{ fontWeight: 700, color: 'var(--primary-800)' }}>
+                        {dispDuration}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>@ ₹{trip.rate}</div>
                     </td>
-                    <td style={{ fontWeight: 700 }}>₹{trip.totalAmount}</td>
-                    <td style={{ fontWeight: 700, color: '#16a34a' }}>₹{trip.paidAmount}</td>
+                    <td style={{ fontWeight: 800 }}>₹{trip.totalAmount}</td>
+                    <td style={{ fontWeight: 800, color: '#16a34a' }}>₹{trip.paidAmount}</td>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                         <span style={{ 
@@ -1622,25 +1754,32 @@ export default function TripSheetManager({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleOpenCollect(trip);
+                              setQuickSettleState({
+                                isOpen: true,
+                                trip,
+                                amount: String(trip.balanceAmount || ''),
+                                paymentMode: 'cash',
+                                cashInHandStatus: trip.cashInHandStatus || 'settled',
+                                notes: ''
+                              });
                             }}
                             style={{
                               background: 'linear-gradient(135deg, #f59e0b, #d97706)',
                               color: '#ffffff',
                               border: 'none',
                               borderRadius: '4px',
-                              padding: '2px 6px',
-                              fontSize: '0.7rem',
+                              padding: '2px 8px',
+                              fontSize: '0.72rem',
                               fontWeight: 700,
                               cursor: 'pointer',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '2px',
-                              boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                              gap: '3px',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
                             }}
-                            title="Collect payment now"
+                            title="Quick collect payment or split cash"
                           >
-                            💰 {lang === 'ta' ? 'வசூலி' : 'Collect'}
+                            💰 {lang === 'ta' ? 'வசூல் / தீர்வு' : 'Settle'}
                           </button>
                         )}
                       </div>
@@ -1650,17 +1789,33 @@ export default function TripSheetManager({
                         {trip.collectedBy ? trip.collectedBy : '--'}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>
-                        {trip.paymentMode ? trip.paymentMode.toUpperCase() : ''} • {trip.collectedWhen ? trip.collectedWhen.slice(0, 10) : ''}
+                        {trip.paymentMode ? trip.paymentMode.toUpperCase() : ''} {trip.collectedWhen ? `• ${trip.collectedWhen.slice(0, 10)}` : ''}
                       </div>
                     </td>
                     <td>
-                      <span className={`badge ${
-                        trip.paymentStatus === 'paid' ? 'badge-paid' :
-                        trip.paymentStatus === 'partial' ? 'badge-partial' : 'badge-unpaid'
-                      }`}>
-                        {trip.paymentStatus === 'paid' ? t.paid :
-                         trip.paymentStatus === 'partial' ? t.partial : (lang === 'ta' ? 'நிலுவை' : 'Pending')}
-                      </span>
+                      <div>
+                        <span className={`badge ${
+                          trip.paymentStatus === 'paid' ? 'badge-paid' :
+                          trip.paymentStatus === 'partial' ? 'badge-partial' : 'badge-unpaid'
+                        }`}>
+                          {trip.paymentStatus === 'paid' ? t.paid :
+                           trip.paymentStatus === 'partial' ? t.partial : (lang === 'ta' ? 'நிலுவை' : 'Pending')}
+                        </span>
+                        {trip.cashInHandStatus === 'in_hand' && (
+                          <div style={{ 
+                            fontSize: '0.68rem', 
+                            fontWeight: 700, 
+                            color: '#b45309', 
+                            background: '#fef3c7', 
+                            padding: '1px 5px', 
+                            borderRadius: '4px', 
+                            marginTop: '3px',
+                            display: 'inline-block' 
+                          }}>
+                            💵 {lang === 'ta' ? 'டிரைவர் கையில்' : 'Cash in Hand'}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', gap: '0.35rem' }} onClick={(e) => e.stopPropagation()}>
@@ -1761,6 +1916,27 @@ export default function TripSheetManager({
                     required
                     lang={lang}
                   />
+                  {customerPreviousDue > 0 && (
+                    <div style={{
+                      marginTop: '0.45rem',
+                      padding: '0.45rem 0.75rem',
+                      borderRadius: '8px',
+                      background: 'rgba(239, 68, 68, 0.08)',
+                      border: '1.5px solid rgba(239, 68, 68, 0.25)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: '0.8rem'
+                    }}>
+                      <span style={{ color: '#b91c1c', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <AlertCircle size={14} />
+                        <span>{lang === 'ta' ? 'பழைய நிலுவைத் தொகை:' : 'Old Balance Due:'}</span>
+                      </span>
+                      <span style={{ fontWeight: 900, color: '#dc2626', fontSize: '0.9rem' }}>
+                        ₹{customerPreviousDue.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Rule 2: Driver Name (Pure Tamil, translated wage badge, quick button) */}
@@ -2358,10 +2534,10 @@ export default function TripSheetManager({
                       </label>
                       <div style={{ display: 'flex', gap: '0.35rem' }}>
                         <input
-                          type="number"
-                          step="0.01"
+                          type="text"
                           className="form-control"
-                          style={{ fontWeight: 700, fontSize: '1.05rem', minWidth: '85px' }}
+                          style={{ fontWeight: 800, fontSize: '1.05rem', minWidth: '95px' }}
+                          placeholder={formData.billingUnit === 'per_hour' ? "எ.கா: 1:30, .45, 2" : "2"}
                           value={formData.quantity}
                           onChange={(e) => handleFieldChange('quantity', e.target.value)}
                           required
@@ -2378,6 +2554,86 @@ export default function TripSheetManager({
                           <option value="per_trip">{lang === 'ta' ? 'டிரிப்' : 'Trip'}</option>
                         </select>
                       </div>
+
+                      {/* Live Agricultural Time / Duration Preview */}
+                      {formData.billingUnit === 'per_hour' && (
+                        <div style={{ marginTop: '0.35rem' }}>
+                          <div style={{ 
+                            fontSize: '0.75rem', 
+                            fontWeight: 700, 
+                            color: '#047857', 
+                            background: 'rgba(16, 185, 129, 0.1)',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            <span>⏱️</span>
+                            <span>
+                              {(() => {
+                                const p = parseAgriDuration(formData.quantity);
+                                if (p.isTimeFormat) {
+                                  return `${p.textTa || p.textEn} = ${p.decimalHours} மணி (₹${Math.round(p.decimalHours * (parseFloat(formData.rate) || 0))} @ ₹${formData.rate}/hr)`;
+                                }
+                                if (p.decimalHours > 0) {
+                                  return `${formatDurationLabel(p.decimalHours, lang)} (₹${Math.round(p.decimalHours * (parseFloat(formData.rate) || 0))})`;
+                                }
+                                return '0 மணி';
+                              })()}
+                            </span>
+                          </div>
+
+                          {/* Quick Preset Buttons */}
+                          <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '4px' }}>
+                            <button 
+                              type="button" 
+                              className="btn btn-outline btn-sm" 
+                              style={{ padding: '2px 5px', fontSize: '0.68rem', fontWeight: 700 }}
+                              onClick={() => handleFieldChange('quantity', '0:45')}
+                              title="45 minutes = 0.75 hours"
+                            >
+                              .45 (0.75h)
+                            </button>
+                            <button 
+                              type="button" 
+                              className="btn btn-outline btn-sm" 
+                              style={{ padding: '2px 5px', fontSize: '0.68rem', fontWeight: 700 }}
+                              onClick={() => handleFieldChange('quantity', '1:00')}
+                              title="1 hour"
+                            >
+                              1 {lang === 'ta' ? 'மணி' : 'hr'}
+                            </button>
+                            <button 
+                              type="button" 
+                              className="btn btn-outline btn-sm" 
+                              style={{ padding: '2px 5px', fontSize: '0.68rem', fontWeight: 700 }}
+                              onClick={() => handleFieldChange('quantity', '1:30')}
+                              title="1 hour 30 mins = 1.5 hours"
+                            >
+                              1:30 (1.5h)
+                            </button>
+                            <button 
+                              type="button" 
+                              className="btn btn-outline btn-sm" 
+                              style={{ padding: '2px 5px', fontSize: '0.68rem', fontWeight: 700 }}
+                              onClick={() => handleFieldChange('quantity', '2:00')}
+                              title="2 hours"
+                            >
+                              2 {lang === 'ta' ? 'மணி' : 'hrs'}
+                            </button>
+                            <button 
+                              type="button" 
+                              className="btn btn-outline btn-sm" 
+                              style={{ padding: '2px 5px', fontSize: '0.68rem', fontWeight: 700 }}
+                              onClick={() => handleFieldChange('quantity', '2:30')}
+                              title="2 hours 30 mins = 2.5 hours"
+                            >
+                              2:30 (2.5h)
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Multiply symbol */}
@@ -2470,36 +2726,53 @@ export default function TripSheetManager({
                   </div>
                 </div>
 
-                {/* Rule 8, 10 & 11: Payment Status Box (Paid / Unpaid, Paid On Date, Hand / Account, Collector) */}
+                {/* Rule 8, 10 & 11: Payment Status & Customer Dues & Split Box */}
                 <div style={{
                   gridColumn: '1 / -1',
-                  background: formData.paymentStatus === 'paid' ? 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)' : '#f8fafc',
-                  border: formData.paymentStatus === 'paid' ? '2px solid #86efac' : '2px solid #cbd5e1',
+                  background: formData.paymentStatus === 'paid' 
+                    ? 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)' 
+                    : formData.paymentStatus === 'partial'
+                      ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)'
+                      : '#f8fafc',
+                  border: formData.paymentStatus === 'paid' 
+                    ? '2px solid #86efac' 
+                    : formData.paymentStatus === 'partial'
+                      ? '2px solid #fcd34d'
+                      : '2px solid #cbd5e1',
                   borderRadius: '12px',
                   padding: '1.1rem',
                   transition: 'all 0.2s ease'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
                     <div>
-                      <div style={{ fontWeight: 800, fontSize: '1rem', color: formData.paymentStatus === 'paid' ? '#166534' : '#334155', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span>{formData.paymentStatus === 'paid' ? '✅' : '⏳'}</span>
-                        <span>{lang === 'ta' ? 'பணம் வசூலிக்கப்பட்டதா?' : 'Payment Status (Paid / Unpaid)'}</span>
+                      <div style={{ 
+                        fontWeight: 800, 
+                        fontSize: '1rem', 
+                        color: formData.paymentStatus === 'paid' ? '#166534' : formData.paymentStatus === 'partial' ? '#b45309' : '#334155', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.5rem' 
+                      }}>
+                        <span>{formData.paymentStatus === 'paid' ? '✅' : formData.paymentStatus === 'partial' ? '⚡' : '⏳'}</span>
+                        <span>{lang === 'ta' ? 'கட்டண வசூல் நிலை (Payment Status)' : 'Payment Status'}</span>
                       </div>
                       <div style={{ fontSize: '0.78rem', color: 'var(--text-light)', marginTop: '3px' }}>
                         {formData.paymentStatus === 'paid'
-                          ? (lang === 'ta' ? 'பணம் முழுமையாகப் பெறப்பட்டது - வசூல் விவரங்களைச் சரிபார்க்கவும்' : 'Payment fully collected - verify collection details below')
-                          : (lang === 'ta' ? 'பணம் பெறப்படவில்லை - நிலுவை வசூல் பட்டியலில் சேமிக்கப்படும்' : 'Not paid yet - saved to pending dues')}
+                          ? (lang === 'ta' ? 'பணம் முழுமையாகப் பெறப்பட்டது' : 'Full payment collected')
+                          : formData.paymentStatus === 'partial'
+                            ? (lang === 'ta' ? 'பகுதி வசூல் - மீதித் தொகை நிலுவை பாக்கியில் சேரும்' : 'Partially collected - remaining balance added to customer dues')
+                            : (lang === 'ta' ? 'பணம் பெறப்படவில்லை - முழுத் தொகையும் நிலுவை பாக்கியில் சேமிக்கப்படும்' : 'Not paid yet - saved to pending dues')}
                       </div>
                     </div>
 
-                    {/* Paid vs Not Paid Segmented Buttons */}
-                    <div style={{ display: 'inline-flex', borderRadius: '8px', border: '1.5px solid #cbd5e1', overflow: 'hidden' }}>
+                    {/* 3-Segmented Buttons: Paid / Partial / Unpaid */}
+                    <div style={{ display: 'inline-flex', borderRadius: '8px', border: '1.5px solid #cbd5e1', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
                       <button
                         type="button"
-                        onClick={() => handleSetPaidStatus(true)}
+                        onClick={() => handleSelectPaymentStatus('paid')}
                         style={{
-                          padding: '0.5rem 1.1rem',
-                          fontSize: '0.875rem',
+                          padding: '0.5rem 0.85rem',
+                          fontSize: '0.825rem',
                           fontWeight: 800,
                           border: 'none',
                           cursor: 'pointer',
@@ -2507,20 +2780,43 @@ export default function TripSheetManager({
                           color: formData.paymentStatus === 'paid' ? '#ffffff' : '#475569',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '0.4rem',
+                          gap: '0.3rem',
                           transition: 'all 0.15s ease'
                         }}
                       >
-                        <CheckCircle2 size={16} />
-                        <span>{lang === 'ta' ? 'செலுத்தப்பட்டது (Paid)' : 'Paid'}</span>
+                        <CheckCircle2 size={15} />
+                        <span>{lang === 'ta' ? 'முழுதும் வசூல் (Paid)' : 'Paid'}</span>
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => handleSetPaidStatus(false)}
+                        onClick={() => handleSelectPaymentStatus('partial')}
                         style={{
-                          padding: '0.5rem 1.1rem',
-                          fontSize: '0.875rem',
+                          padding: '0.5rem 0.85rem',
+                          fontSize: '0.825rem',
+                          fontWeight: 800,
+                          border: 'none',
+                          borderLeft: '1px solid #cbd5e1',
+                          borderRight: '1px solid #cbd5e1',
+                          cursor: 'pointer',
+                          background: formData.paymentStatus === 'partial' ? '#f59e0b' : '#ffffff',
+                          color: formData.paymentStatus === 'partial' ? '#ffffff' : '#475569',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <Zap size={15} />
+                        <span>{lang === 'ta' ? 'பகுதி வசூல் (Partial)' : 'Partial'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPaymentStatus('unpaid')}
+                        style={{
+                          padding: '0.5rem 0.85rem',
+                          fontSize: '0.825rem',
                           fontWeight: 800,
                           border: 'none',
                           cursor: 'pointer',
@@ -2528,22 +2824,87 @@ export default function TripSheetManager({
                           color: formData.paymentStatus === 'unpaid' ? '#ffffff' : '#475569',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '0.4rem',
+                          gap: '0.3rem',
                           transition: 'all 0.15s ease'
                         }}
                       >
-                        <Clock size={16} />
-                        <span>{lang === 'ta' ? 'நிலுவை (Not Paid)' : 'Not Paid'}</span>
+                        <Clock size={15} />
+                        <span>{lang === 'ta' ? 'நிலுவை (Credit)' : 'Unpaid'}</span>
                       </button>
                     </div>
                   </div>
 
-                  {/* If Paid: Show Paid On Date (Rule 8), Payment Mode (Rule 11), and Collector (Rule 10) */}
-                  {formData.paymentStatus === 'paid' && (
-                    <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #bbf7d0' }}>
+                  {/* Customer Previous Outstanding Due Banner */}
+                  {customerPreviousDue > 0 && (
+                    <div style={{
+                      marginTop: '0.85rem',
+                      padding: '0.65rem 0.85rem',
+                      background: '#fffbeb',
+                      borderRadius: '8px',
+                      border: '1.5px solid #fde68a',
+                      color: '#92400e',
+                      fontSize: '0.825rem'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div>
+                          <strong>⚠️ {lang === 'ta' ? 'விவசாயியின் முந்தைய நிலுவைத்தொகை:' : 'Farmer Prior Due:'}</strong> ₹{customerPreviousDue}
+                        </div>
+                        <div>
+                          <strong>{lang === 'ta' ? 'இந்த டிரிப் மீதி:' : 'This Trip Balance:'}</strong> ₹{formData.balanceAmount}
+                        </div>
+                        <div style={{ color: '#b91c1c', fontWeight: 800, background: '#fee2e2', padding: '2px 8px', borderRadius: '4px' }}>
+                          {lang === 'ta' ? 'மொத்த நிலுவை பாக்கி:' : 'Total Outstanding:'} ₹{customerPreviousDue + (parseFloat(formData.balanceAmount) || 0)}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Partial Payment Amount Input */}
+                  {formData.paymentStatus === 'partial' && (
+                    <div style={{
+                      marginTop: '0.85rem',
+                      padding: '0.85rem',
+                      background: '#ffffff',
+                      borderRadius: '8px',
+                      border: '1.5px solid #fed7aa',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                    }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', alignItems: 'center' }}>
+                        <div>
+                          <label style={{ fontWeight: 700, fontSize: '0.85rem', color: '#9a3412', display: 'block', marginBottom: '4px' }}>
+                            {lang === 'ta' ? 'இப்போது பெற்ற தொகை (Paid Now ₹)' : 'Amount Received Now (₹)'} <span style={{ color: '#ef4444' }}>*</span>
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            max={formData.totalAmount}
+                            className="form-control"
+                            value={formData.paidAmount}
+                            onChange={(e) => handleFieldChange('paidAmount', e.target.value)}
+                            style={{ fontWeight: 800, fontSize: '1.1rem', color: '#059669', borderColor: '#f59e0b' }}
+                          />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                            {lang === 'ta' ? 'மீதி நிலுவையில் சேரும் தொகை (Uncollected Due):' : 'Remaining Uncollected Due:'}
+                          </div>
+                          <div style={{ fontSize: '1.3rem', fontWeight: 900, color: '#dc2626' }}>
+                            ₹{formData.balanceAmount}
+                          </div>
+                          <div style={{ fontSize: '0.73rem', color: '#94a3b8' }}>
+                            {lang === 'ta' ? 'இந்த மீதித் தொகை விவசாயியின் நிலுவை பட்டியலில் தானாக ஏறும்.' : 'This balance is tracked as customer credit.'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* If Paid or Partial: Show Collection Details, Mode, Collector, and Driver Cash Split */}
+                  {(formData.paymentStatus === 'paid' || formData.paymentStatus === 'partial') && (
+                    <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
                       <div className="form-grid" style={{ marginBottom: 0 }}>
                         
-                        {/* Rule 8: Paid On Date */}
+                        {/* Paid On Date */}
                         <div className="form-group">
                           <DatePicker
                             label={lang === 'ta' ? 'செலுத்திய தேதி (Paid On Date)' : 'Paid On Date'}
@@ -2557,7 +2918,7 @@ export default function TripSheetManager({
                           />
                         </div>
 
-                        {/* Rule 11: Hand or Account Mode */}
+                        {/* Hand or Account Mode */}
                         <div className="form-group">
                           <label style={{ fontWeight: 700, fontSize: '0.85rem', marginBottom: '0.4rem', display: 'block' }}>
                             {lang === 'ta' ? 'செலுத்திய விதம் (கையில் / வங்கி கணக்கு)' : 'Payment Method (Hand / Account)'} <span style={{ color: '#ef4444' }}>*</span>
@@ -2582,7 +2943,7 @@ export default function TripSheetManager({
                               }}
                             >
                               <span>💵</span>
-                              <span>{lang === 'ta' ? 'கையில் (Hand / Cash)' : 'Hand (Cash)'}</span>
+                              <span>{lang === 'ta' ? 'கையில் ரொக்கம்' : 'Cash in Hand'}</span>
                             </button>
 
                             <button
@@ -2604,12 +2965,70 @@ export default function TripSheetManager({
                               }}
                             >
                               <span>🏦</span>
-                              <span>{lang === 'ta' ? 'வங்கி கணக்கு (Account / UPI)' : 'Account (UPI / Bank)'}</span>
+                              <span>{lang === 'ta' ? 'வங்கி / UPI' : 'Account / UPI'}</span>
                             </button>
                           </div>
                         </div>
 
-                        {/* Rule 10: Collector Person */}
+                        {/* Driver Cash in Hand Split Selector ("current cash have in not split in hand") */}
+                        {formData.paymentMode === 'cash' && (
+                          <div style={{
+                            gridColumn: '1 / -1',
+                            background: formData.cashInHandStatus === 'in_hand' ? '#fef3c7' : '#f0fdf4',
+                            border: formData.cashInHandStatus === 'in_hand' ? '1.5px dashed #d97706' : '1.5px solid #86efac',
+                            borderRadius: '8px',
+                            padding: '0.75rem',
+                            marginTop: '0.25rem'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                              <div style={{ fontWeight: 800, fontSize: '0.85rem', color: formData.cashInHandStatus === 'in_hand' ? '#92400e' : '#166534', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <span>🤝</span>
+                                <span>{lang === 'ta' ? 'ரொக்கம் ஒப்படைப்பு & பிரித்தல் நிலை (Cash Split Status)' : 'Cash Split / Handover Status'}</span>
+                              </div>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>
+                                {formData.cashInHandStatus === 'in_hand' 
+                                  ? (lang === 'ta' ? '🟡 டிரைவர் கையில் உள்ளது (இன்னும் பிரிக்கவில்லை)' : '🟡 Not Split in Hand')
+                                  : (lang === 'ta' ? '🟢 கணக்கு ஒப்படைக்கப்பட்டு பிரிக்கப்பட்டது' : '🟢 Settled & Split')}
+                              </span>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleFieldChange('cashInHandStatus', 'in_hand')}
+                                style={{
+                                  padding: '0.5rem',
+                                  borderRadius: '6px',
+                                  border: formData.cashInHandStatus === 'in_hand' ? '2px solid #d97706' : '1px solid #cbd5e1',
+                                  background: formData.cashInHandStatus === 'in_hand' ? '#fef3c7' : '#ffffff',
+                                  color: formData.cashInHandStatus === 'in_hand' ? '#92400e' : '#475569',
+                                  fontWeight: 800,
+                                  fontSize: '0.8rem',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                🟡 {lang === 'ta' ? 'டிரைவர் கையில் ரொக்கம் (இன்னும் பிரிக்கவில்லை)' : 'Cash In Hand (Not Split Yet)'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleFieldChange('cashInHandStatus', 'settled')}
+                                style={{
+                                  padding: '0.5rem',
+                                  borderRadius: '6px',
+                                  border: formData.cashInHandStatus === 'settled' ? '2px solid #16a34a' : '1px solid #cbd5e1',
+                                  background: formData.cashInHandStatus === 'settled' ? '#dcfce7' : '#ffffff',
+                                  color: formData.cashInHandStatus === 'settled' ? '#166534' : '#475569',
+                                  fontWeight: 800,
+                                  fontSize: '0.8rem',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                🟢 {lang === 'ta' ? 'ஒப்படைக்கப்பட்டு பிரிக்கப்பட்டது (Settled & Split)' : 'Handed Over & Split'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Collector Person */}
                         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
                             <label style={{ margin: 0, fontWeight: 700, fontSize: '0.85rem' }}>
@@ -2650,6 +3069,7 @@ export default function TripSheetManager({
                     </div>
                   )}
 
+                  {/* Unpaid Info */}
                   {formData.paymentStatus === 'unpaid' && (
                     <div style={{
                       marginTop: '0.85rem',
@@ -2666,7 +3086,7 @@ export default function TripSheetManager({
                       <AlertCircle size={18} style={{ color: '#d97706', flexShrink: 0 }} />
                       <div>
                         {lang === 'ta' 
-                          ? `முழுத் தொகை ₹${formData.totalAmount} நிலுவை பாக்கியாகப் பதிவு செய்யப்படும். விவசாயி பணம் தரும் போது டிரிப் சீட்டைத் திறந்து வசூலிக்கலாம்.`
+                          ? `முழுத் தொகை ₹${formData.totalAmount} நிலுவை பாக்கியாகப் பதிவு செய்யப்படும். விவசாயி பணம் தரும் போது டிரிப் சீட்டைத் திறந்து அல்லது உடனடி வசூல் பட்டன் மூலம் வசூலிக்கலாம்.`
                           : `Full amount ₹${formData.totalAmount} will be saved as outstanding credit. You can mark it collected anytime later.`}
                       </div>
                     </div>
@@ -2698,6 +3118,263 @@ export default function TripSheetManager({
           </div>
         </div>
       )}
+
+      {/* Quick Settle & Cash Split Modal */}
+      {quickSettleState.isOpen && quickSettleState.trip && (() => {
+        const trip = quickSettleState.trip;
+        const farmerTotalPriorDue = tripSheets
+          .filter(t => (
+            (trip.customerId && t.customerId === trip.customerId) ||
+            (trip.customerName && t.customerName && t.customerName.toLowerCase() === trip.customerName.toLowerCase())
+          ) && t.id !== trip.id)
+          .reduce((sum, t) => sum + (parseFloat(t.balanceAmount) || 0), 0);
+
+        const tripBal = parseFloat(trip.balanceAmount) || 0;
+        const totalFarmerOutstanding = farmerTotalPriorDue + tripBal;
+
+        return (
+          <div className="modal-overlay" onClick={() => setQuickSettleState({ isOpen: false, trip: null, amount: '', paymentMode: 'cash', cashInHandStatus: 'settled', notes: '' })}>
+            <div 
+              className="modal-content" 
+              onClick={(e) => e.stopPropagation()}
+              style={{ maxWidth: '520px', width: '95%', borderRadius: '16px', overflow: 'hidden' }}
+            >
+              {/* Header */}
+              <div className="modal-header" style={{ background: 'linear-gradient(135deg, #065f46 0%, #047857 100%)', color: '#ffffff', padding: '1rem 1.25rem' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#ffffff' }}>
+                    <Zap size={20} color="#facc15" />
+                    <span>{lang === 'ta' ? 'உடனடி வசூல் & ரொக்கம் பிரித்தல்' : 'Quick Settle & Cash Split'}</span>
+                  </h3>
+                  <div style={{ fontSize: '0.78rem', color: '#a7f3d0', marginTop: '2px' }}>
+                    {trip.id} • {lang === 'ta' && trip.customerName_ta ? trip.customerName_ta : trip.customerName}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="modal-close"
+                  onClick={() => setQuickSettleState({ isOpen: false, trip: null, amount: '', paymentMode: 'cash', cashInHandStatus: 'settled', notes: '' })}
+                  style={{ color: '#ffffff', background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="modal-body" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                
+                {/* Trip & Due Summary Card */}
+                <div style={{
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '10px',
+                  padding: '0.9rem'
+                }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', textAlign: 'center' }}>
+                    <div style={{ background: '#ffffff', padding: '0.5rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{lang === 'ta' ? 'டிரிப் மொத்தம்' : 'Trip Total'}</div>
+                      <div style={{ fontWeight: 800, fontSize: '1rem', color: '#0f172a' }}>₹{trip.totalAmount}</div>
+                    </div>
+                    <div style={{ background: '#ffffff', padding: '0.5rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{lang === 'ta' ? 'பெற்ற தொகை' : 'Paid'}</div>
+                      <div style={{ fontWeight: 800, fontSize: '1rem', color: '#16a34a' }}>₹{trip.paidAmount}</div>
+                    </div>
+                    <div style={{ background: '#fee2e2', padding: '0.5rem', borderRadius: '6px', border: '1px solid #fecaca' }}>
+                      <div style={{ fontSize: '0.72rem', color: '#991b1b' }}>{lang === 'ta' ? 'இந்த டிரிப் பாக்கி' : 'Trip Balance'}</div>
+                      <div style={{ fontWeight: 900, fontSize: '1.1rem', color: '#dc2626' }}>₹{trip.balanceAmount}</div>
+                    </div>
+                  </div>
+
+                  {farmerTotalPriorDue > 0 && (
+                    <div style={{
+                      marginTop: '0.75rem',
+                      padding: '0.55rem 0.75rem',
+                      background: '#fffbeb',
+                      border: '1px solid #fde68a',
+                      borderRadius: '6px',
+                      fontSize: '0.8rem',
+                      color: '#92400e',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <span>⚠️ {lang === 'ta' ? 'முந்தைய நிலுவை பாக்கி:' : 'Prior Dues:'} <strong>₹{farmerTotalPriorDue}</strong></span>
+                      <span style={{ fontWeight: 800, color: '#b91c1c' }}>
+                        {lang === 'ta' ? 'மொத்த பாக்கி:' : 'Total Due:'} ₹{totalFarmerOutstanding}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Cash in Hand Split Box */}
+                <div style={{
+                  background: quickSettleState.cashInHandStatus === 'in_hand' ? '#fffbeb' : '#f0fdf4',
+                  border: quickSettleState.cashInHandStatus === 'in_hand' ? '1.5px solid #f59e0b' : '1.5px solid #86efac',
+                  borderRadius: '10px',
+                  padding: '0.85rem'
+                }}>
+                  <div style={{ fontWeight: 800, fontSize: '0.875rem', color: quickSettleState.cashInHandStatus === 'in_hand' ? '#92400e' : '#166534', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span>🤝</span>
+                    <span>{lang === 'ta' ? 'டிரைவர் கையில் ரொக்கம் & கணக்கு பிரித்தல்' : 'Driver Cash in Hand & Split'}</span>
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#475569', marginBottom: '0.6rem' }}>
+                    {lang === 'ta' 
+                      ? 'டிரைவரிடம் ரொக்கம் இருந்தால், அது ஒப்படைக்கப்பட்டு கணக்கு பிரிக்கப்பட்டதா அல்லது டிரைவர் கையிலேயே உள்ளதா?' 
+                      : 'Has the driver handed over the collected cash, or is it still in the driver\'s hand?'}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setQuickSettleState(prev => ({ ...prev, cashInHandStatus: 'in_hand' }))}
+                      style={{
+                        padding: '0.5rem',
+                        borderRadius: '6px',
+                        border: quickSettleState.cashInHandStatus === 'in_hand' ? '2px solid #d97706' : '1px solid #cbd5e1',
+                        background: quickSettleState.cashInHandStatus === 'in_hand' ? '#fef3c7' : '#ffffff',
+                        color: quickSettleState.cashInHandStatus === 'in_hand' ? '#92400e' : '#475569',
+                        fontWeight: 800,
+                        fontSize: '0.8rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      🟡 {lang === 'ta' ? 'டிரைவர் கையில் உள்ளது (இன்னும் பிரிக்கவில்லை)' : 'In Hand (Not Split)'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuickSettleState(prev => ({ ...prev, cashInHandStatus: 'settled' }))}
+                      style={{
+                        padding: '0.5rem',
+                        borderRadius: '6px',
+                        border: quickSettleState.cashInHandStatus === 'settled' ? '2px solid #16a34a' : '1px solid #cbd5e1',
+                        background: quickSettleState.cashInHandStatus === 'settled' ? '#dcfce7' : '#ffffff',
+                        color: quickSettleState.cashInHandStatus === 'settled' ? '#166534' : '#475569',
+                        fontWeight: 800,
+                        fontSize: '0.8rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      🟢 {lang === 'ta' ? 'ஒப்படைக்கப்பட்டு பிரிக்கப்பட்டது' : 'Handed Over & Split'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Collect Pending Amount Box (if balance > 0) */}
+                {tripBal > 0 && (
+                  <div style={{
+                    background: '#f8fafc',
+                    border: '1.5px solid #cbd5e1',
+                    borderRadius: '10px',
+                    padding: '0.85rem'
+                  }}>
+                    <div style={{ fontWeight: 800, fontSize: '0.875rem', color: '#1e293b', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <CheckCircle2 size={16} color="#059669" />
+                      <span>{lang === 'ta' ? 'நிலுவை வசூல் பதிவு (Collect Due)' : 'Collect Pending Due'}</span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.65rem' }}>
+                      <div>
+                        <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '3px' }}>
+                          {lang === 'ta' ? 'இப்போது வசூலிக்கும் தொகை (₹)' : 'Amount Collected Now (₹)'}
+                        </label>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            max={trip.balanceAmount}
+                            className="form-control"
+                            value={quickSettleState.amount}
+                            onChange={(e) => setQuickSettleState(prev => ({ ...prev, amount: e.target.value }))}
+                            placeholder={String(trip.balanceAmount)}
+                            style={{ fontWeight: 800, fontSize: '1.1rem', color: '#059669', flex: 1 }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setQuickSettleState(prev => ({ ...prev, amount: String(trip.balanceAmount) }))}
+                            style={{
+                              padding: '0.5rem 0.75rem',
+                              background: '#e0f2fe',
+                              border: '1px solid #7dd3fc',
+                              color: '#0369a1',
+                              fontWeight: 700,
+                              fontSize: '0.78rem',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {lang === 'ta' ? 'முழுத் தொகை' : 'Full Bal'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Payment Mode */}
+                      <div>
+                        <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '3px' }}>
+                          {lang === 'ta' ? 'பணம் செலுத்திய விதம்' : 'Payment Mode'}
+                        </label>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => setQuickSettleState(prev => ({ ...prev, paymentMode: 'cash' }))}
+                            style={{
+                              padding: '0.45rem',
+                              borderRadius: '6px',
+                              border: quickSettleState.paymentMode === 'cash' ? '2px solid #059669' : '1px solid #cbd5e1',
+                              background: quickSettleState.paymentMode === 'cash' ? '#dcfce7' : '#ffffff',
+                              color: quickSettleState.paymentMode === 'cash' ? '#166534' : '#475569',
+                              fontWeight: 700,
+                              fontSize: '0.78rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            💵 {lang === 'ta' ? 'ரொக்கம்' : 'Cash'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setQuickSettleState(prev => ({ ...prev, paymentMode: 'bank_account' }))}
+                            style={{
+                              padding: '0.45rem',
+                              borderRadius: '6px',
+                              border: quickSettleState.paymentMode === 'bank_account' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                              background: quickSettleState.paymentMode === 'bank_account' ? '#e0f2fe' : '#ffffff',
+                              color: quickSettleState.paymentMode === 'bank_account' ? '#0369a1' : '#475569',
+                              fontWeight: 700,
+                              fontSize: '0.78rem',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            🏦 {lang === 'ta' ? 'வங்கி / UPI' : 'UPI / Bank'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="modal-footer" style={{ padding: '0.75rem 1.25rem', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => setQuickSettleState({ isOpen: false, trip: null, amount: '', paymentMode: 'cash', cashInHandStatus: 'settled', notes: '' })}
+                >
+                  {t.cancel}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleSaveQuickSettle}
+                  style={{ background: '#059669', borderColor: '#059669', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 800 }}
+                >
+                  <Save size={16} />
+                  <span>{lang === 'ta' ? 'சேமி & கணக்கு முடி' : 'Save & Settle'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Delete Confirmation Modal */}
       <AdminDeleteModal

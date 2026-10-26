@@ -1,6 +1,7 @@
 // Local Storage & Database Engine with Lifetime Audit, Soft Delete & Google Sheet Sync
-import { syncAllToGoogleSheet } from './googleSheets';
+import { syncAllToGoogleSheet, recordLoginAttemptInSheet } from './googleSheets';
 import { ENV_GOOGLE_SHEETS_URL, getEffectiveGoogleSheetUrl } from '../config/env';
+import { cleanDeep } from '../utils/timeCalcUtils';
 
 const STORAGE_KEYS = {
   FLEET: "tractomint_fleet",
@@ -87,9 +88,9 @@ const INITIAL_USERS = [
 const INITIAL_SETTINGS = {
   adminPin: "1234",
   currentRole: "admin", // 'admin' | 'manager' | 'operator' | 'driver'
-  language: "en", // 'en' | 'ta'
+  language: "ta", // 'en' | 'ta' - Default to Tamil
   webAppUrl: ENV_GOOGLE_SHEETS_URL,
-  autoSync: true,
+  autoSync: false, // Manual Developer / Admin sync per user requirement
   companyName: "Tractor & Agri Machinery Works",
   companyName_ta: "டிராக்டர் மற்றும் விவசாய இயந்திரங்கள் லெட்ஜர்",
   contactPhone: "",
@@ -99,7 +100,7 @@ const INITIAL_SETTINGS = {
   lastFetched: ""
 };
 
-// Generic safe storage helper
+// Generic safe storage helper with automatic Mojibake cleanup
 function loadData(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
@@ -107,7 +108,8 @@ function loadData(key, fallback) {
       localStorage.setItem(key, JSON.stringify(fallback));
       return fallback;
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return cleanDeep(parsed);
   } catch (err) {
     console.error(`Error loading ${key}:`, err);
     return fallback;
@@ -116,7 +118,8 @@ function loadData(key, fallback) {
 
 function saveData(key, data) {
   try {
-    localStorage.setItem(key, JSON.stringify(data));
+    const cleaned = cleanDeep(data);
+    localStorage.setItem(key, JSON.stringify(cleaned));
   } catch (err) {
     console.error(`Error saving ${key}:`, err);
   }
@@ -892,11 +895,77 @@ export const StorageService = {
       };
       const updated = [entry, ...history].slice(0, 200); // retain up to 200 logs
       saveData(STORAGE_KEYS.LOGIN_HISTORY, updated);
+
+      // Asynchronously record login in Google Sheet
+      try {
+        const settings = StorageService.getSettings();
+        if (settings && settings.webAppUrl) {
+          recordLoginAttemptInSheet(settings.webAppUrl, entry);
+        }
+      } catch (sheetErr) {
+        console.warn("Could not push login attempt to Google Sheet:", sheetErr);
+      }
+
       return entry;
     } catch (e) {
       console.warn("Could not record login attempt:", e);
       return null;
     }
+  },
+
+  // Reset user password / PIN to default '1234'
+  resetPasswordToDefault: (identifier) => {
+    const cleanId = String(identifier || '').trim().toLowerCase();
+    const cleanDigits = cleanId.replace(/\D/g, '');
+    const users = StorageService.getUsers(true);
+    const settings = StorageService.getSettings();
+
+    let target = users.find(u => {
+      if (!u) return false;
+      const uUsername = String(u.username || '').trim().toLowerCase();
+      if (cleanId && uUsername === cleanId) return true;
+      if (cleanDigits && cleanDigits.length >= 7) {
+        const uPhoneDigits = String(u.phone || '').replace(/\D/g, '');
+        if (uPhoneDigits && (uPhoneDigits === cleanDigits || uPhoneDigits.endsWith(cleanDigits))) return true;
+      }
+      return false;
+    });
+
+    // Fallback to admin if not found or identifier was empty
+    if (!target) {
+      target = users.find(u => String(u.username || '').trim().toLowerCase() === 'admin') || users[0];
+    }
+
+    if (!target) {
+      return { success: false, error: 'User account not found.' };
+    }
+
+    target.pin = '1234';
+    target.updated_at = new Date().toISOString().replace('T', ' ').slice(0, 16);
+    target.updated_by = 'password_reset';
+
+    // If admin, also ensure master admin pin in settings is 1234
+    if (target.role === 'admin' || target.username === 'admin') {
+      settings.adminPin = '1234';
+      saveData(STORAGE_KEYS.SETTINGS, settings);
+    }
+
+    saveData(STORAGE_KEYS.USERS, users);
+
+    // Record login audit event
+    StorageService.recordLoginAttempt({
+      username: target.username,
+      displayName: target.displayName || target.username,
+      role: target.role,
+      status: 'success',
+      reason: 'Password reset to default 1234'
+    });
+
+    return {
+      success: true,
+      user: target,
+      message: `Password for @${target.username} has been reset to default '1234'.`
+    };
   },
 
   clearLoginHistory: (pin) => {
@@ -1010,7 +1079,8 @@ export const StorageService = {
       partners: StorageService.getPartners(),
       partnerDrawings: StorageService.getPartnerDrawings(),
       settings: StorageService.getSettings(),
-      users: StorageService.getUsers()
+      users: StorageService.getUsers(),
+      loginHistory: StorageService.getLoginHistory()
     };
   },
 
@@ -1031,6 +1101,9 @@ export const StorageService = {
       const hasAdmin = dataset.users.some(u => u.username && String(u.username).trim().toLowerCase() === 'admin');
       const mergedUsers = hasAdmin ? dataset.users : [INITIAL_USERS[0], ...dataset.users];
       saveData(STORAGE_KEYS.USERS, mergedUsers);
+    }
+    if (Array.isArray(dataset.loginHistory)) {
+      saveData(STORAGE_KEYS.LOGIN_HISTORY, dataset.loginHistory);
     }
 
     if (Array.isArray(dataset.settings) && dataset.settings.length > 0) {

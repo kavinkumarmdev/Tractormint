@@ -6,7 +6,10 @@ import {
   Eye, 
   EyeOff, 
   AlertCircle,
-  Loader2
+  Loader2,
+  CheckCircle2,
+  RotateCcw,
+  X
 } from 'lucide-react';
 import Logo from './Logo';
 import { translations } from '../translations/dictionary';
@@ -21,8 +24,11 @@ export default function AuthScreen({ onLogin, lang, setLang }) {
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotUser, setForgotUser] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -88,6 +94,52 @@ export default function AuthScreen({ onLogin, lang, setLang }) {
     }
   };
 
+  const handleQuickForgotPassword = () => {
+    setError('');
+    setSuccessMsg('');
+    const target = username.trim();
+    if (!target) {
+      setForgotUser('admin');
+      setShowForgotModal(true);
+      return;
+    }
+
+    const res = StorageService.resetPasswordToDefault(target);
+    if (res.success && res.user) {
+      setUsername(res.user.username);
+      setPin('1234');
+      setShowPin(true);
+      setSuccessMsg(
+        lang === 'ta'
+          ? `✅ பயனர் '@${res.user.username}' கடவுச்சொல் '1234' என அமைக்கப்பட்டது! இப்போது 'உள்நுழையவும்' அழுத்தவும்.`
+          : `✅ Password for @${res.user.username} reset to default '1234'! Click Sign In to continue.`
+      );
+    } else {
+      setForgotUser(target);
+      setShowForgotModal(true);
+    }
+  };
+
+  const handleConfirmForgotModal = (selectedUser) => {
+    setError('');
+    setSuccessMsg('');
+    const target = selectedUser || forgotUser || 'admin';
+    const res = StorageService.resetPasswordToDefault(target);
+    if (res.success && res.user) {
+      setUsername(res.user.username);
+      setPin('1234');
+      setShowPin(true);
+      setShowForgotModal(false);
+      setSuccessMsg(
+        lang === 'ta'
+          ? `✅ பயனர் '@${res.user.username}' கடவுச்சொல் '1234' என மாற்றப்பட்டது! இப்போது 'உள்நுழையவும்' அழுத்தவும்.`
+          : `✅ Password for @${res.user.username} reset to default '1234'! Click Sign In to continue.`
+      );
+    } else {
+      setError(res.error || (lang === 'ta' ? 'பயனர் கணக்கு காணப்படவில்லை.' : 'User account not found.'));
+    }
+  };
+
   return (
     <div className="login-page-container">
       {/* Background Ambient Glows */}
@@ -123,6 +175,25 @@ export default function AuthScreen({ onLogin, lang, setLang }) {
               : 'Enterprise Agricultural Fleet Ledger & Operations System'}
           </p>
         </div>
+
+        {/* Success Notice */}
+        {successMsg && (
+          <div style={{ 
+            background: '#f0fdf4', 
+            color: '#166534', 
+            padding: '0.65rem 0.85rem', 
+            borderRadius: 'var(--radius-sm)', 
+            fontSize: '0.825rem', 
+            marginBottom: '1rem', 
+            border: '1px solid #86efac',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem'
+          }}>
+            <CheckCircle2 size={16} color="#16a34a" style={{ flexShrink: 0 }} />
+            <span>{successMsg}</span>
+          </div>
+        )}
 
         {/* Login Form */}
         <form onSubmit={handleSubmit}>
@@ -195,8 +266,8 @@ export default function AuthScreen({ onLogin, lang, setLang }) {
             </div>
           )}
 
-          {/* Remember Me */}
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1.25rem' }}>
+          {/* Remember Me & Forgot Password (1234) */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.825rem', cursor: 'pointer', userSelect: 'none' }}>
               <input
                 type="checkbox"
@@ -206,6 +277,28 @@ export default function AuthScreen({ onLogin, lang, setLang }) {
               />
               <span>{lang === 'ta' ? 'என்னை நினைவில் கொள்' : 'Keep me signed in'}</span>
             </label>
+
+            <button
+              type="button"
+              onClick={handleQuickForgotPassword}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: '2px 0',
+                color: 'var(--primary-700, #059669)',
+                fontSize: '0.825rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                textDecoration: 'underline'
+              }}
+              title={lang === 'ta' ? 'கடவுச்சொல் மறந்துவிட்டதா? இயல்புநிலை 1234 ஆக மீட்டமைக்க கிளிக் செய்யவும்' : 'Forgot Password? Click to set to default 1234'}
+            >
+              <RotateCcw size={13} />
+              <span>{lang === 'ta' ? 'கடவுச்சொல் மறந்துவிட்டதா? (1234)' : 'Forgot Password? (1234)'}</span>
+            </button>
           </div>
 
           {/* Submit Button */}
@@ -234,6 +327,80 @@ export default function AuthScreen({ onLogin, lang, setLang }) {
           🔒 {lang === 'ta' ? 'டிராக்டோமின்ட் • பாதுகாப்பான உழவு & வாகன மேலாண்மை' : 'TractoMint • Secured Enterprise Fleet Ledger'}
         </div>
       </div>
+
+      {/* Forgot Password Reset Modal */}
+      {showForgotModal && (() => {
+        const registeredUsers = StorageService.getUsers(true);
+        return (
+          <div className="modal-overlay" onClick={() => setShowForgotModal(false)}>
+            <div 
+              className="modal-content" 
+              onClick={(e) => e.stopPropagation()} 
+              style={{ maxWidth: '440px', width: '92%', borderRadius: '16px', overflow: 'hidden' }}
+            >
+              <div className="modal-header" style={{ background: 'linear-gradient(135deg, #065f46 0%, #047857 100%)', color: '#ffffff', padding: '1rem 1.25rem' }}>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#ffffff' }}>
+                  <RotateCcw size={18} color="#facc15" />
+                  <span>{lang === 'ta' ? 'கடவுச்சொல் மீட்டமைப்பு (1234)' : 'Reset Password to 1234'}</span>
+                </h3>
+                <button
+                  type="button"
+                  className="modal-close"
+                  onClick={() => setShowForgotModal(false)}
+                  style={{ color: '#ffffff', background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="modal-body" style={{ padding: '1.25rem' }}>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-main)', marginTop: 0, marginBottom: '1rem', lineHeight: '1.45' }}>
+                  {lang === 'ta'
+                    ? 'உங்கள் பயனர் பெயரைத் தேர்ந்தெடுக்கவும். அந்தப் பயனரின் கடவுச்சொல் உடனடியாக "1234" என மீட்டமைக்கப்பட்டு, தணிக்கை வரலாறு கூகுள் ஷீட்டில் தானாகப் பதியப்படும்.'
+                    : 'Select your account. The password will be immediately reset to default "1234" and logged to Google Sheets.'}
+                </p>
+
+                <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 700, display: 'block', marginBottom: '0.35rem' }}>
+                    {lang === 'ta' ? 'பதிவு செய்யப்பட்ட பயனர்:' : 'Registered Account:'}
+                  </label>
+                  <select 
+                    className="form-control"
+                    value={forgotUser}
+                    onChange={(e) => setForgotUser(e.target.value)}
+                    style={{ fontWeight: 700 }}
+                  >
+                    {registeredUsers.map(u => (
+                      <option key={u.id} value={u.username}>
+                        @{u.username} - {lang === 'ta' && u.displayName_ta ? u.displayName_ta : u.displayName} ({u.role.toUpperCase()})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-outline" 
+                    onClick={() => setShowForgotModal(false)}
+                  >
+                    {t.cancel}
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-primary"
+                    onClick={() => handleConfirmForgotModal(forgotUser)}
+                    style={{ background: '#059669', borderColor: '#059669', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    <CheckCircle2 size={16} />
+                    <span>{lang === 'ta' ? '1234 என மீட்டமை' : 'Reset to 1234'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -4,8 +4,21 @@
 // =====================================================================
 
 import { ENV_GOOGLE_SHEETS_URL, getEffectiveGoogleSheetUrl } from '../config/env';
+import { cleanDeep } from '../utils/timeCalcUtils';
 
 export const DEFAULT_GOOGLE_SHEETS_URL = ENV_GOOGLE_SHEETS_URL;
+
+/**
+ * Encodes JavaScript object to a 100% clean 7-bit ASCII JSON string with \uXXXX escapes.
+ * This completely prevents UTF-8 to Latin-1/Windows-1252 Mojibake corruption
+ * in Google Apps Script and other intermediary web proxies!
+ */
+export function toAsciiJson(obj) {
+  const sanitized = cleanDeep(obj);
+  return JSON.stringify(sanitized).replace(/[\u007f-\uffff]/g, c => {
+    return '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4);
+  });
+}
 
 export const APPS_SCRIPT_TEMPLATE = `/**
  * =====================================================================
@@ -51,7 +64,8 @@ var SHEET_NAMES = {
   PARTNERS: 'Partners',
   PARTNER_DRAWINGS: 'PartnerDrawings',
   SETTINGS: 'Settings',
-  USERS: 'Users'
+  USERS: 'Users',
+  LOGIN_HISTORY: 'LoginHistory'
 };
 
 /**
@@ -93,7 +107,8 @@ function doGet(e) {
             partners: getSheetData(ss.getSheetByName(SHEET_NAMES.PARTNERS)),
             partnerDrawings: getSheetData(ss.getSheetByName(SHEET_NAMES.PARTNER_DRAWINGS)),
             settings: getSheetData(ss.getSheetByName(SHEET_NAMES.SETTINGS)),
-            users: getSheetData(ss.getSheetByName(SHEET_NAMES.USERS))
+            users: getSheetData(ss.getSheetByName(SHEET_NAMES.USERS)),
+            loginHistory: getSheetData(ss.getSheetByName(SHEET_NAMES.LOGIN_HISTORY))
           },
           timestamp: new Date().toISOString()
         };
@@ -107,6 +122,22 @@ function doGet(e) {
 }
 
 /**
+ * Auto-correct Latin-1 / UTF-8 Mojibake in Google Apps Script
+ */
+function fixGasMojibake(str) {
+  if (!str || typeof str !== 'string') return str;
+  if (/[\\u00C0-\\u00FF]/.test(str)) {
+    try {
+      var decoded = decodeURIComponent(escape(str));
+      if (decoded && decoded.indexOf('\\uFFFD') === -1) {
+        return decoded;
+      }
+    } catch(e) {}
+  }
+  return str;
+}
+
+/**
  * Handle HTTP POST Requests
  */
 function doPost(e) {
@@ -116,7 +147,11 @@ function doPost(e) {
 
     var requestData = {};
     if (e.postData && e.postData.contents) {
-      requestData = JSON.parse(e.postData.contents);
+      var rawBody = e.postData.contents;
+      try {
+        rawBody = fixGasMojibake(rawBody);
+      } catch (err) {}
+      requestData = JSON.parse(rawBody);
     }
 
     var action = requestData.action || 'syncAll';
@@ -587,7 +622,7 @@ export const GoogleSheetApiService = {
       if (isSuccess && json.data) {
         return {
           success: true,
-          data: json.data,
+          data: cleanDeep(json.data),
           spreadsheetName: json.spreadsheetName || 'Google Spreadsheet',
           timestamp: new Date().toLocaleTimeString()
         };
@@ -600,14 +635,14 @@ export const GoogleSheetApiService = {
         const response = await fetch(targetUrl.trim(), {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'getAll' })
+          body: toAsciiJson({ action: 'getAll' })
         });
         const json = await response.json();
         const isSuccess = json.status === 'success' || json.status === 'ok';
         if (isSuccess && json.data) {
           return {
             success: true,
-            data: json.data,
+            data: cleanDeep(json.data),
             spreadsheetName: json.spreadsheetName || 'Google Spreadsheet',
             timestamp: new Date().toLocaleTimeString()
           };
@@ -655,7 +690,8 @@ export const GoogleSheetApiService = {
         partners: Array.isArray(fullData.partners) ? fullData.partners : [],
         partnerDrawings: Array.isArray(fullData.partnerDrawings) ? fullData.partnerDrawings : [],
         settings: settingsArray,
-        users: Array.isArray(fullData.users) ? fullData.users : []
+        users: Array.isArray(fullData.users) ? fullData.users : [],
+        loginHistory: Array.isArray(fullData.loginHistory) ? fullData.loginHistory : []
       };
 
       const bodyData = {
@@ -664,13 +700,13 @@ export const GoogleSheetApiService = {
         data: payload // Backward compatibility with previous handler
       };
 
-      // Use text/plain to avoid CORS preflight OPTIONS rejection on Google Apps Script
+      // Use text/plain with ASCII unicode escape sequences to prevent any Latin-1 charset corruption
       const response = await fetch(targetUrl.trim(), {
         method: 'POST',
         headers: {
           'Content-Type': 'text/plain;charset=utf-8'
         },
-        body: JSON.stringify(bodyData)
+        body: toAsciiJson(bodyData)
       });
 
       if (!response.ok) {
@@ -696,7 +732,7 @@ export const GoogleSheetApiService = {
           method: 'POST',
           mode: 'no-cors',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(fallbackBody)
+          body: toAsciiJson(fallbackBody)
         });
 
         return {
@@ -720,7 +756,7 @@ export const GoogleSheetApiService = {
       const response = await fetch(targetUrl.trim(), {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'addTripSheet', payload: tripSheet })
+        body: toAsciiJson({ action: 'addTripSheet', payload: tripSheet })
       });
       return await response.json();
     } catch (e) {
@@ -738,11 +774,38 @@ export const GoogleSheetApiService = {
       const response = await fetch(targetUrl.trim(), {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'deleteTripSheet', payload: { id } })
+        body: toAsciiJson({ action: 'deleteTripSheet', payload: { id } })
       });
       return await response.json();
     } catch (e) {
       return { success: false, error: e.message };
+    }
+  },
+
+  /**
+   * Record a login attempt directly in Google Sheet
+   */
+  recordLoginAttempt: async (scriptUrl, attempt) => {
+    const targetUrl = getEffectiveGoogleSheetUrl(scriptUrl);
+    if (!targetUrl || !attempt) return { success: true, message: 'Saved locally' };
+    try {
+      const response = await fetch(targetUrl.trim(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: toAsciiJson({ action: 'recordLogin', payload: attempt })
+      });
+      return await response.json();
+    } catch (e) {
+      try {
+        await fetch(targetUrl.trim(), {
+          method: 'POST',
+          mode: 'no-cors',
+          body: toAsciiJson({ action: 'recordLogin', payload: attempt })
+        });
+        return { success: true, message: 'Recorded in Google Sheet (no-cors)' };
+      } catch (err) {
+        return { success: false, error: e.message };
+      }
     }
   }
 };
@@ -751,3 +814,4 @@ export const GoogleSheetApiService = {
 export const testGoogleSheetConnection = GoogleSheetApiService.testConnection;
 export const fetchDataFromGoogleSheet = GoogleSheetApiService.fetchAllData;
 export const syncAllToGoogleSheet = GoogleSheetApiService.syncAllToSheet;
+export const recordLoginAttemptInSheet = GoogleSheetApiService.recordLoginAttempt;

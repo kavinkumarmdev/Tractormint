@@ -63,9 +63,25 @@ export default function AdminDeleteModal({
               </div>
             ) : (
               <div>
-                <p style={{ fontSize: '0.9rem', marginBottom: '1rem', color: 'var(--text-main)' }}>
-                  Are you sure you want to move <strong>"{itemTitle}"</strong> to the Lifetime Archive / Recycle Bin?
+                <p style={{ fontSize: '0.9rem', marginBottom: '0.65rem', color: 'var(--text-main)' }}>
+                  {lang === 'ta' 
+                    ? <><strong>"{itemTitle}"</strong> பதிவை தற்காலிகமாக நீக்கி மறுசுழற்சி தொட்டிக்கு (Recycle Bin) நகர்த்த விரும்புகிறீர்களா?</>
+                    : <>Are you sure you want to temporarily delete <strong>"{itemTitle}"</strong> and move to the Recycle Bin?</>}
                 </p>
+                <div style={{
+                  fontSize: '0.75rem',
+                  background: 'rgba(245, 158, 11, 0.1)',
+                  color: '#92400e',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '8px',
+                  marginBottom: '1rem',
+                  border: '1px solid rgba(245, 158, 11, 0.25)',
+                  lineHeight: '1.4'
+                }}>
+                  {lang === 'ta'
+                    ? 'ℹ️ தற்காலிக நீக்கம்: இந்தப் பதிவு பயன்பாட்டிலிருந்து நீக்கப்பட்டு மறுசுழற்சி தொட்டிக்கு செல்லும். நிர்வாகி சரிபார்த்து மேலே உள்ள "ஷீட்டில் சேமி" கிளிக் செய்யும் வரை கூகுள் ஷீட்டில் மாற்றப்படாது.'
+                    : 'ℹ️ Temporary Delete: Moved to Recycle Bin locally. Google Sheet will not be affected until you review and click "Save to Sheet".'}
+                </div>
                 <div className="form-group">
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                     <Lock size={14} />

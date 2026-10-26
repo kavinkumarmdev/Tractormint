@@ -119,24 +119,41 @@ export default function Header({
 
       {/* Right Controls */}
       <div className="header-controls">
-        {/* Google Sheets Sync Pill - ONLY visible to Admin (backend auto-sync runs silently for others) */}
+        {/* Google Sheets Save & Sync Button - ONLY visible to Admin / Developer */}
         {role === 'admin' && (
-          <div 
-            className="sheets-sync-pill"
+          <button 
+            type="button"
+            className="btn btn-sm"
             onClick={onSyncNow}
-            title={syncStatus === 'syncing' ? 'Syncing with Google Sheets...' : syncStatus === 'connected' ? 'Google Sheets Active (Click to sync now)' : 'Google Sheets Offline (Click to retry)'}
+            disabled={syncStatus === 'syncing'}
+            title={lang === 'ta' ? 'உள்ளூர் பதிவுகள் & தற்காலிக நீக்கங்களை கூகுள் ஷீட்டில் நிரந்தரமாகச் சேமி' : 'Commit & Save all records and temporary deletes to Google Sheet'}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              background: syncStatus === 'syncing' ? '#f59e0b' : '#059669',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '0.4rem 0.8rem',
+              fontWeight: 800,
+              fontSize: '0.8rem',
+              cursor: syncStatus === 'syncing' ? 'not-allowed' : 'pointer',
+              boxShadow: '0 2px 8px rgba(5, 150, 105, 0.3)',
+              transition: 'all 0.15s ease'
+            }}
           >
             {syncStatus === 'syncing' ? (
-              <RefreshCw size={14} className="spin-animation" style={{ color: 'var(--amber-500)' }} />
-            ) : syncStatus === 'connected' ? (
-              <CheckCircle2 size={14} style={{ color: 'var(--primary-600)' }} />
+              <RefreshCw size={14} className="spin-animation" />
             ) : (
-              <AlertCircle size={14} style={{ color: 'var(--text-light)' }} />
+              <CheckCircle2 size={14} />
             )}
-            <span className="sync-text" style={{ fontWeight: 600 }}>
-              {syncStatus === 'syncing' ? 'Syncing...' : syncStatus === 'connected' ? 'Sheets Active' : 'Sheets Offline'}
+            <span>
+              {syncStatus === 'syncing' 
+                ? (lang === 'ta' ? 'சேமிக்கப்படுகிறது...' : 'Saving...') 
+                : (lang === 'ta' ? 'ஷீட்டில் சேமி' : 'Save to Sheet')}
             </span>
-          </div>
+          </button>
         )}
 
         {/* Language Toggle (English / தமிழ்) */}

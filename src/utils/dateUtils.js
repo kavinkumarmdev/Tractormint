@@ -47,19 +47,25 @@ export function formatTimeDisplay(timeStr) {
   if (!timeStr) return '';
   const str = String(timeStr).trim();
   
-  // If time string has 1899-12-30 from Google Sheets (e.g. 1899-12-30T17:30:00.000Z)
+  // If time string has 1899-12-30 dummy date from Google Sheets
   if (str.includes('1899-12-30')) {
-    const match = str.match(/T?(\d{1,2}:\d{2})/);
-    if (match) {
-      return match[1];
-    }
+    const match = str.match(/(?:T|\s)(\d{1,2}:\d{2})/);
+    if (match) return match[1];
+    const anyTime = str.match(/(\d{1,2}:\d{2})/);
+    if (anyTime) return anyTime[1];
     return '';
   }
 
-  // If ISO datetime, extract time
-  if (str.includes('T')) {
-    const match = str.match(/T(\d{1,2}:\d{2})/);
+  // If ISO datetime or space-separated timestamp
+  if (str.includes('T') || str.includes(' ')) {
+    const match = str.match(/(?:T|\s)(\d{1,2}:\d{2})/);
     if (match) return match[1];
+  }
+
+  // If plain time pattern like "12:30" or "09:15"
+  const plainTimeMatch = str.match(/^(\d{1,2}:\d{2})/);
+  if (plainTimeMatch) {
+    return plainTimeMatch[1];
   }
 
   return str;
