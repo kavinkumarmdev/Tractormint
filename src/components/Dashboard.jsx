@@ -14,6 +14,7 @@ import {
   ArrowDownRight
 } from 'lucide-react';
 import { translations } from '../translations/dictionary';
+import { formatDateDDMMYYYY } from '../utils/dateUtils';
 
 export default function Dashboard({ 
   lang, 
@@ -213,7 +214,7 @@ export default function Dashboard({
                     <td style={{ fontWeight: 700, color: 'var(--primary-700)' }}>{trip.id}</td>
                     <td>
                       <div style={{ fontWeight: 600 }}>{trip.customerName}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>{trip.date}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>{formatDateDDMMYYYY(trip.date)}</div>
                     </td>
                     <td>
                       <div style={{ fontSize: '0.8rem' }}>{trip.tractorName}</div>
@@ -278,7 +279,7 @@ export default function Dashboard({
               <tbody>
                 {maintenance.slice(0, 5).map(m => (
                   <tr key={m.id}>
-                    <td>{m.date}</td>
+                    <td>{formatDateDDMMYYYY(m.date)}</td>
                     <td>
                       <div style={{ fontWeight: 600 }}>{lang === 'ta' ? (m.category_ta || m.category) : m.category}</div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>{m.vendorName}</div>

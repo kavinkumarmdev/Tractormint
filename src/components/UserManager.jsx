@@ -106,12 +106,12 @@ export default function UserManager({
   const handleOpenEdit = (user) => {
     setEditingUser(user);
     setFormData({
-      username: user.username,
+      username: user.username || '',
       displayName: user.displayName || '',
-      displayName_ta: user.displayName_ta || '',
-      pin: user.pin || '',
+      displayName_ta: user.displayName_ta || user.displayName || '',
+      pin: user.pin !== undefined && user.pin !== null ? String(user.pin) : '',
       role: user.role || 'operator',
-      phone: user.phone || '',
+      phone: user.phone !== undefined && user.phone !== null ? String(user.phone) : '',
       status: user.status || 'active'
     });
     setFormError('');
@@ -1138,14 +1138,15 @@ export default function UserManager({
 
               <div style={{ marginBottom: '1rem' }}>
                 <BilingualVoiceGroup
-                  englishLabel={lang === 'ta' ? 'முழு பெயர் (ஆங்கிலத்தில்)' : 'Full Name / Display Name (English)'}
-                  tamilLabel={lang === 'ta' ? 'முழு பெயர் (தமிழில்)' : 'Full Name (Tamil)'}
+                  englishLabel="Full Name"
+                  tamilLabel="முழு பெயர்"
                   englishValue={formData.displayName}
                   tamilValue={formData.displayName_ta}
                   onEnglishChange={(val) => setFormData(prev => ({ ...prev, displayName: val }))}
                   onTamilChange={(val) => setFormData(prev => ({ ...prev, displayName_ta: val }))}
                   englishPlaceholder="e.g. R. Manickam"
                   tamilPlaceholder="எ.கா. ஆர். மாணிக்கம்"
+                  lang={lang}
                   required
                 />
               </div>
@@ -1158,10 +1159,10 @@ export default function UserManager({
                     value={formData.role}
                     onChange={(val) => setFormData({ ...formData, role: val })}
                     options={[
-                      { value: 'operator', label: lang === 'ta' ? 'ஆபரேட்டர் (Field Operator)' : 'Field Operator' },
-                      { value: 'driver', label: lang === 'ta' ? 'டிரைவர் (Tractor Driver)' : 'Tractor Driver' },
-                      { value: 'manager', label: lang === 'ta' ? 'மேலாளர் (Manager)' : 'Manager / Supervisor' },
-                      { value: 'admin', label: lang === 'ta' ? 'நிர்வாகி (Full Administrator)' : 'Full Administrator' }
+                      { value: 'operator', label: lang === 'ta' ? 'ஆபரேட்டர்' : 'Field Operator' },
+                      { value: 'driver', label: lang === 'ta' ? 'டிரைவர்' : 'Tractor Driver' },
+                      { value: 'manager', label: lang === 'ta' ? 'மேலாளர்' : 'Manager / Supervisor' },
+                      { value: 'admin', label: lang === 'ta' ? 'முதன்மை நிர்வாகி' : 'Full Administrator' }
                     ]}
                     lang={lang}
                   />
@@ -1173,8 +1174,8 @@ export default function UserManager({
                     value={formData.status}
                     onChange={(val) => setFormData({ ...formData, status: val })}
                     options={[
-                      { value: 'active', label: lang === 'ta' ? 'செயலில் (Active)' : 'Active (Can login)' },
-                      { value: 'inactive', label: lang === 'ta' ? 'முடக்கு (Suspended)' : 'Suspended (Blocked)' }
+                      { value: 'active', label: lang === 'ta' ? 'செயலில்' : 'Active (Can login)' },
+                      { value: 'inactive', label: lang === 'ta' ? 'முடக்கப்பட்டது' : 'Suspended (Blocked)' }
                     ]}
                     lang={lang}
                   />
@@ -1193,13 +1194,13 @@ export default function UserManager({
                     style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--primary-700)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
                   >
                     {showPin ? <EyeOff size={13} /> : <Eye size={13} />}
-                    <span>{showPin ? 'Hide' : 'Show'}</span>
+                    <span>{showPin ? (lang === 'ta' ? 'மறை' : 'Hide') : (lang === 'ta' ? 'காட்டு' : 'Show')}</span>
                   </button>
                 </div>
                 <input
                   type={showPin ? "text" : "password"}
                   className="form-control"
-                  placeholder="Min 4 digits (e.g. 5566)"
+                  placeholder={lang === 'ta' ? 'குறைந்தது 4 இலக்கங்கள்' : 'Min 4 digits (e.g. 5566)'}
                   value={formData.pin}
                   onChange={(e) => setFormData({ ...formData, pin: e.target.value })}
                   maxLength={12}
@@ -1218,7 +1219,7 @@ export default function UserManager({
                     setFormData(prev => ({ ...prev, phone: digits }));
                     if (formError) setFormError('');
                   }}
-                  speechLang="en-IN"
+                  speechLang={lang === 'ta' ? 'ta-IN' : 'en-IN'}
                   required
                 />
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginTop: '0.25rem', display: 'block' }}>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Loader2, Sparkles, Volume2 } from 'lucide-react';
-import { autoFillCounterpart, isTamilScript } from '../../services/bilingualTranslate';
+import { autoFillCounterpart, isTamilScript, parseSpokenPhoneDigits } from '../../services/bilingualTranslate';
 
 // Helper to check Speech Recognition support
 export const isSpeechRecognitionSupported = () => {
@@ -29,6 +29,15 @@ export default function VoiceInput({
   const [isTranslating, setIsTranslating] = useState(false);
   const recognitionRef = useRef(null);
 
+  // Helper to resolve active language
+  const getResolvedLang = () => {
+    if (speechLang === 'en-IN' || speechLang === 'en') return 'en-IN';
+    if (speechLang === 'ta-IN' || speechLang === 'ta') return 'ta-IN';
+    if (typeof document !== 'undefined' && document.documentElement.lang === 'ta') return 'ta-IN';
+    if (isTamilScript(label || placeholder)) return 'ta-IN';
+    return 'en-IN';
+  };
+
   // Initialize Speech Recognition
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -36,18 +45,7 @@ export default function VoiceInput({
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
       recognition.interimResults = false;
-
-      // Determine speech recognition language
-      let targetLang = 'ta-IN';
-      if (speechLang === 'en-IN' || speechLang === 'en') {
-        targetLang = 'en-IN';
-      } else if (speechLang === 'ta-IN' || speechLang === 'ta') {
-        targetLang = 'ta-IN';
-      } else {
-        // Auto: if placeholder or label contains Tamil, default to Tamil
-        targetLang = isTamilScript(label || placeholder) ? 'ta-IN' : 'en-IN';
-      }
-      recognition.lang = targetLang;
+      recognition.lang = getResolvedLang();
 
       recognition.onstart = () => {
         setIsListening(true);
@@ -57,12 +55,32 @@ export default function VoiceInput({
       recognition.onresult = async (event) => {
         const transcript = event.results[0][0].transcript;
         if (transcript) {
-          const newVal = value ? `${value} ${transcript}` : transcript;
-          onChange(newVal);
+          if (type === 'tel') {
+            // Intelligent parser for spoken mobile numbers (Tamil & English words / digits)
+            const parsedDigits = parseSpokenPhoneDigits(transcript);
+            let finalDigits = parsedDigits;
+            if (parsedDigits) {
+              if (parsedDigits.length === 10) {
+                finalDigits = parsedDigits;
+              } else if (value && value.length + parsedDigits.length <= 10) {
+                finalDigits = (value + parsedDigits);
+              } else {
+                finalDigits = parsedDigits.slice(0, 10);
+              }
+              onChange(finalDigits);
+            } else {
+              // Fallback to extracting any numbers from transcript
+              const fallback = transcript.replace(/\D/g, '').slice(0, 10);
+              if (fallback) onChange(fallback);
+            }
+          } else {
+            const newVal = value ? `${value} ${transcript}` : transcript;
+            onChange(newVal);
 
-          // Trigger bilingual counterpart auto-fill if handler provided
-          if (onCounterpartChange) {
-            triggerAutoTranslate(newVal);
+            // Trigger bilingual counterpart auto-fill if handler provided
+            if (onCounterpartChange) {
+              triggerAutoTranslate(newVal);
+            }
           }
         }
         setIsListening(false);
@@ -95,7 +113,7 @@ export default function VoiceInput({
         }
       }
     };
-  }, [speechLang, value, label, placeholder]);
+  }, [speechLang, value, label, placeholder, type]);
 
   // Toggle Listening
   const toggleListening = () => {
@@ -113,15 +131,7 @@ export default function VoiceInput({
       setIsListening(false);
     } else {
       try {
-        // Update language before start
-        let targetLang = 'ta-IN';
-        if (speechLang === 'en-IN' || speechLang === 'en') {
-          targetLang = 'en-IN';
-        } else if (speechLang === 'ta-IN' || speechLang === 'ta') {
-          targetLang = 'ta-IN';
-        } else {
-          targetLang = isTamilScript(label || placeholder) ? 'ta-IN' : 'en-IN';
-        }
+        const targetLang = getResolvedLang();
         if (recognitionRef.current) {
           recognitionRef.current.lang = targetLang;
           recognitionRef.current.start();
@@ -263,9 +273,9 @@ export default function VoiceInput({
             zIndex: 1000,
             background: '#1e293b',
             color: '#f8fafc',
-            padding: '0.3rem 0.65rem',
+            padding: '0.35rem 0.65rem',
             borderRadius: '6px',
-            fontSize: '0.75rem',
+            fontSize: '0.78rem',
             display: 'flex',
             alignItems: 'center',
             gap: '0.4rem',
@@ -275,14 +285,18 @@ export default function VoiceInput({
         >
           <span 
             style={{ 
-              width: 7, 
-              height: 7, 
+              width: 8, 
+              height: 8, 
               borderRadius: '50%', 
               background: '#ef4444', 
               animation: 'pulse 1s infinite' 
             }} 
           />
-          <span>Listening in {speechLang === 'ta-IN' || speechLang === 'ta' ? 'தமிழ் (Tamil)' : 'English'}... Speak now!</span>
+          <span>
+            {type === 'tel' 
+              ? (getResolvedLang() === 'ta-IN' ? 'மொபைல் எண்ணைப் பேசவும் (எ.கா: 9 8 4 3...)' : 'Speak mobile number (e.g. 9 8 4 3...)')
+              : (getResolvedLang() === 'ta-IN' ? 'தமிழில் பேசவும்...' : 'Listening in English... Speak now!')}
+          </span>
         </div>
       )}
 

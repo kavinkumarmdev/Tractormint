@@ -1,6 +1,7 @@
 import React from 'react';
 import { Printer, Share2, X, CheckCircle, Clock } from 'lucide-react';
 import { translations } from '../translations/dictionary';
+import { formatDateDDMMYYYY, formatTimeDisplay } from '../utils/dateUtils';
 
 export default function TripSlipModal({ isOpen, onClose, trip, lang, settings }) {
   if (!isOpen || !trip) return null;
@@ -11,10 +12,13 @@ export default function TripSlipModal({ isOpen, onClose, trip, lang, settings })
   };
 
   const handleWhatsAppShare = () => {
+    const startT = formatTimeDisplay(trip.startTime);
+    const endT = formatTimeDisplay(trip.endTime);
+    const timeSnippet = startT ? ` (${startT}${endT ? ` - ${endT}` : ''})` : '';
     const text = `🚜 *${settings.companyName || 'TRACTOR BILL SLIP'}* 🚜
 ==============================
 *Trip Slip No:* ${trip.id}
-*Date:* ${trip.date} (${trip.startTime || ''} - ${trip.endTime || ''})
+*Date:* ${formatDateDDMMYYYY(trip.date)}${timeSnippet}
 *Customer:* ${trip.customerName}
 *Driver:* ${trip.driverName}
 *Tractor:* ${trip.tractorName}
@@ -77,7 +81,9 @@ ${trip.collectedBy ? `*Collected By:* ${trip.collectedBy} on ${trip.collectedWhe
                 </tr>
                 <tr>
                   <td className="slip-label">{t.tripDate}:</td>
-                  <td className="slip-value">{trip.date} ({trip.startTime || '--'} to {trip.endTime || '--'})</td>
+                  <td className="slip-value">
+                    {formatDateDDMMYYYY(trip.date)} {formatTimeDisplay(trip.startTime) ? `(${formatTimeDisplay(trip.startTime)} - ${formatTimeDisplay(trip.endTime) || '--'})` : ''}
+                  </td>
                 </tr>
                 <tr>
                   <td className="slip-label">{t.customerName}:</td>

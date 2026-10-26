@@ -1,65 +1,71 @@
-import React, { useState } from 'react';
-import { Sparkles, ArrowRightLeft, RefreshCw } from 'lucide-react';
+import React from 'react';
 import VoiceInput from './VoiceInput';
-import { autoFillCounterpart } from '../../services/bilingualTranslate';
 
 export default function BilingualVoiceGroup({
-  englishLabel = 'Name (English)',
-  tamilLabel = 'பெயர் (தமிழ்)',
+  englishLabel = 'Name',
+  tamilLabel = 'பெயர்',
   englishValue = '',
   tamilValue = '',
   onEnglishChange = () => {},
   onTamilChange = () => {},
-  englishPlaceholder = 'Type or speak in English...',
-  tamilPlaceholder = 'தமிழில் தட்டச்சு செய்யவும் அல்லது பேசவும்...',
-  required = false
+  englishPlaceholder = 'Enter details...',
+  tamilPlaceholder = 'விவரங்களை உள்ளிடவும்...',
+  required = false,
+  lang = 'en'
 }) {
-  const [isSyncing, setIsSyncing] = useState(false);
+  // If user selected Tamil (or Tamil is current app language):
+  // Display Tamil ONLY! English input is NOT displayed, and falls back to englishValue if tamilValue is blank.
+  if (lang === 'ta') {
+    const cleanTamilLabel = (tamilLabel || '')
+      .replace(/\s*\([^\)]*தமி[^\)]*\)/g, '')
+      .replace(/\s*\([^\)]*Tamil[^\)]*\)/g, '')
+      .trim();
 
-  // Manual one-click two-way translation sync button
-  const handleManualSync = async () => {
-    setIsSyncing(true);
-    try {
-      if (englishValue.trim()) {
-        const res = await autoFillCounterpart({ text: englishValue, sourceLang: 'en' });
-        if (res.tamil) onTamilChange(res.tamil);
-      } else if (tamilValue.trim()) {
-        const res = await autoFillCounterpart({ text: tamilValue, sourceLang: 'ta' });
-        if (res.english) onEnglishChange(res.english);
-      }
-    } catch (e) {
-      console.warn('Sync error:', e);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
+    const displayValue = (tamilValue !== undefined && tamilValue !== null && tamilValue !== '') 
+      ? tamilValue 
+      : (englishValue || '');
 
-  return (
-    <div className="bilingual-voice-group" style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }} className="bilingual-inputs-row">
-        {/* English Voice Field */}
+    return (
+      <div className="form-group col-full" style={{ marginBottom: '0.85rem' }}>
         <VoiceInput
-          label={englishLabel}
-          value={englishValue}
-          onChange={onEnglishChange}
-          placeholder={englishPlaceholder}
-          speechLang="en-IN"
-          onCounterpartChange={onTamilChange}
-          counterpartLang="ta"
-          required={required}
-        />
-
-        {/* Tamil Voice Field */}
-        <VoiceInput
-          label={tamilLabel}
-          value={tamilValue}
-          onChange={onTamilChange}
-          placeholder={tamilPlaceholder}
+          label={cleanTamilLabel}
+          value={displayValue}
+          onChange={(val) => {
+            onTamilChange(val);
+            onEnglishChange(val);
+          }}
+          placeholder={tamilPlaceholder || 'தமிழில் தட்டச்சு செய்யவும் அல்லது பேசவும்...'}
           speechLang="ta-IN"
-          onCounterpartChange={onEnglishChange}
-          counterpartLang="en"
+          required={required}
+          showMagicTranslate={false}
         />
       </div>
+    );
+  }
+
+  // English ONLY display with fallback to tamilValue if englishValue is blank
+  const cleanEnglishLabel = (englishLabel || '')
+    .replace(/\s*\([^\)]*English[^\)]*\)/g, '')
+    .trim();
+
+  const displayValue = (englishValue !== undefined && englishValue !== null && englishValue !== '') 
+    ? englishValue 
+    : (tamilValue || '');
+
+  return (
+    <div className="form-group col-full" style={{ marginBottom: '0.85rem' }}>
+      <VoiceInput
+        label={cleanEnglishLabel}
+        value={displayValue}
+        onChange={(val) => {
+          onEnglishChange(val);
+          onTamilChange(val);
+        }}
+        placeholder={englishPlaceholder || 'Type or speak in English...'}
+        speechLang="en-IN"
+        required={required}
+        showMagicTranslate={false}
+      />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   FileSpreadsheet, 
   Plus, 
@@ -20,7 +20,14 @@ import {
   DollarSign,
   Zap,
   UserCheck,
-  Layers
+  Layers,
+  Navigation as NavIcon,
+  MapPin,
+  Radio,
+  Compass,
+  CreditCard,
+  Wallet,
+  Activity
 } from 'lucide-react';
 import { translations, resolveBilingual } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
@@ -28,6 +35,7 @@ import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
 import VoiceInput from './common/VoiceInput';
 import { validatePositiveNumber } from '../services/storage';
+import { formatDateDDMMYYYY, formatTimeDisplay } from '../utils/dateUtils';
 
 export default function TripSheetManager({ 
   tripSheets, 
@@ -45,6 +53,7 @@ export default function TripSheetManager({
   const t = translations[lang];
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // all | paid | partial | unpaid
+  const [customerFilter, setCustomerFilter] = useState('all'); // all | customerId
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deleteModalState, setDeleteModalState] = useState({ isOpen: false, item: null });
@@ -53,11 +62,24 @@ export default function TripSheetManager({
   // Toggle for Payment Collection (Hidden by default when adding new trip, saves to pending collection)
   const [isCollectionActive, setIsCollectionActive] = useState(false);
 
-  // Time Entry Mode: 'manual' (default) | 'timer' (live stopwatch)
-  const [timeEntryMode, setTimeEntryMode] = useState('manual');
+  // Time Entry Mode: 'timer' (stopwatch) | 'map_timer' (GPS) | 'manual'
+  const [timeEntryMode, setTimeEntryMode] = useState('timer');
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerMessage, setTimerMessage] = useState('');
+
+  // GPS Map Timer State (Rule 5)
+  const [isGpsActive, setIsGpsActive] = useState(false);
+  const [gpsStats, setGpsStats] = useState({
+    latitude: null,
+    longitude: null,
+    accuracy: null,
+    distanceKm: 0,
+    elapsedSec: 0,
+    lastCoord: null
+  });
+  const gpsWatchRef = useRef(null);
+  const gpsTimerRef = useRef(null);
 
   // Optional custom/advanced fleet mode (multi-implement attachment)
   const [showAdvancedFleet, setShowAdvancedFleet] = useState(false);
@@ -84,6 +106,104 @@ export default function TripSheetManager({
     };
   }, [timerRunning]);
 
+  // Clean up GPS tracking on unmount
+  useEffect(() => {
+    return () => {
+      if (gpsWatchRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(gpsWatchRef.current);
+      }
+      if (gpsTimerRef.current) {
+        clearInterval(gpsTimerRef.current);
+      }
+    };
+  }, []);
+
+  const startGpsTracking = () => {
+    if (!navigator.geolocation) {
+      alert(lang === 'ta' ? 'உங்கள் உலாவியில் GPS இருப்பிட சேவை கிடைக்கவில்லை.' : 'Geolocation is not supported by your browser.');
+      return;
+    }
+    setIsGpsActive(true);
+    setGpsStats({
+      latitude: null,
+      longitude: null,
+      accuracy: null,
+      distanceKm: 0,
+      elapsedSec: 0,
+      lastCoord: null
+    });
+
+    if (gpsTimerRef.current) clearInterval(gpsTimerRef.current);
+    gpsTimerRef.current = setInterval(() => {
+      setGpsStats(prev => ({ ...prev, elapsedSec: prev.elapsedSec + 1 }));
+    }, 1000);
+
+    if (gpsWatchRef.current !== null) {
+      navigator.geolocation.clearWatch(gpsWatchRef.current);
+    }
+    gpsWatchRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        setGpsStats(prev => {
+          let addedKm = 0;
+          if (prev.lastCoord) {
+            const dLat = (latitude - prev.lastCoord.lat) * (Math.PI / 180);
+            const dLon = (longitude - prev.lastCoord.lng) * (Math.PI / 180);
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(prev.lastCoord.lat * (Math.PI / 180)) * Math.cos(latitude * (Math.PI / 180)) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const dist = 6371 * c;
+            if (dist > 0.005) {
+              addedKm = dist;
+            }
+          }
+          return {
+            ...prev,
+            latitude: latitude.toFixed(6),
+            longitude: longitude.toFixed(6),
+            accuracy: Math.round(accuracy),
+            distanceKm: parseFloat((prev.distanceKm + addedKm).toFixed(2)),
+            lastCoord: { lat: latitude, lng: longitude }
+          };
+        });
+      },
+      (err) => {
+        console.warn('GPS Error:', err.message);
+      },
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+    );
+  };
+
+  const stopGpsTracking = () => {
+    setIsGpsActive(false);
+    if (gpsWatchRef.current !== null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(gpsWatchRef.current);
+      gpsWatchRef.current = null;
+    }
+    if (gpsTimerRef.current) {
+      clearInterval(gpsTimerRef.current);
+      gpsTimerRef.current = null;
+    }
+  };
+
+  const handleApplyGpsToBill = () => {
+    let units = 0;
+    if (formData.billingUnit === 'per_km') {
+      units = Math.max(0.1, gpsStats.distanceKm);
+    } else {
+      const hrs = gpsStats.elapsedSec / 3600;
+      units = hrs < 0.05 ? (gpsStats.distanceKm > 0 ? parseFloat((gpsStats.distanceKm / 8).toFixed(1)) : 0.1) : Math.round(hrs * 100) / 100;
+    }
+    handleFieldChange('quantity', units.toString());
+    setTimerMessage(
+      lang === 'ta'
+        ? `✅ வரைபட GPS அளவீடு (${gpsStats.distanceKm} கி.மீ / ${formatTimer(gpsStats.elapsedSec)}) -> ${units} ${formData.billingUnit === 'per_km' ? 'கி.மீ' : 'மணி'} பில்லில் அமைக்கப்பட்டது!`
+        : `✅ GPS field measurement (${gpsStats.distanceKm} km / ${formatTimer(gpsStats.elapsedSec)}) set to ${units} units!`
+    );
+    setTimeout(() => setTimerMessage(''), 4500);
+  };
+
   const formatTimer = (totalSec) => {
     const h = Math.floor(totalSec / 3600);
     const m = Math.floor((totalSec % 3600) / 60);
@@ -108,8 +228,6 @@ export default function TripSheetManager({
 
   // Build the Unified Single Select Options: (Tractor + Implement / Rate Card Combos)
   const comboOptions = [];
-
-  // 1. From Rate Card combinations (Image 3)
   rateMatrix.forEach(r => {
     let matchedT = tractors.find(t => (r.tractorId && t.id === r.tractorId) || (r.tractorName && t.name.toLowerCase() === r.tractorName.toLowerCase()));
     const resolvedTractorId = matchedT ? matchedT.id : (r.tractorId || (tractors[0] ? tractors[0].id : 'TRAC-01'));
@@ -134,7 +252,6 @@ export default function TripSheetManager({
     });
   });
 
-  // 2. Also ensure every tractor from fleet is selectable
   tractors.forEach(tr => {
     const hasStandaloneInRate = rateMatrix.some(r => r.tractorId === tr.id && (!r.implementId || r.implementId === 'none'));
     if (!hasStandaloneInRate) {
@@ -204,58 +321,134 @@ export default function TripSheetManager({
     paidAmount: '0',
     balanceAmount: '3600',
     paymentStatus: 'unpaid',
+    paidOnDate: new Date().toISOString().slice(0, 10),
     collectedBy: '',
     collectedWhen: new Date().toISOString().slice(0, 16).replace('T', ' '),
-    paymentMode: 'credit',
+    paymentMode: 'cash',
     driverBata: '400',
     notes: ''
   });
 
+  // Rule 4: Compute machinery options mapped to the currently selected tractor
+  const mappedMachineryOptions = useMemo(() => {
+    const options = [];
+    const currentTractorId = formData.tractorId || (tractors[0] ? tractors[0].id : '');
+    const currentTractorName = formData.tractorName || (tractors[0] ? tractors[0].name : '');
+
+    // 1. Find all rateMatrix entries for this tractor
+    const mappedRates = rateMatrix.filter(r => {
+      const matchId = currentTractorId && r.tractorId && r.tractorId === currentTractorId;
+      const matchName = currentTractorName && r.tractorName && 
+        r.tractorName.trim().toLowerCase() === currentTractorName.trim().toLowerCase();
+      return matchId || matchName;
+    });
+
+    const mappedGroupTitle = lang === 'ta' ? '⭐ பொருத்தப்பட்ட கருவிகள் (விலை அட்டை)' : '⭐ Mapped Machinery (Rate Card)';
+    mappedRates.forEach(r => {
+      let matchedImp = implementsList.find(m => (r.implementId && m.id === r.implementId) || (r.implementName && m.name.toLowerCase() === r.implementName.toLowerCase()));
+      const impId = matchedImp ? matchedImp.id : (r.implementId || 'none');
+      const impNameEn = matchedImp ? matchedImp.name : (r.implementName || 'Standalone Tractor');
+      const impNameTa = matchedImp?.name_ta || '';
+      const displayLabel = (lang === 'ta' && impNameTa ? impNameTa : impNameEn);
+      const isStandalone = impId === 'none' || impNameEn.toLowerCase().includes('standalone');
+
+      options.push({
+        value: impId,
+        label: isStandalone ? (lang === 'ta' ? '⭐ தனி டிராக்டர் (கருவி இல்லை)' : '⭐ Standalone Tractor') : `⭐ ${displayLabel}`,
+        subLabel: `${resolveUnitLabel(r.unit)} • ₹${r.rate}`,
+        badge: `₹${r.rate}`,
+        group: mappedGroupTitle,
+        rate: r.rate,
+        unit: r.unit,
+        implementName: impNameEn,
+        implementNameTa: impNameTa
+      });
+    });
+
+    // 2. Other implements in fleet not mapped to this tractor
+    const otherGroupTitle = lang === 'ta' ? 'பிற பண்ணை கருவிகள்' : 'Other Fleet Implements';
+    implementsList.forEach(imp => {
+      const alreadyIncluded = options.some(o => o.value === imp.id);
+      if (!alreadyIncluded) {
+        const displayLabel = lang === 'ta' && imp.name_ta ? imp.name_ta : imp.name;
+        options.push({
+          value: imp.id,
+          label: displayLabel,
+          subLabel: imp.category || (lang === 'ta' ? 'கருவி' : 'Implement'),
+          badge: lang === 'ta' ? 'கருவி' : 'Implement',
+          group: otherGroupTitle,
+          rate: '900',
+          unit: 'per_hour',
+          implementName: imp.name,
+          implementNameTa: imp.name_ta
+        });
+      }
+    });
+
+    // Standalone option if not yet added
+    if (!options.some(o => o.value === 'none')) {
+      options.push({
+        value: 'none',
+        label: lang === 'ta' ? 'தனி டிராக்டர் (கருவி இல்லை)' : 'Standalone Tractor',
+        subLabel: lang === 'ta' ? 'கருவி ஏதுமில்லை' : 'No implement attached',
+        badge: lang === 'ta' ? 'டிராக்டர்' : 'Tractor',
+        group: otherGroupTitle,
+        rate: '900',
+        unit: 'per_hour',
+        implementName: 'Standalone Tractor',
+        implementNameTa: 'தனி டிராக்டர்'
+      });
+    }
+
+    return options;
+  }, [formData.tractorId, formData.tractorName, rateMatrix, implementsList, tractors, lang]);
+
+  // Rule 10: Collector options
+  const collectorOptions = useMemo(() => {
+    const list = [];
+    list.push({
+      value: `${loggedUserName} (${lang === 'ta' ? 'நீங்கள்' : 'You'})`,
+      label: `${loggedUserName} (${lang === 'ta' ? 'நீங்கள்' : 'You'})`,
+      badge: lang === 'ta' ? 'உள்நுழைந்தவர்' : 'Current User'
+    });
+    if (formData.driverName) {
+      list.push({
+        value: `${formData.driverName} (${lang === 'ta' ? 'டிரைவர்' : 'Driver'})`,
+        label: `${formData.driverName} (${lang === 'ta' ? 'டிரைவர்' : 'Driver'})`,
+        badge: lang === 'ta' ? 'டிரைவர்' : 'Driver'
+      });
+    }
+    drivers.forEach(d => {
+      const dName = (lang === 'ta' && d.name_ta ? d.name_ta : d.name);
+      if (dName !== formData.driverName && dName !== loggedUserName) {
+        list.push({
+          value: `${dName} (${lang === 'ta' ? 'டிரைவர்' : 'Driver'})`,
+          label: dName,
+          subLabel: d.phone || '',
+          badge: lang === 'ta' ? 'டிரைவர்' : 'Driver'
+        });
+      }
+    });
+    return list;
+  }, [loggedUserName, formData.driverName, drivers, lang]);
+
   // Determine current active value for the single select (Tractor + Implement)
   const currentComboValue = (() => {
     if (!comboOptions || comboOptions.length === 0) return '';
-
-    // 1. Try to find matching option in comboOptions by tractor + implement + unit
     const matchedExact = comboOptions.find(opt => {
       const item = opt.rateItem || opt.customCombo;
       if (!item) return false;
-
       const matchTrac = (formData.tractorId && item.tractorId && formData.tractorId === item.tractorId) ||
                         (formData.tractorName && item.tractorName && formData.tractorName.trim().toLowerCase() === item.tractorName.trim().toLowerCase());
-
       const isFormImpNone = !formData.implementId || formData.implementId === 'none' || formData.implementName === 'Standalone Tractor';
       const isItemImpNone = !item.implementId || item.implementId === 'none' || item.implementName === 'Standalone Tractor';
-      
       const matchImp = (isFormImpNone && isItemImpNone) ||
                        (formData.implementId && item.implementId && formData.implementId === item.implementId) ||
                        (formData.implementName && item.implementName && formData.implementName.trim().toLowerCase() === item.implementName.trim().toLowerCase());
-
       const matchUnit = !formData.billingUnit || item.unit === formData.billingUnit;
-
       return matchTrac && matchImp && matchUnit;
     });
     if (matchedExact) return matchedExact.value;
-
-    // 2. Try match without unit constraint
-    const matchedLoose = comboOptions.find(opt => {
-      const item = opt.rateItem || opt.customCombo;
-      if (!item) return false;
-
-      const matchTrac = (formData.tractorId && item.tractorId && formData.tractorId === item.tractorId) ||
-                        (formData.tractorName && item.tractorName && formData.tractorName.trim().toLowerCase() === item.tractorName.trim().toLowerCase());
-
-      const isFormImpNone = !formData.implementId || formData.implementId === 'none' || formData.implementName === 'Standalone Tractor';
-      const isItemImpNone = !item.implementId || item.implementId === 'none' || item.implementName === 'Standalone Tractor';
-      
-      const matchImp = (isFormImpNone && isItemImpNone) ||
-                       (formData.implementId && item.implementId && formData.implementId === item.implementId) ||
-                       (formData.implementName && item.implementName && formData.implementName.trim().toLowerCase() === item.implementName.trim().toLowerCase());
-
-      return matchTrac && matchImp;
-    });
-    if (matchedLoose) return matchedLoose.value;
-
-    // 3. Fallback to first available comboOption
     return comboOptions[0]?.value || '';
   })();
 
@@ -283,6 +476,131 @@ export default function TripSheetManager({
     return matched ? matched.rate : null;
   };
 
+  // Rule 3: Select Tractor & Auto-refresh Mapped Machinery
+  const handleSelectTractor = (tracId) => {
+    const foundT = tractors.find(t => t.id === tracId);
+    const tracName = foundT ? foundT.name : tracId;
+
+    const mapped = rateMatrix.filter(r => r.tractorId === tracId || (r.tractorName && r.tractorName.toLowerCase() === tracName.toLowerCase()));
+    
+    let nextImpId = formData.implementId || 'none';
+    let nextImpName = formData.implementName || 'Standalone Tractor';
+    let nextRate = formData.rate || '900';
+    let nextUnit = formData.billingUnit || 'per_hour';
+
+    if (mapped.length > 0) {
+      const isCurrentMapped = mapped.some(m => m.implementId === nextImpId || (nextImpId === 'none' && (!m.implementId || m.implementId === 'none')));
+      if (!isCurrentMapped) {
+        const firstRate = mapped[0];
+        nextImpId = firstRate.implementId || 'none';
+        nextImpName = firstRate.implementName || 'Standalone Tractor';
+        nextRate = (firstRate.rate || nextRate).toString();
+        nextUnit = firstRate.unit || nextUnit;
+      } else {
+        const matchedRate = mapped.find(m => m.implementId === nextImpId || (nextImpId === 'none' && (!m.implementId || m.implementId === 'none')));
+        if (matchedRate) {
+          nextRate = (matchedRate.rate || nextRate).toString();
+          nextUnit = matchedRate.unit || nextUnit;
+        }
+      }
+    }
+
+    setFormData(prev => {
+      const qty = parseFloat(prev.quantity) || 0;
+      const rt = parseFloat(nextRate) || 0;
+      const disc = parseFloat(prev.discount) || 0;
+      const gross = qty * rt;
+      const net = Math.max(0, gross - disc);
+      const isPaid = prev.paymentStatus === 'paid';
+
+      return {
+        ...prev,
+        tractorId: tracId,
+        tractorName: tracName,
+        implementId: nextImpId,
+        implementName: nextImpName,
+        implementIds: nextImpId && nextImpId !== 'none' ? [nextImpId] : [],
+        implementNames: nextImpName && nextImpName !== 'Standalone Tractor' ? [nextImpName] : [],
+        rate: nextRate,
+        billingUnit: nextUnit,
+        grossAmount: gross,
+        totalAmount: net,
+        paidAmount: isPaid ? net.toString() : '0',
+        balanceAmount: isPaid ? 0 : net
+      };
+    });
+  };
+
+  // Rule 4: Select Machinery mapped to Tractor
+  const handleSelectMachinery = (impId) => {
+    const matchedOpt = mappedMachineryOptions.find(o => o.value === impId);
+    let impName = matchedOpt?.implementName || (impId === 'none' ? 'Standalone Tractor' : impId);
+    let newRate = matchedOpt?.rate;
+    let newUnit = matchedOpt?.unit || formData.billingUnit || 'per_hour';
+
+    const lookup = lookupRate(formData.tractorId, impId, formData.date, newUnit);
+    if (lookup) {
+      newRate = lookup;
+    }
+
+    setFormData(prev => {
+      const rateVal = (newRate || prev.rate || '900').toString();
+      const qty = parseFloat(prev.quantity) || 0;
+      const rt = parseFloat(rateVal) || 0;
+      const disc = parseFloat(prev.discount) || 0;
+      const gross = qty * rt;
+      const net = Math.max(0, gross - disc);
+      const isPaid = prev.paymentStatus === 'paid';
+
+      const impIds = impId && impId !== 'none' ? [impId] : [];
+      const impNames = impName && impName !== 'Standalone Tractor' ? [impName] : [];
+
+      return {
+        ...prev,
+        implementId: impId,
+        implementName: impName,
+        implementIds: impIds,
+        implementNames: impNames,
+        rate: rateVal,
+        billingUnit: newUnit,
+        grossAmount: gross,
+        totalAmount: net,
+        paidAmount: isPaid ? net.toString() : '0',
+        balanceAmount: isPaid ? 0 : net,
+        workType: impName && impName !== 'Standalone Tractor' ? `${impName} Work` : prev.workType
+      };
+    });
+  };
+
+  // Rule 8 & 11: Set Paid Status Toggle
+  const handleSetPaidStatus = (isPaid) => {
+    setFormData(prev => {
+      const net = parseFloat(prev.totalAmount) || 0;
+      if (isPaid) {
+        setIsCollectionActive(true);
+        return {
+          ...prev,
+          paymentStatus: 'paid',
+          paidAmount: net.toString(),
+          balanceAmount: 0,
+          paidOnDate: prev.paidOnDate || prev.date || new Date().toISOString().slice(0, 10),
+          paymentMode: (!prev.paymentMode || prev.paymentMode === 'credit') ? 'cash' : prev.paymentMode,
+          collectedBy: prev.collectedBy || `${loggedUserName} (${lang === 'ta' ? 'நீங்கள்' : 'You'})`,
+          collectedWhen: prev.collectedWhen || `${prev.date || new Date().toISOString().slice(0, 10)} 12:00`
+        };
+      } else {
+        setIsCollectionActive(false);
+        return {
+          ...prev,
+          paymentStatus: 'unpaid',
+          paidAmount: '0',
+          balanceAmount: net,
+          paymentMode: 'credit'
+        };
+      }
+    });
+  };
+
   // Handle Login User Assignment (Driver vs Collector)
   const applyLoginUserAssignment = (mode) => {
     setLoginUserAssignment(mode);
@@ -305,15 +623,14 @@ export default function TripSheetManager({
         }));
       }
     } else if (mode === 'collector') {
-      const roleBadge = loggedUserRole === 'driver' ? 'Driver' : loggedUserRole === 'admin' ? 'Admin' : loggedUserRole === 'partner' ? 'Partner' : 'Collector';
       setFormData(prev => ({
         ...prev,
-        collectedBy: `${loggedUserName} (${roleBadge})`
+        collectedBy: `${loggedUserName} (${lang === 'ta' ? 'நீங்கள்' : 'You'})`
       }));
     }
   };
 
-  // Single Select Combo Change handler: Sets Tractor + Implement + Unit + Rate & Auto-calculates!
+  // Single Select Combo Change handler (for backwards compatibility)
   const handleSelectCombo = (val) => {
     const selected = comboOptions.find(o => o.value === val);
     if (!selected) return;
@@ -376,18 +693,12 @@ export default function TripSheetManager({
         workType: impName && impName !== 'Standalone Tractor' ? `${impName} Work` : prev.workType
       };
 
-      if (!isCollectionActive) {
+      if (prev.paymentStatus === 'paid') {
+        updated.paidAmount = net.toString();
+        updated.balanceAmount = 0;
+      } else {
         updated.paidAmount = '0';
         updated.balanceAmount = net;
-        updated.paymentStatus = 'unpaid';
-      } else {
-        if (prev.paymentStatus === 'paid') {
-          updated.paidAmount = net.toString();
-          updated.balanceAmount = 0;
-        } else {
-          const paid = parseFloat(prev.paidAmount) || 0;
-          updated.balanceAmount = Math.max(0, net - paid);
-        }
       }
 
       return updated;
@@ -1040,23 +1351,36 @@ export default function TripSheetManager({
 
     const netTotal = Math.max(0, gross - (parseFloat(formData.discount) || 0));
 
-    let finalPaid = '0';
+    const isPaid = formData.paymentStatus === 'paid' || (isCollectionActive && parseFloat(formData.paidAmount) >= netTotal);
+
+    let finalPaid = 0;
     let finalBal = netTotal;
     let finalStatus = 'unpaid';
     let finalMode = 'credit';
-    let finalCollectedBy = formData.collectedBy || '';
-    let finalCollectedWhen = formData.collectedWhen || '';
+    let finalCollectedBy = '';
+    let finalCollectedWhen = '';
 
-    if (isCollectionActive) {
-      finalPaid = parseFloat(formData.paidAmount) || 0;
+    if (isPaid) {
+      finalPaid = netTotal;
+      finalBal = 0;
+      finalStatus = 'paid';
+      finalMode = (formData.paymentMode && formData.paymentMode !== 'credit') ? formData.paymentMode : 'cash';
+      finalCollectedBy = formData.collectedBy || `${loggedUserName} (${lang === 'ta' ? 'நீங்கள்' : 'You'})`;
+      finalCollectedWhen = formData.collectedWhen || `${formData.paidOnDate || formData.date} 12:00`;
+    } else if (isCollectionActive && parseFloat(formData.paidAmount) > 0) {
+      finalPaid = Math.min(netTotal, parseFloat(formData.paidAmount));
       finalBal = Math.max(0, netTotal - finalPaid);
-      finalStatus = finalPaid >= netTotal ? 'paid' : (finalPaid > 0 ? 'partial' : 'unpaid');
-      finalMode = formData.paymentMode || 'cash';
+      finalStatus = finalBal === 0 ? 'paid' : 'partial';
+      finalMode = (formData.paymentMode && formData.paymentMode !== 'credit') ? formData.paymentMode : 'cash';
+      finalCollectedBy = formData.collectedBy || '';
+      finalCollectedWhen = formData.collectedWhen || '';
     } else {
       finalPaid = 0;
       finalBal = netTotal;
       finalStatus = 'unpaid';
       finalMode = 'credit';
+      finalCollectedBy = '';
+      finalCollectedWhen = '';
     }
 
     const finalPayload = {
@@ -1105,7 +1429,12 @@ export default function TripSheetManager({
       matchesStatus = t.paymentStatus === statusFilter;
     }
 
-    return matchesSearch && matchesStatus;
+    let matchesCustomer = true;
+    if (customerFilter !== 'all') {
+      matchesCustomer = t.customerId === customerFilter || (t.customerName && t.customerName.toLowerCase() === customerFilter.toLowerCase());
+    }
+
+    return matchesSearch && matchesStatus && matchesCustomer;
   });
 
   const pendingTripsCount = tripSheets.filter(t => parseFloat(t.balanceAmount) > 0 || t.paymentStatus === 'unpaid').length;
@@ -1173,21 +1502,37 @@ export default function TripSheetManager({
           <Search size={16} className="search-icon-inside" />
           <input
             type="text"
-            placeholder={t.search + ' (Trip #, Customer, Driver, Work...)'}
+            placeholder={lang === 'ta' ? 'தேடுக... (டிரிப் #, விவசாயி, டிரைவர்...)' : 'Search (Trip #, Customer, Driver...)'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
 
+        {/* Customer Select Filter */}
+        <select 
+          className="filter-select"
+          value={customerFilter}
+          onChange={(e) => setCustomerFilter(e.target.value)}
+          title={lang === 'ta' ? 'விவசாயி வாரியாக வடிகட்ட' : 'Filter by customer'}
+        >
+          <option value="all">{lang === 'ta' ? 'அனைத்து விவசாயிகள்' : 'All Customers'}</option>
+          {customers.map(c => (
+            <option key={c.id} value={c.id}>
+              {lang === 'ta' && c.name_ta ? c.name_ta : c.name} {c.village ? `(${c.village})` : ''}
+            </option>
+          ))}
+        </select>
+
+        {/* Payment Status Filter */}
         <select 
           className="filter-select"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         >
-          <option value="all">All Payment Statuses</option>
-          <option value="paid">{t.paid}</option>
-          <option value="partial">{t.partial}</option>
-          <option value="unpaid">{t.unpaid} (Pending Collection)</option>
+          <option value="all">{lang === 'ta' ? 'அனைத்து கட்டண நிலைகள்' : 'All Payment Statuses'}</option>
+          <option value="paid">{lang === 'ta' ? 'முழுவதும் வசூலிக்கப்பட்டது' : 'Fully Paid'}</option>
+          <option value="partial">{lang === 'ta' ? 'பகுதி வசூல்' : 'Partial'}</option>
+          <option value="unpaid">{lang === 'ta' ? 'நிலுவை வசூல் பட்டியல்' : 'Pending Collection'}</option>
         </select>
       </div>
 
@@ -1201,19 +1546,22 @@ export default function TripSheetManager({
                 <th>{t.tripDate}</th>
                 <th>{t.customerName}</th>
                 <th>{t.driverName}</th>
-                <th>Tractor + Implement</th>
-                <th>Hours / Units</th>
-                <th>Total (₹)</th>
-                <th>Paid (₹)</th>
-                <th>Balance (நிலுவை)</th>
-                <th>Collection Detail</th>
-                <th>Status</th>
+                <th>{lang === 'ta' ? 'டிராக்டர் + கருவி' : 'Tractor + Implement'}</th>
+                <th>{lang === 'ta' ? 'வேலை அளவு' : 'Hours / Units'}</th>
+                <th>{lang === 'ta' ? 'மொத்தம் (₹)' : 'Total (₹)'}</th>
+                <th>{lang === 'ta' ? 'செலுத்தியது (₹)' : 'Paid (₹)'}</th>
+                <th>{lang === 'ta' ? 'நிலுவை (₹)' : 'Balance (₹)'}</th>
+                <th>{lang === 'ta' ? 'வசூல் விவரம்' : 'Collection Detail'}</th>
+                <th>{lang === 'ta' ? 'கட்டண நிலை' : 'Status'}</th>
                 <th style={{ textAlign: 'right' }}>{t.actions}</th>
               </tr>
             </thead>
             <tbody>
               {filteredTrips.map(trip => {
                 const hasPendingBalance = parseFloat(trip.balanceAmount) > 0;
+                const formattedDate = formatDateDDMMYYYY(trip.date);
+                const startT = formatTimeDisplay(trip.startTime);
+                const endT = formatTimeDisplay(trip.endTime);
                 return (
                   <tr 
                     key={trip.id} 
@@ -1223,10 +1571,12 @@ export default function TripSheetManager({
                   >
                     <td style={{ fontWeight: 700, color: 'var(--primary-700)' }}>{trip.id}</td>
                     <td>
-                      <div style={{ fontWeight: 600 }}>{trip.date}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>
-                        {trip.startTime || ''} - {trip.endTime || ''}
-                      </div>
+                      <div style={{ fontWeight: 600 }}>{formattedDate}</div>
+                      {startT ? (
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>
+                          {startT} {endT ? `- ${endT}` : ''}
+                        </div>
+                      ) : null}
                     </td>
                     <td>
                       <div style={{ fontWeight: 600 }}>{trip.customerName}</div>
@@ -1249,11 +1599,13 @@ export default function TripSheetManager({
                           }}>
                             {name}
                           </span>
-                        )) : <span style={{ color: 'var(--text-light)' }}>Standalone Tractor</span>}
+                        )) : <span style={{ color: 'var(--text-light)' }}>{lang === 'ta' ? 'தனி டிராக்டர்' : 'Standalone Tractor'}</span>}
                       </div>
                     </td>
                     <td>
-                      <div style={{ fontWeight: 600 }}>{trip.quantity} {trip.billingUnit === 'per_hour' ? 'hrs' : trip.billingUnit === 'per_acre' ? 'acres' : trip.billingUnit}</div>
+                      <div style={{ fontWeight: 600 }}>
+                        {trip.quantity} {trip.billingUnit === 'per_hour' ? (lang === 'ta' ? 'மணி' : 'hrs') : trip.billingUnit === 'per_acre' ? (lang === 'ta' ? 'ஏக்கர்' : 'acres') : (lang === 'ta' ? 'டிரிப்' : trip.billingUnit)}
+                      </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>@ ₹{trip.rate}</div>
                     </td>
                     <td style={{ fontWeight: 700 }}>₹{trip.totalAmount}</td>
@@ -1393,24 +1745,31 @@ export default function TripSheetManager({
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">
 
-                {/* 1. Customer Name */}
+                {/* Rule 1: Customer Name (Pure Tamil, customer name + village + phone) */}
                 <div className="form-group">
                   <SearchableSelect
-                    label={t.customerName}
+                    label={lang === 'ta' ? 'விவசாயி / வாடிக்கையாளர் பெயர்' : 'Farmer / Customer Name'}
                     value={formData.customerId}
                     onChange={(val) => handleFieldChange('customerId', val)}
-                    options={customers.map(c => ({ value: c.id, label: `${c.name} (${c.village || ''})`, badge: c.phone || '' }))}
-                    placeholder="-- Select Farmer / Customer --"
+                    options={customers.map(c => ({
+                      value: c.id,
+                      label: (lang === 'ta' && c.name_ta ? c.name_ta : c.name),
+                      subLabel: (lang === 'ta' && c.village_ta ? c.village_ta : c.village) || '',
+                      badge: c.phone || ''
+                    }))}
+                    placeholder={lang === 'ta' ? '-- விவசாயியைத் தேர்வு செய்க --' : '-- Select Farmer / Customer --'}
                     searchPlaceholder={lang === 'ta' ? 'விவசாயியைத் தேட...' : 'Search farmer...'}
                     required
                     lang={lang}
                   />
                 </div>
 
-                {/* 2. Driver / Labor Name (with subtle button to set logged in user as driver) */}
+                {/* Rule 2: Driver Name (Pure Tamil, translated wage badge, quick button) */}
                 <div className="form-group">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                    <label style={{ margin: 0, fontWeight: 600 }}>{t.driverName} *</label>
+                    <label style={{ margin: 0, fontWeight: 600 }}>
+                      {lang === 'ta' ? 'ஓட்டுநர் / தொழிலாளி பெயர்' : 'Driver / Labor Name'} <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
                     <button
                       type="button"
                       onClick={() => applyLoginUserAssignment('driver')}
@@ -1420,13 +1779,13 @@ export default function TripSheetManager({
                         color: loginUserAssignment === 'driver' ? '#0369a1' : 'var(--primary-700)',
                         fontSize: '0.75rem',
                         cursor: 'pointer',
-                        fontWeight: 600,
-                        padding: '2px 6px',
+                        fontWeight: 700,
+                        padding: '2px 8px',
                         borderRadius: '4px'
                       }}
                       title="Set logged in user as driver"
                     >
-                      🚜 {lang === 'ta' ? 'நான் தான் ஓட்டுநர் (D)' : 'I am the Driver (D)'}
+                      🚜 {lang === 'ta' ? 'நான் தான் ஓட்டுநர்' : 'I am the Driver'}
                     </button>
                   </div>
                   <SearchableSelect
@@ -1435,88 +1794,83 @@ export default function TripSheetManager({
                     onChange={(val) => handleFieldChange('driverId', val)}
                     options={drivers.map(d => ({ 
                       value: d.id, 
-                      label: d.name + (d.name.toLowerCase() === loggedUserName.toLowerCase() ? ' (You)' : ''), 
+                      label: (lang === 'ta' && d.name_ta ? d.name_ta : d.name) + (d.name.toLowerCase() === loggedUserName.toLowerCase() ? (lang === 'ta' ? ' (நீங்கள்)' : ' (You)') : ''), 
                       subLabel: d.phone || '', 
                       badge: d.wageType || '' 
                     }))}
-                    placeholder="-- Select Driver --"
+                    placeholder={lang === 'ta' ? '-- ஓட்டுநரைத் தேர்வு செய்க --' : '-- Select Driver --'}
                     searchPlaceholder={lang === 'ta' ? 'ஓட்டுநரைத் தேட...' : 'Search driver...'}
                     required
                     lang={lang}
                   />
                 </div>
 
-                {/* 3. Single Select: Tractor + Implement (Rate Card Combo) */}
-                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                {/* Rule 3: Tractor Name (Dedicated Dropdown for Tractor) */}
+                <div className="form-group">
                   <SearchableSelect
-                    label={`${lang === 'ta' ? 'டிராக்டர் + கருவி சேர்க்கை (விலை அட்டை)' : 'Tractor + Implement (Rate Card Combo)'} *`}
-                    value={currentComboValue}
-                    onChange={handleSelectCombo}
-                    options={comboOptions}
-                    placeholder={lang === 'ta' ? '-- டிராக்டர் + கருவி சேர்க்கை தேர்வு செய்க --' : '-- Select Tractor + Implement --'}
-                    searchPlaceholder={lang === 'ta' ? 'தேடு (SWARAJ, Rotavator, 5-Tyne)...' : 'Search (SWARAJ, Rotavator, Cultivator)...'}
+                    label={lang === 'ta' ? 'டிராக்டர் பெயர்' : 'Tractor Name'}
+                    value={formData.tractorId}
+                    onChange={handleSelectTractor}
+                    options={tractors.map(t => ({
+                      value: t.id,
+                      label: (lang === 'ta' && t.name_ta ? t.name_ta : t.name),
+                      subLabel: t.regNumber || '',
+                      badge: lang === 'ta' ? 'டிராக்டர்' : 'Tractor'
+                    }))}
+                    placeholder={lang === 'ta' ? '-- டிராக்டரைத் தேர்வு செய்க --' : '-- Select Tractor --'}
+                    searchPlaceholder={lang === 'ta' ? 'டிராக்டரைத் தேட (SWARAJ, Mahindra)...' : 'Search tractor...'}
+                    required
+                    lang={lang}
+                  />
+                </div>
+
+                {/* Rule 4: Machinery Mapped to Tractor Dropdown */}
+                <div className="form-group">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                    <label style={{ margin: 0, fontWeight: 600 }}>
+                      {lang === 'ta' ? 'கருவி / இயந்திரம் (பொருத்தப்பட்டவை)' : 'Machinery (Mapped Implements)'} <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvancedFleet(prev => !prev)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#0284c7',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        fontWeight: 600,
+                        padding: 0
+                      }}
+                    >
+                      {showAdvancedFleet ? (lang === 'ta' ? 'சுருக்கு' : 'Hide Multi-Implement') : (lang === 'ta' ? '+ கூடுதல் கருவிகள்' : '+ Multi-Implements')}
+                    </button>
+                  </div>
+                  <SearchableSelect
+                    label=""
+                    value={formData.implementId}
+                    onChange={handleSelectMachinery}
+                    options={mappedMachineryOptions}
+                    placeholder={lang === 'ta' ? '-- கருவியைத் தேர்வு செய்க --' : '-- Select Implement --'}
+                    searchPlaceholder={lang === 'ta' ? 'கருவியைத் தேட (ரோட்டாவேட்டர், கலப்பை)...' : 'Search implement...'}
                     required
                     lang={lang}
                   />
 
-                  {/* Active Selection Summary Card */}
-                  {formData.tractorName && (
-                    <div style={{
-                      marginTop: '0.45rem',
-                      padding: '0.5rem 0.85rem',
-                      background: 'linear-gradient(135deg, #f0fdf4 0%, #f8fafc 100%)',
-                      border: '1.5px solid #bbf7d0',
-                      borderRadius: '8px',
-                      fontSize: '0.825rem',
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '0.5rem'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 700, color: '#166534' }}>
-                          🚜 {formData.tractorName}
-                        </span>
-                        <span style={{ color: '#cbd5e1' }}>|</span>
-                        <span style={{ fontWeight: 600, color: '#3730a3' }}>
-                          ⚙️ {formData.implementName || 'Standalone Tractor'}
-                        </span>
-                        <span style={{ color: '#cbd5e1' }}>|</span>
-                        <span style={{ fontWeight: 800, color: '#047857' }}>
-                          🏷️ ₹{formData.rate} / {formData.billingUnit === 'per_hour' ? (lang === 'ta' ? 'மணி' : 'hr') : formData.billingUnit === 'per_acre' ? (lang === 'ta' ? 'ஏக்கர்' : 'acre') : formData.billingUnit === 'per_km' ? 'km' : 'trip'}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowAdvancedFleet(prev => !prev)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#0284c7',
-                          fontSize: '0.75rem',
-                          cursor: 'pointer',
-                          textDecoration: 'underline',
-                          fontWeight: 600
-                        }}
-                      >
-                        {showAdvancedFleet ? (lang === 'ta' ? 'சுருக்கு' : 'Hide Multi-Implement') : (lang === 'ta' ? '+ ஒன்றுக்கு மேற்பட்ட கருவிகள்' : '+ Attach More Implements')}
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Multi-implement drawer if user clicks "+ Attach More Implements" */}
+                  {/* Multi-implement drawer if user clicks "+ கூடுதல் கருவிகள்" */}
                   {showAdvancedFleet && (
                     <div style={{
                       marginTop: '0.5rem',
-                      padding: '0.75rem',
+                      padding: '0.65rem',
                       background: '#f8fafc',
                       border: '1px dashed #cbd5e1',
                       borderRadius: '8px'
                     }}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.5rem' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.4rem' }}>
                         {(formData.implementIds || []).map(impId => {
                           const found = implementsList.find(m => m.id === impId);
+                          const impLabel = found ? (lang === 'ta' && found.name_ta ? found.name_ta : found.name) : impId;
                           return (
                             <span
                               key={impId}
@@ -1526,13 +1880,13 @@ export default function TripSheetManager({
                                 gap: '0.35rem',
                                 background: '#e0e7ff',
                                 color: '#3730a3',
-                                padding: '0.25rem 0.5rem',
+                                padding: '0.2rem 0.5rem',
                                 borderRadius: '9999px',
-                                fontSize: '0.78rem',
+                                fontSize: '0.75rem',
                                 fontWeight: 600
                               }}
                             >
-                              ⚙️ {found ? found.name : impId}
+                              ⚙️ {impLabel}
                               <button
                                 type="button"
                                 onClick={() => handleRemoveImplement(impId)}
@@ -1561,7 +1915,7 @@ export default function TripSheetManager({
                               cursor: 'pointer'
                             }}
                           >
-                            + {imp.name}
+                            + {lang === 'ta' && imp.name_ta ? imp.name_ta : imp.name}
                           </button>
                         ))}
                       </div>
@@ -1569,10 +1923,10 @@ export default function TripSheetManager({
                   )}
                 </div>
 
-                {/* 4. Work Date */}
+                {/* Work Date */}
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <DatePicker
-                    label={t.tripDate}
+                    label={lang === 'ta' ? 'உழவு செய்த தேதி' : 'Work Date'}
                     value={formData.date}
                     onChange={(val) => handleFieldChange('date', val)}
                     required
@@ -1580,34 +1934,22 @@ export default function TripSheetManager({
                   />
                 </div>
 
-                {/* 5. Time & Hours Entry Mode: Manual vs Live Timer with Start, Pause, Set, Restart */}
+                {/* Rule 5: Time Tracking (i) Timer (Stopwatch); (ii) Map Timer (GPS Tracker); (iii) Manual Time & Meters */}
                 <div style={{
                   gridColumn: '1 / -1',
                   background: 'var(--bg-subtle, #f8fafc)',
-                  border: '1px solid var(--border-color, #e2e8f0)',
-                  borderRadius: '10px',
-                  padding: '0.85rem'
+                  border: '1.5px solid var(--border-color, #e2e8f0)',
+                  borderRadius: '12px',
+                  padding: '0.95rem'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-main)' }}>
-                      ⏱️ {t.timeTrackingMode || 'Time Entry Mode'}
+                    <div style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span>⏱️</span>
+                      <span>{lang === 'ta' ? 'நேரப் பதிவு முறை' : 'Time Tracking Mode'}</span>
                     </div>
+
+                    {/* 3 Mode Tabs */}
                     <div style={{ display: 'inline-flex', borderRadius: '8px', border: '1px solid #cbd5e1', overflow: 'hidden' }}>
-                      <button
-                        type="button"
-                        onClick={() => setTimeEntryMode('manual')}
-                        style={{
-                          padding: '0.35rem 0.75rem',
-                          fontSize: '0.8rem',
-                          fontWeight: 700,
-                          border: 'none',
-                          cursor: 'pointer',
-                          background: timeEntryMode === 'manual' ? '#0f766e' : '#ffffff',
-                          color: timeEntryMode === 'manual' ? '#ffffff' : '#475569'
-                        }}
-                      >
-                        🕒 {t.manualTime || 'Manual Time'}
-                      </button>
                       <button
                         type="button"
                         onClick={() => setTimeEntryMode('timer')}
@@ -1621,72 +1963,45 @@ export default function TripSheetManager({
                           color: timeEntryMode === 'timer' ? '#ffffff' : '#475569'
                         }}
                       >
-                        ⏱️ {t.liveTimer || 'Live Timer (Start/Pause/Set)'}
+                        ⏱️ {lang === 'ta' ? 'நேரக் கண்காணிப்பு (Timer)' : 'Live Timer'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setTimeEntryMode('map_timer')}
+                        style={{
+                          padding: '0.35rem 0.75rem',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          border: 'none',
+                          cursor: 'pointer',
+                          background: timeEntryMode === 'map_timer' ? '#0284c7' : '#ffffff',
+                          color: timeEntryMode === 'map_timer' ? '#ffffff' : '#475569'
+                        }}
+                      >
+                        🛰️ {lang === 'ta' ? 'வரைபட நேரம் (Map Timer)' : 'Map Timer (GPS)'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setTimeEntryMode('manual')}
+                        style={{
+                          padding: '0.35rem 0.75rem',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          border: 'none',
+                          cursor: 'pointer',
+                          background: timeEntryMode === 'manual' ? '#0f766e' : '#ffffff',
+                          color: timeEntryMode === 'manual' ? '#ffffff' : '#475569'
+                        }}
+                      >
+                        🕒 {lang === 'ta' ? 'நேரத்தை உள்ளிடவும்' : 'Manual Time'}
                       </button>
                     </div>
                   </div>
 
-                  {timeEntryMode === 'manual' ? (
-                    <div className="form-grid" style={{ marginBottom: 0 }}>
-                      <div className="form-group">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                          <label style={{ margin: 0 }}>{t.startTime}</label>
-                          <button
-                            type="button"
-                            onClick={() => handleFieldChange('startTime', getCurrentTimeFormatted())}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: 'var(--primary-700)',
-                              fontSize: '0.72rem',
-                              cursor: 'pointer',
-                              fontWeight: 600,
-                              textDecoration: 'underline',
-                              padding: 0
-                            }}
-                            title="Set to Current Time"
-                          >
-                            🕒 {lang === 'ta' ? 'இப்போது (Current)' : 'Now (Current)'}
-                          </button>
-                        </div>
-                        <input
-                          type="time"
-                          className="form-control"
-                          value={formData.startTime}
-                          onChange={(e) => handleFieldChange('startTime', e.target.value)}
-                        />
-                      </div>
-                      <div className="form-group">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                          <label style={{ margin: 0 }}>{t.endTime}</label>
-                          <button
-                            type="button"
-                            onClick={() => handleFieldChange('endTime', getCurrentTimeFormatted())}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: 'var(--primary-700)',
-                              fontSize: '0.72rem',
-                              cursor: 'pointer',
-                              fontWeight: 600,
-                              textDecoration: 'underline',
-                              padding: 0
-                            }}
-                            title="Set to Current Time"
-                          >
-                            🕒 {lang === 'ta' ? 'இப்போது (Current)' : 'Now (Current)'}
-                          </button>
-                        </div>
-                        <input
-                          type="time"
-                          className="form-control"
-                          value={formData.endTime}
-                          onChange={(e) => handleFieldChange('endTime', e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    /* Live Timer UI with 3 Configuration Buttons: Start/Pause, Set, Restart */
+                  {/* Mode 1: Live Stopwatch Timer */}
+                  {timeEntryMode === 'timer' && (
                     <div style={{
                       background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
                       color: '#38bdf8',
@@ -1697,7 +2012,7 @@ export default function TripSheetManager({
                       border: '1px solid #334155'
                     }}>
                       <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.25rem' }}>
-                        {lang === 'ta' ? 'லைவ் ஸ்டாப்வாட்ச் நேரக் கண்காணிப்பு' : 'Live Field Work Stopwatch'}
+                        {lang === 'ta' ? 'நேரக் கண்காணிப்பு ஸ்டாப்வாட்ச் (Live Stopwatch)' : 'Live Field Work Stopwatch'}
                       </div>
                       <div style={{
                         fontFamily: 'monospace',
@@ -1737,12 +2052,12 @@ export default function TripSheetManager({
                           {timerRunning ? (
                             <>
                               <Pause size={16} />
-                              <span>{t.pauseTimer || 'Pause'}</span>
+                              <span>{lang === 'ta' ? 'நிறுத்து' : 'Pause'}</span>
                             </>
                           ) : (
                             <>
                               <Play size={16} />
-                              <span>{timerSeconds > 0 ? (lang === 'ta' ? 'மீண்டும் தொடங்கு' : 'Resume') : (t.startTimer || 'Start')}</span>
+                              <span>{timerSeconds > 0 ? (lang === 'ta' ? 'மீண்டும் தொடங்கு' : 'Resume') : (lang === 'ta' ? 'தொடங்கு' : 'Start')}</span>
                             </>
                           )}
                         </button>
@@ -1765,7 +2080,7 @@ export default function TripSheetManager({
                           }}
                         >
                           <Zap size={16} />
-                          <span>{t.setTimer || 'Set to Bill'}</span>
+                          <span>{lang === 'ta' ? 'வேலை அளவாக அமை' : 'Set to Bill'}</span>
                         </button>
                         <button
                           type="button"
@@ -1785,313 +2100,585 @@ export default function TripSheetManager({
                           }}
                         >
                           <RotateCcw size={16} />
-                          <span>{t.restartTimer || 'Restart'}</span>
+                          <span>{lang === 'ta' ? 'மீண்டும் தொடங்கு' : 'Restart'}</span>
                         </button>
                       </div>
                     </div>
                   )}
-                </div>
 
-                {/* 6. Hour Meter Start / End (Optional) */}
-                <div className="form-group">
-                  <label>{t.startMeter}</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="form-control"
-                    placeholder="e.g. 1245.0"
-                    value={formData.startMeter}
-                    onChange={(e) => handleFieldChange('startMeter', e.target.value)}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>{t.endMeter}</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="form-control"
-                    placeholder="e.g. 1249.5"
-                    value={formData.endMeter}
-                    onChange={(e) => handleFieldChange('endMeter', e.target.value)}
-                  />
-                </div>
-
-                {/* 7. Billing Unit & Auto-filled Rate */}
-                <div className="form-group">
-                  <SearchableSelect
-                    label={t.unit}
-                    value={formData.billingUnit}
-                    onChange={(val) => handleFieldChange('billingUnit', val)}
-                    options={[
-                      { value: 'per_hour', label: t.perHour },
-                      { value: 'per_acre', label: t.perAcre },
-                      { value: 'per_km', label: t.perKm },
-                      { value: 'per_trip', label: t.perTrip }
-                    ]}
-                    lang={lang}
-                  />
-                </div>
-
-                {/* Rate: Auto-filled from Rate Matrix Combo */}
-                <div className="form-group">
-                  <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>{t.rateAmount} (₹)</span>
-                    <span style={{ fontSize: '0.7rem', color: '#059669', fontWeight: 600 }}>
-                      ⚡ {t.autoFilledRate || 'Auto-filled from Rate Card'}
-                    </span>
-                  </label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    value={formData.rate}
-                    onChange={(e) => handleFieldChange('rate', e.target.value)}
-                    required
-                  />
-                </div>
-
-                {/* 8. Worked Units & Discount */}
-                <div className="form-group">
-                  <label>{t.workedUnits} (Hours / Acres / Km)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="form-control"
-                    value={formData.quantity}
-                    onChange={(e) => handleFieldChange('quantity', e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>{t.discount}</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    value={formData.discount}
-                    onChange={(e) => handleFieldChange('discount', e.target.value)}
-                  />
-                </div>
-
-                {/* 9. Net Total (Readonly, Auto-calculated) */}
-                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ color: 'var(--primary-700)', fontWeight: 800, fontSize: '0.95rem' }}>
-                    {t.totalAmount} (₹)
-                  </label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    value={formData.totalAmount}
-                    readOnly
-                    style={{ 
-                      background: 'var(--bg-subtle)', 
-                      fontWeight: 800, 
-                      fontSize: '1.25rem', 
-                      color: 'var(--primary-700)',
-                      border: '2px solid var(--primary-200)'
-                    }}
-                  />
-                </div>
-
-                {/* 10. Payment Collection Toggle Button Section */}
-                <div style={{
-                  gridColumn: '1 / -1',
-                  background: isCollectionActive ? 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)' : '#f8fafc',
-                  border: isCollectionActive ? '1.5px solid #86efac' : '1.5px solid #cbd5e1',
-                  borderRadius: '12px',
-                  padding: '1.1rem',
-                  marginTop: '0.5rem',
-                  transition: 'all 0.25s ease'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-                    <div>
-                      <div style={{ fontWeight: 800, fontSize: '1rem', color: isCollectionActive ? '#166534' : '#334155', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span>{isCollectionActive ? '💰' : '⏳'}</span>
-                        <span>{t.collectNowToggle || 'Payment Collected Now?'}</span>
-                      </div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-light)', marginTop: '3px' }}>
-                        {isCollectionActive 
-                          ? (lang === 'ta' ? 'பணம் வசூலிக்கப்பட்டது - கீழே தொகையை சரிபார்க்கவும்' : 'Payment collected now - review and save collection details below')
-                          : (lang === 'ta' ? 'பணம் பெறப்படவில்லை - நிலுவை வசூல் பட்டியலில் (Pending) சேமிக்கப்படும்' : 'Not collected yet - will be saved to Pending Collections')}
-                      </div>
-                    </div>
-
-                    <label style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', gap: '0.6rem' }}>
-                      <input
-                        type="checkbox"
-                        checked={isCollectionActive}
-                        onChange={(e) => handleToggleCollection(e.target.checked)}
-                        style={{ display: 'none' }}
-                      />
-                      <div style={{
-                        width: '54px',
-                        height: '28px',
-                        background: isCollectionActive ? '#10b981' : '#94a3b8',
-                        borderRadius: '9999px',
-                        position: 'relative',
-                        transition: 'background 0.25s ease',
-                        boxShadow: isCollectionActive ? '0 0 10px rgba(16,185,129,0.4)' : 'none'
-                      }}>
-                        <div style={{
-                          width: '22px',
-                          height: '22px',
-                          background: '#ffffff',
-                          borderRadius: '50%',
-                          position: 'absolute',
-                          top: '3px',
-                          left: isCollectionActive ? '29px' : '3px',
-                          transition: 'left 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-                        }} />
-                      </div>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: isCollectionActive ? '#059669' : '#64748b' }}>
-                        {isCollectionActive ? (lang === 'ta' ? 'ஆம் (வசூலி)' : 'YES (Collect)') : (lang === 'ta' ? 'இல்லை (நிலுவை)' : 'NO (Pending)')}
-                      </span>
-                    </label>
-                  </div>
-
-                  {!isCollectionActive ? (
+                  {/* Mode 2: Map Timer (GPS Field Tracker) */}
+                  {timeEntryMode === 'map_timer' && (
                     <div style={{
-                      marginTop: '0.85rem',
-                      padding: '0.75rem 1rem',
-                      background: '#fffbeb',
-                      borderRadius: '8px',
-                      border: '1px solid #fef08a',
-                      color: '#92400e',
-                      fontSize: '0.85rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.65rem'
+                      background: 'linear-gradient(135deg, #0c4a6e 0%, #075985 100%)',
+                      color: '#ffffff',
+                      borderRadius: '12px',
+                      padding: '1.25rem',
+                      boxShadow: '0 4px 12px rgba(2,132,199,0.25)',
+                      border: '1px solid #38bdf8'
                     }}>
-                      <AlertCircle size={20} style={{ color: '#d97706', flexShrink: 0 }} />
-                      <div>
-                        <strong>{lang === 'ta' ? 'நிலுவை வசூல் பட்டியலில் சேமிக்கப்படும்:' : 'Saving to Pending Collections:'}</strong>{' '}
-                        {lang === 'ta' 
-                          ? `முழுத் தொகை ₹${formData.totalAmount} நிலுவையாக வைக்கப்படும். பிறகு டிரிப் பட்டியலை கிளிக் செய்து எப்போது வேண்டுமானாலும் வசூலிக்கலாம்.` 
-                          : `Net Total of ₹${formData.totalAmount} will be saved as pending due. You can click this trip in the list anytime later to collect.`}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 800, fontSize: '0.9rem', color: '#e0f2fe' }}>
+                          <Radio size={18} color="#38bdf8" />
+                          <span>{lang === 'ta' ? 'ஜிபிஎஸ் வரைபட நேரக் கண்காணிப்பு (GPS Field Radar)' : 'GPS Field Map Tracker'}</span>
+                        </div>
+                        <div style={{
+                          fontSize: '0.75rem',
+                          padding: '3px 8px',
+                          borderRadius: '9999px',
+                          background: isGpsActive ? '#10b981' : 'rgba(255,255,255,0.15)',
+                          fontWeight: 700,
+                          color: '#ffffff'
+                        }}>
+                          {isGpsActive ? (lang === 'ta' ? '🟢 நேரலை இணைப்பு இயங்குகிறது' : '🟢 GPS Active Tracking') : (lang === 'ta' ? '⚪ நிறுத்தி வைக்கப்பட்டுள்ளது' : '⚪ GPS Idle')}
+                        </div>
+                      </div>
+
+                      {/* Live GPS Coordinates and Computed Field Distance */}
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                        gap: '0.75rem',
+                        margin: '0.75rem 0',
+                        background: 'rgba(0,0,0,0.25)',
+                        padding: '0.85rem',
+                        borderRadius: '8px'
+                      }}>
+                        <div>
+                          <div style={{ fontSize: '0.72rem', color: '#93c5fd', textTransform: 'uppercase' }}>
+                            {lang === 'ta' ? 'கள தூரம் (Distance)' : 'Field Distance'}
+                          </div>
+                          <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#38bdf8', fontFamily: 'monospace' }}>
+                            {gpsStats.distanceKm} <span style={{ fontSize: '0.85rem' }}>{lang === 'ta' ? 'கி.மீ' : 'km'}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.72rem', color: '#93c5fd', textTransform: 'uppercase' }}>
+                            {lang === 'ta' ? 'கள நேரம் (Elapsed)' : 'Elapsed Time'}
+                          </div>
+                          <div style={{ fontSize: '1.45rem', fontWeight: 900, color: '#4ade80', fontFamily: 'monospace' }}>
+                            {formatTimer(gpsStats.elapsedSec)}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.72rem', color: '#93c5fd', textTransform: 'uppercase' }}>
+                            {lang === 'ta' ? 'துல்லியம் (Accuracy)' : 'Accuracy'}
+                          </div>
+                          <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#f1f5f9', marginTop: '4px' }}>
+                            {gpsStats.accuracy ? `±${gpsStats.accuracy} m` : '--'}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.72rem', color: '#93c5fd', textTransform: 'uppercase' }}>
+                            {lang === 'ta' ? 'அட்சரேகை / தீர்க்கரேகை' : 'Lat / Long'}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#e0f2fe', fontFamily: 'monospace', marginTop: '4px' }}>
+                            {gpsStats.latitude ? `${gpsStats.latitude}, ${gpsStats.longitude}` : (lang === 'ta' ? 'தொடங்கவும்' : 'Press Start')}
+                          </div>
+                        </div>
+                      </div>
+
+                      {timerMessage && (
+                        <div style={{ color: '#86efac', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem', textAlign: 'center' }}>
+                          {timerMessage}
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                        <button
+                          type="button"
+                          onClick={isGpsActive ? stopGpsTracking : startGpsTracking}
+                          style={{
+                            padding: '0.5rem 1.1rem',
+                            borderRadius: '8px',
+                            fontWeight: 700,
+                            fontSize: '0.85rem',
+                            cursor: 'pointer',
+                            border: 'none',
+                            background: isGpsActive ? '#f59e0b' : '#10b981',
+                            color: '#ffffff',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                          }}
+                        >
+                          {isGpsActive ? (
+                            <>
+                              <Pause size={16} />
+                              <span>{lang === 'ta' ? 'GPS நிறுத்து' : 'Pause GPS'}</span>
+                            </>
+                          ) : (
+                            <>
+                              <NavIcon size={16} />
+                              <span>{gpsStats.elapsedSec > 0 ? (lang === 'ta' ? 'மீண்டும் தொடங்கு' : 'Resume GPS') : (lang === 'ta' ? 'GPS தொடங்கு' : 'Start GPS')}</span>
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleApplyGpsToBill}
+                          style={{
+                            padding: '0.5rem 1.1rem',
+                            borderRadius: '8px',
+                            fontWeight: 700,
+                            fontSize: '0.85rem',
+                            cursor: 'pointer',
+                            border: 'none',
+                            background: '#38bdf8',
+                            color: '#082f49',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            boxShadow: '0 2px 4px rgba(56,189,248,0.3)'
+                          }}
+                        >
+                          <Zap size={16} />
+                          <span>{lang === 'ta' ? 'பில்லில் அமைக்க (Set to Bill)' : 'Set GPS to Bill'}</span>
+                        </button>
                       </div>
                     </div>
-                  ) : (
-                    <div className="form-grid" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #bbf7d0', marginBottom: 0 }}>
-                      
-                      {/* Payment Status */}
-                      <div className="form-group">
-                        <SearchableSelect
-                          label="Payment Collection Status"
-                          value={formData.paymentStatus}
-                          onChange={(val) => handleFieldChange('paymentStatus', val)}
-                          options={[
-                            { value: 'paid', label: `${t.paid} (Full Payment)`, badge: '100%' },
-                            { value: 'partial', label: `${t.partial} (Advance / Part Payment)`, badge: 'Advance' },
-                            { value: 'unpaid', label: `${t.unpaid} (Full Credit / Pending)`, badge: 'Due' }
-                          ]}
-                          lang={lang}
-                        />
-                      </div>
+                  )}
 
-                      {/* Paid Amount */}
-                      <div className="form-group">
-                        <label>{t.paidAmount} (₹)</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          value={formData.paidAmount}
-                          onChange={(e) => handleFieldChange('paidAmount', e.target.value)}
-                          required
-                        />
-                      </div>
-
-                      {/* Balance Amount (Readonly) */}
-                      <div className="form-group">
-                        <label style={{ color: '#dc2626', fontWeight: 800 }}>{t.balanceAmount} (₹)</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          value={formData.balanceAmount}
-                          readOnly
-                          style={{ background: 'var(--bg-subtle)', fontWeight: 800, fontSize: '1.1rem', color: '#dc2626' }}
-                        />
-                      </div>
-
-                      {/* Who Collected & When */}
-                      <div className="form-group">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                          <label style={{ margin: 0, fontWeight: 600 }}>{t.collectedBy}</label>
-                          <button
-                            type="button"
-                            onClick={() => applyLoginUserAssignment('collector')}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: 'var(--primary-700)',
-                              fontSize: '0.75rem',
-                              cursor: 'pointer',
-                              fontWeight: 600,
-                              textDecoration: 'underline',
-                              padding: 0
-                            }}
-                            title="Set logged in user as collector"
-                          >
-                            👤 {lang === 'ta' ? 'நானே வசூலித்தேன்' : 'I Collected'}
-                          </button>
+                  {/* Mode 3: Manual Time & Meter Entry */}
+                  {timeEntryMode === 'manual' && (
+                    <div>
+                      <div className="form-grid" style={{ marginBottom: 0 }}>
+                        <div className="form-group">
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                            <label style={{ margin: 0 }}>{t.startTime}</label>
+                            <button
+                              type="button"
+                              onClick={() => handleFieldChange('startTime', getCurrentTimeFormatted())}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--primary-700)',
+                                fontSize: '0.72rem',
+                                cursor: 'pointer',
+                                fontWeight: 600,
+                                textDecoration: 'underline',
+                                padding: 0
+                              }}
+                              title="Set to Current Time"
+                            >
+                              🕒 {lang === 'ta' ? 'இப்போது' : 'Now'}
+                            </button>
+                          </div>
+                          <input
+                            type="time"
+                            className="form-control"
+                            value={formData.startTime}
+                            onChange={(e) => handleFieldChange('startTime', e.target.value)}
+                          />
                         </div>
-                        <VoiceInput
-                          label=""
-                          placeholder="e.g. K. Murugan (Driver) or Kuppusamy (Partner)"
-                          value={formData.collectedBy}
-                          onChange={(val) => handleFieldChange('collectedBy', val)}
-                          speechLang={lang === 'ta' ? 'ta-IN' : 'en-IN'}
-                        />
+                        <div className="form-group">
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                            <label style={{ margin: 0 }}>{t.endTime}</label>
+                            <button
+                              type="button"
+                              onClick={() => handleFieldChange('endTime', getCurrentTimeFormatted())}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--primary-700)',
+                                fontSize: '0.72rem',
+                                cursor: 'pointer',
+                                fontWeight: 600,
+                                textDecoration: 'underline',
+                                padding: 0
+                              }}
+                              title="Set to Current Time"
+                            >
+                              🕒 {lang === 'ta' ? 'இப்போது' : 'Now'}
+                            </button>
+                          </div>
+                          <input
+                            type="time"
+                            className="form-control"
+                            value={formData.endTime}
+                            onChange={(e) => handleFieldChange('endTime', e.target.value)}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>{t.startMeter}</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            className="form-control"
+                            placeholder="e.g. 1245.0"
+                            value={formData.startMeter}
+                            onChange={(e) => handleFieldChange('startMeter', e.target.value)}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>{t.endMeter}</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            className="form-control"
+                            placeholder="e.g. 1249.5"
+                            value={formData.endMeter}
+                            onChange={(e) => handleFieldChange('endMeter', e.target.value)}
+                          />
+                        </div>
                       </div>
-
-                      <div className="form-group">
-                        <label>{t.collectedWhen}</label>
-                        <input
-                          type="datetime-local"
-                          className="form-control"
-                          value={formData.collectedWhen}
-                          onChange={(e) => handleFieldChange('collectedWhen', e.target.value)}
-                        />
-                      </div>
-
-                      {/* Payment Mode */}
-                      <div className="form-group">
-                        <SearchableSelect
-                          label={t.paymentMode}
-                          value={formData.paymentMode}
-                          onChange={(val) => handleFieldChange('paymentMode', val)}
-                          options={[
-                            { value: 'cash', label: t.cash },
-                            { value: 'gpay_upi', label: t.gpayUpi },
-                            { value: 'bank_transfer', label: t.bankTransfer },
-                            { value: 'cheque', label: t.cheque },
-                            { value: 'credit', label: t.creditPending }
-                          ]}
-                          lang={lang}
-                        />
-                      </div>
-
-                      {/* Driver Bata */}
-                      <div className="form-group col-full">
-                        <label>Driver Bata Paid for this Trip (₹)</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          placeholder="e.g. 400"
-                          value={formData.driverBata}
-                          onChange={(e) => handleFieldChange('driverBata', e.target.value)}
-                        />
-                      </div>
-
                     </div>
                   )}
                 </div>
 
-                {/* 11. Work Description / Field Notes */}
+                {/* Rule 6, 7 & 9: Work Billing Calculation Box (Formula: Units * Rate - Discount = Read-only Total) */}
+                <div style={{
+                  gridColumn: '1 / -1',
+                  background: 'var(--bg-subtle, #f8fafc)',
+                  border: '2px solid var(--primary-200, #bbf7d0)',
+                  borderRadius: '12px',
+                  padding: '1.1rem',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                    <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--primary-800, #166534)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span>🧮</span>
+                      <span>{lang === 'ta' ? 'உழவு கட்டணம் கணக்கீடு' : 'Work Billing Calculation'}</span>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 600 }}>
+                      {lang === 'ta' ? 'விலை அட்டை கட்டணம் தானாக இணைக்கப்பட்டது' : 'Rate auto-mapped from card / editable'}
+                    </div>
+                  </div>
+
+                  {/* Formula Grid: (Units) * (Rate) - (Discount) = Total */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+                    gap: '0.85rem',
+                    alignItems: 'end'
+                  }}>
+                    {/* 1. Worked Units & Billing Unit */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-main)' }}>
+                        {lang === 'ta' ? '1. மொத்த அளவு (அலகு)' : '1. Total Units (Hours/Acres/Km)'} <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <div style={{ display: 'flex', gap: '0.35rem' }}>
+                        <input
+                          type="number"
+                          step="0.01"
+                          className="form-control"
+                          style={{ fontWeight: 700, fontSize: '1.05rem', minWidth: '85px' }}
+                          value={formData.quantity}
+                          onChange={(e) => handleFieldChange('quantity', e.target.value)}
+                          required
+                        />
+                        <select
+                          className="form-control"
+                          style={{ width: 'auto', fontWeight: 600, fontSize: '0.85rem' }}
+                          value={formData.billingUnit}
+                          onChange={(e) => handleFieldChange('billingUnit', e.target.value)}
+                        >
+                          <option value="per_hour">{lang === 'ta' ? 'மணி' : 'Hour'}</option>
+                          <option value="per_acre">{lang === 'ta' ? 'ஏக்கர்' : 'Acre'}</option>
+                          <option value="per_km">{lang === 'ta' ? 'கி.மீ' : 'Km'}</option>
+                          <option value="per_trip">{lang === 'ta' ? 'டிரிப்' : 'Trip'}</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Multiply symbol */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBottom: '0.5rem', fontSize: '1.5rem', fontWeight: 900, color: 'var(--primary-700)' }}>
+                      ×
+                    </div>
+
+                    {/* 2. Unit Rate (₹) with enter / edit option */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.35rem', color: 'var(--text-main)' }}>
+                        {lang === 'ta' ? '2. ஒரு அலகின் கட்டணம் (₹)' : '2. Unit Rate (₹)'} <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: 'var(--text-light)' }}>
+                          ₹
+                        </span>
+                        <input
+                          type="number"
+                          className="form-control"
+                          style={{ paddingLeft: '1.75rem', fontWeight: 700, fontSize: '1.05rem' }}
+                          value={formData.rate}
+                          onChange={(e) => handleFieldChange('rate', e.target.value)}
+                          title={lang === 'ta' ? 'கட்டணத்தை மாற்ற இங்கே உள்ளிடலாம்' : 'Enter or modify rate here'}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* Minus symbol */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBottom: '0.5rem', fontSize: '1.5rem', fontWeight: 900, color: '#dc2626' }}>
+                      −
+                    </div>
+
+                    {/* 3. Discount (₹) - Rule 9 */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.35rem', color: '#b91c1c' }}>
+                        {lang === 'ta' ? '3. தள்ளுபடி (₹)' : '3. Discount (₹)'}
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: '#b91c1c' }}>
+                          ₹
+                        </span>
+                        <input
+                          type="number"
+                          className="form-control"
+                          style={{ paddingLeft: '1.75rem', fontWeight: 700, fontSize: '1.05rem', color: '#b91c1c' }}
+                          value={formData.discount}
+                          onChange={(e) => handleFieldChange('discount', e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Equals & Read-only Total Display (Rule 7) */}
+                  <div style={{
+                    marginTop: '1rem',
+                    paddingTop: '0.85rem',
+                    borderTop: '1.5px dashed var(--border-color)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '0.75rem'
+                  }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>
+                      {lang === 'ta' 
+                        ? `சூத்திரம்: (${formData.quantity} ${resolveUnitLabel(formData.billingUnit)} × ₹${formData.rate}) - தள்ளுபடி ₹${formData.discount || 0}`
+                        : `Formula: (${formData.quantity} units × ₹${formData.rate}) - ₹${formData.discount || 0} discount`}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                        {lang === 'ta' ? 'நிகர மொத்தத் தொகை:' : 'Net Total:'}
+                      </span>
+                      <div style={{
+                        background: 'linear-gradient(135deg, #059669, #047857)',
+                        color: '#ffffff',
+                        padding: '0.45rem 1.25rem',
+                        borderRadius: '8px',
+                        fontWeight: 900,
+                        fontSize: '1.45rem',
+                        letterSpacing: '0.5px',
+                        boxShadow: '0 3px 10px rgba(5,150,105,0.3)',
+                        userSelect: 'none'
+                      }}>
+                        ₹{formData.totalAmount}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rule 8, 10 & 11: Payment Status Box (Paid / Unpaid, Paid On Date, Hand / Account, Collector) */}
+                <div style={{
+                  gridColumn: '1 / -1',
+                  background: formData.paymentStatus === 'paid' ? 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)' : '#f8fafc',
+                  border: formData.paymentStatus === 'paid' ? '2px solid #86efac' : '2px solid #cbd5e1',
+                  borderRadius: '12px',
+                  padding: '1.1rem',
+                  transition: 'all 0.2s ease'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: '1rem', color: formData.paymentStatus === 'paid' ? '#166534' : '#334155', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span>{formData.paymentStatus === 'paid' ? '✅' : '⏳'}</span>
+                        <span>{lang === 'ta' ? 'பணம் வசூலிக்கப்பட்டதா?' : 'Payment Status (Paid / Unpaid)'}</span>
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-light)', marginTop: '3px' }}>
+                        {formData.paymentStatus === 'paid'
+                          ? (lang === 'ta' ? 'பணம் முழுமையாகப் பெறப்பட்டது - வசூல் விவரங்களைச் சரிபார்க்கவும்' : 'Payment fully collected - verify collection details below')
+                          : (lang === 'ta' ? 'பணம் பெறப்படவில்லை - நிலுவை வசூல் பட்டியலில் சேமிக்கப்படும்' : 'Not paid yet - saved to pending dues')}
+                      </div>
+                    </div>
+
+                    {/* Paid vs Not Paid Segmented Buttons */}
+                    <div style={{ display: 'inline-flex', borderRadius: '8px', border: '1.5px solid #cbd5e1', overflow: 'hidden' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleSetPaidStatus(true)}
+                        style={{
+                          padding: '0.5rem 1.1rem',
+                          fontSize: '0.875rem',
+                          fontWeight: 800,
+                          border: 'none',
+                          cursor: 'pointer',
+                          background: formData.paymentStatus === 'paid' ? '#10b981' : '#ffffff',
+                          color: formData.paymentStatus === 'paid' ? '#ffffff' : '#475569',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <CheckCircle2 size={16} />
+                        <span>{lang === 'ta' ? 'செலுத்தப்பட்டது (Paid)' : 'Paid'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSetPaidStatus(false)}
+                        style={{
+                          padding: '0.5rem 1.1rem',
+                          fontSize: '0.875rem',
+                          fontWeight: 800,
+                          border: 'none',
+                          cursor: 'pointer',
+                          background: formData.paymentStatus === 'unpaid' ? '#ef4444' : '#ffffff',
+                          color: formData.paymentStatus === 'unpaid' ? '#ffffff' : '#475569',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <Clock size={16} />
+                        <span>{lang === 'ta' ? 'நிலுவை (Not Paid)' : 'Not Paid'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* If Paid: Show Paid On Date (Rule 8), Payment Mode (Rule 11), and Collector (Rule 10) */}
+                  {formData.paymentStatus === 'paid' && (
+                    <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #bbf7d0' }}>
+                      <div className="form-grid" style={{ marginBottom: 0 }}>
+                        
+                        {/* Rule 8: Paid On Date */}
+                        <div className="form-group">
+                          <DatePicker
+                            label={lang === 'ta' ? 'செலுத்திய தேதி (Paid On Date)' : 'Paid On Date'}
+                            value={formData.paidOnDate || formData.date}
+                            onChange={(val) => {
+                              handleFieldChange('paidOnDate', val);
+                              handleFieldChange('collectedWhen', `${val} 12:00`);
+                            }}
+                            required
+                            lang={lang}
+                          />
+                        </div>
+
+                        {/* Rule 11: Hand or Account Mode */}
+                        <div className="form-group">
+                          <label style={{ fontWeight: 700, fontSize: '0.85rem', marginBottom: '0.4rem', display: 'block' }}>
+                            {lang === 'ta' ? 'செலுத்திய விதம் (கையில் / வங்கி கணக்கு)' : 'Payment Method (Hand / Account)'} <span style={{ color: '#ef4444' }}>*</span>
+                          </label>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleFieldChange('paymentMode', 'cash')}
+                              style={{
+                                padding: '0.55rem',
+                                borderRadius: '8px',
+                                border: formData.paymentMode === 'cash' ? '2px solid #059669' : '1px solid #cbd5e1',
+                                background: formData.paymentMode === 'cash' ? '#dcfce7' : '#ffffff',
+                                color: formData.paymentMode === 'cash' ? '#166534' : '#475569',
+                                fontWeight: 800,
+                                fontSize: '0.85rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.35rem'
+                              }}
+                            >
+                              <span>💵</span>
+                              <span>{lang === 'ta' ? 'கையில் (Hand / Cash)' : 'Hand (Cash)'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleFieldChange('paymentMode', 'bank_account')}
+                              style={{
+                                padding: '0.55rem',
+                                borderRadius: '8px',
+                                border: formData.paymentMode === 'bank_account' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                                background: formData.paymentMode === 'bank_account' ? '#e0f2fe' : '#ffffff',
+                                color: formData.paymentMode === 'bank_account' ? '#0369a1' : '#475569',
+                                fontWeight: 800,
+                                fontSize: '0.85rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.35rem'
+                              }}
+                            >
+                              <span>🏦</span>
+                              <span>{lang === 'ta' ? 'வங்கி கணக்கு (Account / UPI)' : 'Account (UPI / Bank)'}</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Rule 10: Collector Person */}
+                        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                            <label style={{ margin: 0, fontWeight: 700, fontSize: '0.85rem' }}>
+                              {lang === 'ta' ? 'பணம் வசூலித்தவர் (Collector Person)' : 'Collector Person'} <span style={{ color: '#ef4444' }}>*</span>
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => handleFieldChange('collectedBy', `${loggedUserName} (${lang === 'ta' ? 'நீங்கள்' : 'You'})`)}
+                              style={{
+                                background: '#e0f2fe',
+                                border: '1px solid #7dd3fc',
+                                color: '#0369a1',
+                                fontSize: '0.75rem',
+                                cursor: 'pointer',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '4px'
+                              }}
+                              title="Set logged-in user as collector"
+                            >
+                              👤 {lang === 'ta' ? 'நானே வசூலித்தேன்' : 'I Collected Myself'}
+                            </button>
+                          </div>
+                          <SearchableSelect
+                            label=""
+                            value={formData.collectedBy}
+                            onChange={(val) => handleFieldChange('collectedBy', val)}
+                            options={collectorOptions}
+                            placeholder={lang === 'ta' ? '-- வசூலித்தவரைத் தேர்ந்தெடுக்கவும் --' : '-- Select Collector --'}
+                            searchPlaceholder={lang === 'ta' ? 'வசூலித்தவரைத் தேட...' : 'Search collector...'}
+                            allowCustom
+                            customButtonText={lang === 'ta' ? 'இந்தப் பெயரைப் பயன்படுத்து' : 'Use this person'}
+                            lang={lang}
+                          />
+                        </div>
+
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.paymentStatus === 'unpaid' && (
+                    <div style={{
+                      marginTop: '0.85rem',
+                      padding: '0.65rem 0.85rem',
+                      background: '#fffbeb',
+                      borderRadius: '8px',
+                      border: '1px solid #fef08a',
+                      color: '#92400e',
+                      fontSize: '0.825rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem'
+                    }}>
+                      <AlertCircle size={18} style={{ color: '#d97706', flexShrink: 0 }} />
+                      <div>
+                        {lang === 'ta' 
+                          ? `முழுத் தொகை ₹${formData.totalAmount} நிலுவை பாக்கியாகப் பதிவு செய்யப்படும். விவசாயி பணம் தரும் போது டிரிப் சீட்டைத் திறந்து வசூலிக்கலாம்.`
+                          : `Full amount ₹${formData.totalAmount} will be saved as outstanding credit. You can mark it collected anytime later.`}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Field Notes / Work Remarks */}
                 <div className="form-group col-full">
                   <VoiceInput
-                    label={`${t.workDescription} / Field Notes`}
-                    placeholder="e.g. Rotavator fine tilling for turmeric or 5-Tyne deep ploughing for sugarcane"
+                    label={lang === 'ta' ? 'குறிப்புகள் / வேலை விளக்கம்' : 'Field Notes / Remarks'}
+                    placeholder={lang === 'ta' ? 'எ.கா: ரோட்டாவேட்டர் 2 முறை உழவு அல்லது மஞ்சள் பயிருக்கு பாத்தி அமைப்பு' : 'e.g. Rotavator fine tilling or sugarcane ridges'}
                     value={formData.workDescription}
                     onChange={(val) => handleFieldChange('workDescription', val)}
                     speechLang={lang === 'ta' ? 'ta-IN' : 'en-IN'}

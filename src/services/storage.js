@@ -1009,6 +1009,7 @@ export const StorageService = {
       incomeExpense: StorageService.getIncomeExpense(),
       partners: StorageService.getPartners(),
       partnerDrawings: StorageService.getPartnerDrawings(),
+      settings: StorageService.getSettings(),
       users: StorageService.getUsers()
     };
   },
@@ -1032,9 +1033,23 @@ export const StorageService = {
       saveData(STORAGE_KEYS.USERS, mergedUsers);
     }
 
-    const settings = StorageService.getSettings();
-    settings.lastFetched = new Date().toLocaleString();
-    StorageService.saveSettings(settings);
+    if (Array.isArray(dataset.settings) && dataset.settings.length > 0) {
+      const currentSettings = StorageService.getSettings();
+      dataset.settings.forEach(item => {
+        if (item.key && item.value !== undefined) {
+          try {
+            currentSettings[item.key] = JSON.parse(item.value);
+          } catch (e) {
+            currentSettings[item.key] = item.value;
+          }
+        }
+      });
+      StorageService.saveSettings(currentSettings);
+    } else {
+      const settings = StorageService.getSettings();
+      settings.lastFetched = new Date().toLocaleString();
+      StorageService.saveSettings(settings);
+    }
 
     return { success: true };
   },

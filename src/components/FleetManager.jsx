@@ -93,7 +93,7 @@ export default function FleetManager({
       purchasePrice: '',
       purchaseDate: new Date().toISOString().slice(0, 10),
       modelYear: new Date().getFullYear().toString(),
-      hp: defaultType === 'tractor' ? '45' : '',
+      hp: '',
       emiMonthly: '',
       emiBank: '',
       currentHours: defaultType === 'tractor' ? '0' : '',
@@ -106,7 +106,24 @@ export default function FleetManager({
   const handleOpenEdit = (item) => {
     setEditingItem(item);
     setFormError('');
-    setFormData({ ...item });
+    setFormData({
+      id: item.id || '',
+      name: item.name || '',
+      name_ta: item.name_ta || item.name || '',
+      type: item.type || 'tractor',
+      implementCategory: item.implementCategory || (item.type === 'implement' ? 'rotavator' : 'none'),
+      regNumber: item.regNumber || '',
+      acquisition: item.acquisition || 'buy_cash',
+      purchasePrice: item.purchasePrice !== undefined && item.purchasePrice !== null ? String(item.purchasePrice) : '',
+      purchaseDate: item.purchaseDate || new Date().toISOString().slice(0, 10),
+      modelYear: item.modelYear ? String(item.modelYear) : new Date().getFullYear().toString(),
+      hp: item.hp !== undefined && item.hp !== null ? String(item.hp) : '',
+      emiMonthly: item.emiMonthly !== undefined && item.emiMonthly !== null ? String(item.emiMonthly) : '',
+      emiBank: item.emiBank || '',
+      currentHours: item.currentHours !== undefined && item.currentHours !== null ? String(item.currentHours) : (item.type === 'tractor' ? '0' : ''),
+      status: item.status || 'available',
+      notes: item.notes || ''
+    });
     setIsModalOpen(true);
   };
 
@@ -117,8 +134,11 @@ export default function FleetManager({
       // When switching type on a new item, auto-update ID to matching prefix
       if (field === 'type' && !editingItem) {
         updated.id = generateUniqueFleetId(value);
-        if (value === 'implement' && updated.implementCategory === 'none') {
-          updated.implementCategory = 'rotavator';
+        if (value === 'implement') {
+          updated.hp = '';
+          if (updated.implementCategory === 'none') {
+            updated.implementCategory = 'rotavator';
+          }
         }
       }
 
@@ -297,13 +317,13 @@ export default function FleetManager({
           <table className="data-table">
             <thead>
               <tr>
-                <th>ID / Reg No</th>
-                <th>Name / விவரம்</th>
-                <th>Type</th>
-                <th>Acquisition (முறை)</th>
-                <th>HP / Model</th>
-                <th>Hour Meter</th>
-                <th>Status</th>
+                <th>{lang === 'ta' ? 'அடையாளம் / பதிவு எண்' : 'ID / Reg No'}</th>
+                <th>{lang === 'ta' ? 'பெயர் / விவரம்' : 'Name / Details'}</th>
+                <th>{lang === 'ta' ? 'வகை' : 'Type'}</th>
+                <th>{lang === 'ta' ? 'உரிமை முறை' : 'Acquisition'}</th>
+                <th>{lang === 'ta' ? 'குதிரைத்திறன் / மாடல்' : 'HP / Model'}</th>
+                <th>{lang === 'ta' ? 'மணி மீட்டர்' : 'Hour Meter'}</th>
+                <th>{lang === 'ta' ? 'நிலை' : 'Status'}</th>
                 <th style={{ textAlign: 'right' }}>{t.actions}</th>
               </tr>
             </thead>
@@ -332,11 +352,15 @@ export default function FleetManager({
                     </span>
                   </td>
                   <td>
-                    <div style={{ fontSize: '0.85rem' }}>{item.hp ? `${item.hp} HP` : '--'}</div>
+                    <div style={{ fontSize: '0.85rem' }}>
+                      {item.type === 'tractor'
+                        ? (item.hp ? `${item.hp} HP` : '--')
+                        : (item.hp && item.hp !== '45' ? `${item.hp} HP` : '--')}
+                    </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>{item.modelYear || ''}</div>
                   </td>
                   <td style={{ fontWeight: 600 }}>
-                    {item.currentHours ? `${item.currentHours} hrs` : '--'}
+                    {item.currentHours ? `${item.currentHours} ${lang === 'ta' ? 'மணி' : 'hrs'}` : '--'}
                   </td>
                   <td>
                     <span className={`badge ${
@@ -490,32 +514,34 @@ export default function FleetManager({
                       />
                     </div>
 
-                    {/* Implement Name with Mic & Auto-Fill */}
+                    {/* Implement Name with Voice */}
                     <BilingualVoiceGroup
-                      englishLabel="Implement Name (English)"
-                      tamilLabel="கருவி பெயர் (தமிழ்)"
+                      englishLabel="Implement Name"
+                      tamilLabel="கருவி பெயர்"
                       englishValue={formData.name}
                       tamilValue={formData.name_ta}
                       onEnglishChange={(val) => handleFormChange('name', val)}
                       onTamilChange={(val) => handleFormChange('name_ta', val)}
                       englishPlaceholder="e.g. Rotavator / 5-Tyne Cultivator"
                       tamilPlaceholder="எ.கா. ரோட்டாவேட்டர் / 5 கொழு கலப்பை"
+                      lang={lang}
                       required
                     />
                   </>
                 ) : (
                   /* When Tractor: Show Full Tractor Specifications */
                   <>
-                    {/* Tractor Name with Mic & Auto-Fill */}
+                    {/* Tractor Name with Voice */}
                     <BilingualVoiceGroup
-                      englishLabel="Tractor Name & Model (English)"
-                      tamilLabel="டிராக்டர் பெயர் & மாடல் (தமிழ்)"
+                      englishLabel="Tractor Name & Model"
+                      tamilLabel="டிராக்டர் பெயர் & மாடல்"
                       englishValue={formData.name}
                       tamilValue={formData.name_ta}
                       onEnglishChange={(val) => handleFormChange('name', val)}
                       onTamilChange={(val) => handleFormChange('name_ta', val)}
                       englishPlaceholder="e.g. Mahindra 575 DI / Swaraj 744 FE"
                       tamilPlaceholder="எ.கா. மகிந்திரா 575 DI / ஸ்வராஜ் 744 FE"
+                      lang={lang}
                       required
                     />
 

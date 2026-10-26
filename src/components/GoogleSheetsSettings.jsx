@@ -152,8 +152,8 @@ export default function GoogleSheetsSettings({
       {/* Header bar */}
       <div className="card-header-bar">
         <div className="card-title-group">
-          <h2><CloudSun size={22} /> {t.googleSheetsTitle}</h2>
-          <p>{lang === 'ta' ? 'கூகுள் ஷீட் உடன் நேரடி இருவழி ஒத்திசைவு (இறக்குமதி மற்றும் ஏற்றுமதி)' : 'Two-way synchronization between TractoMint and your private Google Spreadsheet'}</p>
+          <h2><CloudSun size={22} /> {lang === 'ta' ? 'கூகுள் ஷீட் இணைப்பு & அமைப்புகள்' : t.googleSheetsTitle}</h2>
+          <p>{lang === 'ta' ? 'கூகுள் ஷீட் நேரடி இருவழி ஒத்திசைவு மற்றும் வணிக அமைப்புகள்' : 'Two-way synchronization between TractoMint and your private Google Spreadsheet'}</p>
         </div>
       </div>
 
@@ -162,15 +162,17 @@ export default function GoogleSheetsSettings({
         {/* Google Sheets Connection Setup Card */}
         <div className="content-card">
           <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <CloudSun size={18} color="var(--primary-600)" /> Google Sheet Webhook Connection
+            <CloudSun size={18} color="var(--primary-600)" /> {lang === 'ta' ? 'கூகுள் ஷீட் வெப்ஹூக் இணைப்பு' : 'Google Sheet Webhook Connection'}
           </h3>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
-            Enter your Google Apps Script Web App URL to pull data from your spreadsheet or save all ledger records automatically.
+            {lang === 'ta' 
+              ? 'உங்கள் கூகுள் ஷீட்டிலிருந்து பதிவுகளை எடுக்க அல்லது தானாக சேமிக்க Web App URL ஐ உள்ளிடவும்.' 
+              : 'Enter your Google Apps Script Web App URL to pull data from your spreadsheet or save all ledger records automatically.'}
           </p>
 
           <form onSubmit={handleSaveAllSettings}>
             <div className="form-group" style={{ marginBottom: '1rem' }}>
-              <label>{t.webAppUrl}</label>
+              <label>{lang === 'ta' ? 'கூகுள் ஆப்ஸ் ஸ்கிரிப்ட் URL' : t.webAppUrl}</label>
               <input
                 type="url"
                 className="form-control"
@@ -188,12 +190,12 @@ export default function GoogleSheetsSettings({
                   gap: '4px'
                 }}>
                   {(webAppUrl && webAppUrl === ENV_GOOGLE_SHEETS_URL) 
-                    ? '● Configured via .env (VITE_GOOGLE_SHEETS_URL)' 
-                    : '● Custom Web App URL'}
+                    ? (lang === 'ta' ? '● சூழல் URL இணைக்கப்பட்டுள்ளது' : '● Configured via .env (VITE_GOOGLE_SHEETS_URL)') 
+                    : (lang === 'ta' ? '● தனிப்பயன் URL' : '● Custom Web App URL')}
                 </span>
                 {webAppUrl && (
                   <span style={{ color: 'var(--text-muted)' }}>
-                    Deployment ID: <code>{webAppUrl.match(/\/s\/([a-zA-Z0-9_-]+)\/exec/)?.[1] || 'Detected'}</code>
+                    {lang === 'ta' ? 'இணைப்பு ஐடி:' : 'Deployment ID:'} <code>{webAppUrl.match(/\/s\/([a-zA-Z0-9_-]+)\/exec/)?.[1] || 'Detected'}</code>
                   </span>
                 )}
               </div>
@@ -205,7 +207,7 @@ export default function GoogleSheetsSettings({
                     className="btn btn-outline btn-sm"
                     style={{ fontSize: '0.72rem', padding: '0.15rem 0.5rem' }}
                   >
-                    Reset to .env URL
+                    {lang === 'ta' ? 'இயல்பு URL மீட்டமை' : 'Reset to .env URL'}
                   </button>
                 </div>
               )}
@@ -220,7 +222,7 @@ export default function GoogleSheetsSettings({
                 style={{ width: '16px', height: '16px', accentColor: 'var(--primary-600)' }}
               />
               <label htmlFor="autoSyncCheck" style={{ fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
-                {t.autoSyncOnSave}
+                {lang === 'ta' ? 'ஒவ்வொரு புதிய பதிவு அல்லது திருத்தத்தின் போதும் தானாக கூகுள் ஷீட்டில் சேமிக்கவும்' : t.autoSyncOnSave}
               </label>
             </div>
 
@@ -233,10 +235,10 @@ export default function GoogleSheetsSettings({
                 onClick={handleTriggerPull}
                 disabled={pulling || !webAppUrl}
                 style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)' }}
-                title="Get/Import all records from Google Sheet"
+                title={lang === 'ta' ? 'கூகுள் ஷீட்டிலிருந்து பதிவுகளை எடுக்க' : 'Get/Import all records from Google Sheet'}
               >
                 {pulling ? <RefreshCw size={15} className="spin-animation" /> : <ArrowDownCircle size={16} />}
-                {pulling ? 'Fetching...' : (lang === 'ta' ? 'ஷீட்டிலிருந்து எடு (Get Data)' : 'Get from Google Sheet')}
+                {pulling ? (lang === 'ta' ? 'எடுக்கிறது...' : 'Fetching...') : (lang === 'ta' ? 'ஷீட்டிலிருந்து பதிவுகளை எடு' : 'Get from Google Sheet')}
               </button>
 
               {/* PUSH BUTTON */}
@@ -245,10 +247,10 @@ export default function GoogleSheetsSettings({
                 className="btn btn-primary"
                 onClick={handleTriggerPush}
                 disabled={syncing || !webAppUrl}
-                title="Push all local records into Google Sheet"
+                title={lang === 'ta' ? 'அனைத்து பதிவுகளையும் கூகுள் ஷீட்டில் சேமிக்க' : 'Push all local records into Google Sheet'}
               >
                 {syncing ? <RefreshCw size={15} className="spin-animation" /> : <ArrowUpCircle size={16} />}
-                {syncing ? 'Saving...' : (lang === 'ta' ? 'ஷீட்டில் சேமி (Push Data)' : 'Save to Google Sheet')}
+                {syncing ? (lang === 'ta' ? 'சேமிக்கிறது...' : 'Saving...') : (lang === 'ta' ? 'ஷீட்டில் பதிவுகளைச் சேமி' : 'Save to Google Sheet')}
               </button>
 
               {/* TEST BUTTON */}
@@ -259,13 +261,13 @@ export default function GoogleSheetsSettings({
                 disabled={testing || !webAppUrl}
               >
                 {testing ? <RefreshCw size={14} className="spin-animation" /> : <ExternalLink size={14} />}
-                {testing ? 'Testing...' : t.testConnection}
+                {testing ? (lang === 'ta' ? 'சோதிக்கிறது...' : 'Testing...') : (lang === 'ta' ? 'இணைப்பைச் சோதி' : t.testConnection)}
               </button>
 
               {/* SAVE SETTINGS BUTTON */}
               <button type="submit" className="btn btn-outline" style={{ marginLeft: 'auto' }}>
                 {saveSuccess ? <Check size={14} color="#16a34a" /> : null}
-                {saveSuccess ? 'Saved!' : t.save}
+                {saveSuccess ? (lang === 'ta' ? 'சேமிக்கப்பட்டது!' : 'Saved!') : (lang === 'ta' ? 'அமைப்புகளைச் சேமி' : t.save)}
               </button>
             </div>
 
@@ -305,7 +307,7 @@ export default function GoogleSheetsSettings({
               </div>
             )}
 
-            {/* Synchronized Ledger Metrics Grid (Kannaku360 pattern) */}
+            {/* Synchronized Ledger Metrics Grid */}
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(105px, 1fr))',
@@ -317,39 +319,57 @@ export default function GoogleSheetsSettings({
               border: '1px solid var(--border-color)'
             }}>
               <div style={{ textAlign: 'center' }}>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', display: 'block' }}>Fleet</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', display: 'block' }}>
+                  {lang === 'ta' ? 'வாகனங்கள்' : 'Fleet'}
+                </span>
                 <strong style={{ fontSize: '1rem', color: 'var(--primary-700)' }}>{(allData?.fleet || []).length}</strong>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', display: 'block' }}>Rates</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', display: 'block' }}>
+                  {lang === 'ta' ? 'வாடகை' : 'Rates'}
+                </span>
                 <strong style={{ fontSize: '1rem', color: 'var(--primary-700)' }}>{(allData?.rateMatrix || []).length}</strong>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', display: 'block' }}>Drivers</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', display: 'block' }}>
+                  {lang === 'ta' ? 'டிரைவர்கள்' : 'Drivers'}
+                </span>
                 <strong style={{ fontSize: '1rem', color: 'var(--primary-700)' }}>{(allData?.drivers || []).length}</strong>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', display: 'block' }}>Farmers</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', display: 'block' }}>
+                  {lang === 'ta' ? 'விவசாயிகள்' : 'Farmers'}
+                </span>
                 <strong style={{ fontSize: '1rem', color: 'var(--primary-700)' }}>{(allData?.customers || []).length}</strong>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', display: 'block' }}>Trip Sheets</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', display: 'block' }}>
+                  {lang === 'ta' ? 'டிரிப் சீட்டுகள்' : 'Trip Sheets'}
+                </span>
                 <strong style={{ fontSize: '1rem', color: 'var(--primary-700)' }}>{(allData?.tripSheets || []).length}</strong>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', display: 'block' }}>Maintenance</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', display: 'block' }}>
+                  {lang === 'ta' ? 'பராமரிப்பு' : 'Maintenance'}
+                </span>
                 <strong style={{ fontSize: '1rem', color: 'var(--primary-700)' }}>{(allData?.maintenance || []).length}</strong>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', display: 'block' }}>Income/Exp</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', display: 'block' }}>
+                  {lang === 'ta' ? 'வரவு/செலவு' : 'Income/Exp'}
+                </span>
                 <strong style={{ fontSize: '1rem', color: 'var(--primary-700)' }}>{(allData?.incomeExpense || []).length}</strong>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', display: 'block' }}>Partners</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', display: 'block' }}>
+                  {lang === 'ta' ? 'பங்குதாரர்கள்' : 'Partners'}
+                </span>
                 <strong style={{ fontSize: '1rem', color: 'var(--primary-700)' }}>{(allData?.partners || []).length}</strong>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', display: 'block' }}>Users</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', display: 'block' }}>
+                  {lang === 'ta' ? 'பணியாளர்கள்' : 'Users'}
+                </span>
                 <strong style={{ fontSize: '1rem', color: 'var(--primary-700)' }}>{(allData?.users || []).length}</strong>
               </div>
             </div>
@@ -360,7 +380,7 @@ export default function GoogleSheetsSettings({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
               <h4 style={{ fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <Code2 size={16} color="var(--primary-600)" />
-                {lang === 'ta' ? 'கூகுள் ஆப்ஸ் ஸ்கிரிப்ட் குறியீடு (Code.gs)' : 'Google Apps Script Code (Code.gs)'}
+                {lang === 'ta' ? 'கூகுள் ஆப்ஸ் ஸ்கிரிப்ட் குறியீடு' : 'Google Apps Script Code (Code.gs)'}
               </h4>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button 
@@ -368,22 +388,35 @@ export default function GoogleSheetsSettings({
                   onClick={() => setShowCodePreview(!showCodePreview)}
                   style={{ fontSize: '0.75rem' }}
                 >
-                  {showCodePreview ? 'Hide Code' : 'View Code'}
+                  {showCodePreview ? (lang === 'ta' ? 'குறியீட்டை மறை' : 'Hide Code') : (lang === 'ta' ? 'குறியீட்டைப் பார்' : 'View Code')}
                 </button>
                 <button className="btn btn-primary btn-sm" onClick={handleCopyScript}>
                   {copied ? <Check size={13} color="#ffffff" /> : <Copy size={13} />}
-                  {copied ? 'Code Copied!' : t.copyScriptCode}
+                  {copied ? (lang === 'ta' ? 'நகலெடுக்கப்பட்டது!' : 'Code Copied!') : (lang === 'ta' ? 'குறியீட்டை நகலெடு' : t.copyScriptCode)}
                 </button>
               </div>
             </div>
 
-            <ol style={{ fontSize: '0.8rem', color: 'var(--text-muted)', paddingLeft: '1.25rem', lineHeight: '1.8' }}>
-              <li>Open your Google Sheet at <strong>sheets.google.com</strong>.</li>
-              <li>Go to <strong>Extensions &gt; Apps Script</strong>.</li>
-              <li>Delete any existing lines in <code>Code.gs</code> and click <strong>"Copy Google Apps Script Code"</strong> above to paste the code.</li>
-              <li>Click <strong>Deploy &gt; New deployment &gt; Select type: Web App</strong>.</li>
-              <li><strong>IMPORTANT:</strong> Set <em>Execute as:</em> <strong>Me</strong> and <em>Who has access:</em> <strong>Anyone</strong> (not "Only myself").</li>
-              <li>Click <strong>Deploy</strong>, authorize permissions, copy the Web App URL, and paste it into the input above!</li>
+            <ol style={{ fontSize: '0.825rem', color: 'var(--text-muted)', paddingLeft: '1.25rem', lineHeight: '1.8' }}>
+              {lang === 'ta' ? (
+                <>
+                  <li>sheets.google.com தளத்தில் உங்கள் கூகுள் ஷீட்டைத் திறக்கவும்.</li>
+                  <li><strong>Extensions &gt; Apps Script</strong> பகுதிக்குச் செல்லவும்.</li>
+                  <li><code>Code.gs</code>-ல் உள்ள பழைய வரிகளை நீக்கி, மேலே உள்ள <strong>"குறியீட்டை நகலெடு"</strong> பொத்தானை அழுத்தி ஒட்டவும்.</li>
+                  <li><strong>Deploy &gt; New deployment &gt; வகை: Web App</strong> என்பதைத் தேர்ந்தெடுக்கவும்.</li>
+                  <li><strong>முக்கியம்:</strong> <em>Execute as:</em> <strong>Me</strong> எனவும், <em>Who has access:</em> <strong>Anyone</strong> எனவும் தேர்வு செய்யவும்.</li>
+                  <li><strong>Deploy</strong> செய்து URL ஐ நகலெடுத்து மேலே உள்ள கட்டத்தில் ஒட்டவும்!</li>
+                </>
+              ) : (
+                <>
+                  <li>Open your Google Sheet at <strong>sheets.google.com</strong>.</li>
+                  <li>Go to <strong>Extensions &gt; Apps Script</strong>.</li>
+                  <li>Delete any existing lines in <code>Code.gs</code> and click <strong>"Copy Google Apps Script Code"</strong> above to paste the code.</li>
+                  <li>Click <strong>Deploy &gt; New deployment &gt; Select type: Web App</strong>.</li>
+                  <li><strong>IMPORTANT:</strong> Set <em>Execute as:</em> <strong>Me</strong> and <em>Who has access:</em> <strong>Anyone</strong> (not "Only myself").</li>
+                  <li>Click <strong>Deploy</strong>, authorize permissions, copy the Web App URL, and paste it into the input above!</li>
+                </>
+              )}
             </ol>
 
             {showCodePreview && (
@@ -406,10 +439,12 @@ export default function GoogleSheetsSettings({
         {/* Company Branding & Data Cleaning Card */}
         <div className="content-card">
           <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Building size={18} color="var(--primary-600)" /> Company Profile & Security Settings
+            <Building size={18} color="var(--primary-600)" /> {lang === 'ta' ? 'நிறுவன சுயவிவரம் மற்றும் பாதுகாப்பு அமைப்புகள்' : 'Company Profile & Security Settings'}
           </h3>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
-            Configure your tractor business name, printed phone number, address, and Admin deletion PIN.
+            {lang === 'ta' 
+              ? 'வணிகப் பெயர், ரசீதில் அச்சிடப்படும் தொலைபேசி எண், முகவரி மற்றும் நிர்வாகி பின்னை இங்கு அமைக்கவும்.' 
+              : 'Configure your tractor business name, printed phone number, address, and Admin deletion PIN.'}
           </p>
 
           <form onSubmit={handleSaveAllSettings} className="form-grid">
@@ -431,30 +466,37 @@ export default function GoogleSheetsSettings({
                 <span>{settingsError}</span>
               </div>
             )}
-            <div className="form-group col-full">
-              <label>Company / Business Name (English)</label>
-              <input
-                type="text"
-                className="form-control"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                placeholder="e.g. Sri Murugan Tractor Works & Agri Services"
-              />
-            </div>
-
-            <div className="form-group col-full">
-              <label>நிறுவனத்தின் பெயர் (தமிழ்)</label>
-              <input
-                type="text"
-                className="form-control"
-                value={companyName_ta}
-                onChange={(e) => setCompanyName_ta(e.target.value)}
-                placeholder="எ.கா. ஸ்ரீ முருகன் டிராக்டர் ஒர்க்ஸ் & விவசாய சேவைகள்"
-              />
-            </div>
+            
+            {/* Show only relevant language company name */}
+            {lang === 'ta' ? (
+              <div className="form-group col-full">
+                <label>நிறுவனத்தின் பெயர்</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={companyName_ta || companyName}
+                  onChange={(e) => {
+                    setCompanyName_ta(e.target.value);
+                    if (!companyName) setCompanyName(e.target.value);
+                  }}
+                  placeholder="எ.கா. ஸ்ரீ முருகன் டிராக்டர் ஒர்க்ஸ் & விவசாய சேவைகள்"
+                />
+              </div>
+            ) : (
+              <div className="form-group col-full">
+                <label>Company / Business Name</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="e.g. Sri Murugan Tractor Works & Agri Services"
+                />
+              </div>
+            )}
 
             <div className="form-group">
-              <label>{lang === 'ta' ? 'தொடர்பு அலைபேசி எண் (10 இலக்கங்கள்)' : 'Contact Phone Number (10 digits)'}</label>
+              <label>{lang === 'ta' ? 'தொடர்பு தொலைபேசி எண் (10 இலக்கங்கள்)' : 'Contact Phone Number (10 digits)'}</label>
               <input
                 type="tel"
                 className="form-control"
@@ -470,7 +512,7 @@ export default function GoogleSheetsSettings({
 
             <div className="form-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#dc2626' }}>
-                <Key size={14} /> Admin Security PIN (Delete Access)
+                <Key size={14} /> {lang === 'ta' ? 'நிர்வாகி பாதுகாப்பு PIN (நீக்க அனுமதி)' : 'Admin Security PIN (Delete Access)'}
               </label>
               <input
                 type="password"
@@ -478,24 +520,24 @@ export default function GoogleSheetsSettings({
                 value={adminPin}
                 onChange={(e) => setAdminPin(e.target.value)}
                 maxLength={8}
-                placeholder="Default: 1234"
+                placeholder={lang === 'ta' ? 'இயல்பு: 1234' : 'Default: 1234'}
               />
             </div>
 
             <div className="form-group col-full">
-              <label>Yard / Office Address</label>
+              <label>{lang === 'ta' ? 'வணிக முகவரி (ரசீதில் அச்சிடப்படும்)' : 'Yard / Office Address'}</label>
               <input
                 type="text"
                 className="form-control"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                placeholder="e.g. Main Canal Road, Perur, TN"
+                placeholder={lang === 'ta' ? 'எ.கா. மெயின் வாய்க்கால் ரோடு, பேரூர்' : 'e.g. Main Canal Road, Perur, TN'}
               />
             </div>
 
             <div className="form-group col-full" style={{ marginTop: '0.5rem' }}>
-              <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
-                Save Profile & Settings
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '0.75rem', fontWeight: 700 }}>
+                {lang === 'ta' ? 'சுயவிவர அமைப்புகளைச் சேமிக்கவும்' : 'Save Profile & Settings'}
               </button>
             </div>
           </form>
@@ -503,60 +545,60 @@ export default function GoogleSheetsSettings({
           {/* CSV Export & Backup Utilities */}
           <div style={{ marginTop: '1.75rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-color)' }}>
             <h4 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <Download size={16} /> Instant CSV Exports (Offline Backup)
+              <Download size={16} /> {lang === 'ta' ? 'தரவு பதிவிறக்கம் & காப்புப்பிரதி (CSV / Backup)' : 'Instant CSV Exports (Offline Backup)'}
             </h4>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <button 
                 className="btn btn-outline btn-sm"
                 onClick={() => downloadCsv('TractoMint_TripSheets', convertToCsv(allData.tripSheets))}
               >
-                Trip Sheets CSV
+                {lang === 'ta' ? 'டிரிப் சீட்டுகள் CSV' : 'Trip Sheets CSV'}
               </button>
               <button 
                 className="btn btn-outline btn-sm"
                 onClick={() => downloadCsv('TractoMint_Maintenance', convertToCsv(allData.maintenance))}
               >
-                Maintenance CSV
+                {lang === 'ta' ? 'பராமரிப்பு CSV' : 'Maintenance CSV'}
               </button>
               <button 
                 className="btn btn-outline btn-sm"
                 onClick={() => downloadCsv('TractoMint_Customers', convertToCsv(allData.customers))}
               >
-                Customers CSV
+                {lang === 'ta' ? 'விவசாயிகள் CSV' : 'Customers CSV'}
               </button>
               <button 
                 className="btn btn-outline btn-sm"
                 onClick={() => downloadCsv('TractoMint_Users', convertToCsv(allData.users))}
               >
-                Users CSV
+                {lang === 'ta' ? 'பணியாளர்கள் CSV' : 'Users CSV'}
               </button>
               <button 
                 className="btn btn-outline btn-sm"
                 onClick={() => downloadCsv('TractoMint_FullDatabase', JSON.stringify(allData, null, 2))}
               >
-                Full JSON Backup
+                {lang === 'ta' ? 'முழு தரவு காப்புப்பிரதி (JSON)' : 'Full JSON Backup'}
               </button>
             </div>
           </div>
 
           {/* Reset / Clean All Data Button */}
           {role === 'admin' && (
-            <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-light)' }}>
-                {lang === 'ta' ? 'அனைத்து உள்ளூர் தரவையும் அழிக்க' : 'Remove all local records:'}
+                {lang === 'ta' ? 'அனைத்து உள்ளூர் பதிவுகளையும் அழிக்க:' : 'Remove all local records:'}
               </span>
               <button 
                 type="button"
                 className="btn btn-outline btn-sm" 
                 style={{ color: '#ef4444', borderColor: '#fca5a5' }}
                 onClick={() => {
-                  if (window.confirm("Are you sure you want to remove all local records and start completely clean?")) {
+                  if (window.confirm(lang === 'ta' ? 'நிச்சயமாக அனைத்து பதிவுகளையும் நீக்க விரும்புகிறீர்களா?' : 'Are you sure you want to remove all local records and start completely clean?')) {
                     onClearAllData();
                   }
                 }}
               >
                 <Trash2 size={13} />
-                {lang === 'ta' ? 'அனைத்து தரவையும் அழி (Clear All)' : 'Clear All Data (Start Clean)'}
+                {lang === 'ta' ? 'அனைத்து பதிவுகளையும் அழி' : 'Clear All Data (Start Clean)'}
               </button>
             </div>
           )}

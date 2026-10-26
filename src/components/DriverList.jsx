@@ -73,7 +73,17 @@ export default function DriverList({
   const handleOpenEdit = (item) => {
     setEditingItem(item);
     setFormError('');
-    setFormData({ ...item });
+    setFormData({
+      id: item.id || '',
+      name: item.name || '',
+      name_ta: item.name_ta || item.name || '',
+      phone: item.phone ? String(item.phone) : '',
+      licenseNo: item.licenseNo || '',
+      wageType: item.wageType || 'daily_bata',
+      defaultWage: item.defaultWage !== undefined && item.defaultWage !== null ? String(item.defaultWage) : '600',
+      status: item.status || 'active',
+      joinedDate: item.joinedDate || new Date().toISOString().slice(0, 10)
+    });
     setIsModalOpen(true);
   };
 
@@ -179,7 +189,7 @@ export default function DriverList({
           <Search size={16} className="search-icon-inside" />
           <input
             type="text"
-            placeholder={t.search + ' (Name, Phone...)'}
+            placeholder={lang === 'ta' ? 'தேடுக... (ஓட்டுநர் பெயர், போன்...)' : 'Search (Name, Phone...)'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -192,15 +202,15 @@ export default function DriverList({
           <table className="data-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Driver Name / பெயர்</th>
-                <th>Phone Number</th>
-                <th>Pay / Wage Type</th>
-                <th>Default Pay (₹)</th>
-                <th>Trips Logged</th>
-                <th>Hours Worked</th>
-                <th>Total Bata Earned</th>
-                <th>Status</th>
+                <th>{lang === 'ta' ? 'குறியீடு' : 'ID'}</th>
+                <th>{lang === 'ta' ? 'ஓட்டுநர் பெயர்' : 'Driver Name'}</th>
+                <th>{lang === 'ta' ? 'அலைபேசி எண்' : 'Phone Number'}</th>
+                <th>{lang === 'ta' ? 'கூலி முறை' : 'Wage Type'}</th>
+                <th>{lang === 'ta' ? 'வழக்கமான கூலி (₹)' : 'Default Pay (₹)'}</th>
+                <th>{lang === 'ta' ? 'செய்த டிரிப்புகள்' : 'Trips Logged'}</th>
+                <th>{lang === 'ta' ? 'வேலை செய்த நேரம்' : 'Hours Worked'}</th>
+                <th>{lang === 'ta' ? 'மொத்த படி / கூலி' : 'Total Bata Earned'}</th>
+                <th>{lang === 'ta' ? 'நிலை' : 'Status'}</th>
                 <th style={{ textAlign: 'right' }}>{t.actions}</th>
               </tr>
             </thead>
@@ -229,7 +239,7 @@ export default function DriverList({
                     </td>
                     <td style={{ fontWeight: 700 }}>₹{item.defaultWage}</td>
                     <td style={{ fontWeight: 600 }}>{stats.tripsCount}</td>
-                    <td>{stats.hours.toFixed(1)} hrs</td>
+                    <td>{stats.hours.toFixed(1)} {lang === 'ta' ? 'மணி' : 'hrs'}</td>
                     <td style={{ fontWeight: 700, color: '#16a34a' }}>₹{stats.totalBata.toLocaleString()}</td>
                     <td>
                       <span className={`badge ${item.status === 'active' ? 'badge-paid' : 'badge-unpaid'}`}>
@@ -307,20 +317,21 @@ export default function DriverList({
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">
                 
-                {/* Driver Name English & Tamil with Mic & Auto-Fill */}
+                {/* Driver Name English & Tamil with Voice */}
                 <BilingualVoiceGroup
-                  englishLabel="Driver Name (English)"
-                  tamilLabel="ஓட்டுநர் பெயர் (தமிழ்)"
+                  englishLabel="Driver / Operator Name"
+                  tamilLabel="ஓட்டுநர் பெயர்"
                   englishValue={formData.name}
                   tamilValue={formData.name_ta}
                   onEnglishChange={(val) => setFormData(prev => ({ ...prev, name: val }))}
                   onTamilChange={(val) => setFormData(prev => ({ ...prev, name_ta: val }))}
                   englishPlaceholder="e.g. K. Murugan"
                   tamilPlaceholder="எ.கா. கே. முருகன்"
+                  lang={lang}
                   required
                 />
 
-                {/* Phone - Strictly 10 digits & Unique */}
+                {/* Phone - Strictly 10 digits & Unique with Working Mic */}
                 <div className="form-group">
                   <VoiceInput
                     label={lang === 'ta' ? 'அலைபேசி எண் (10 இலக்கங்கள்) *' : 'Mobile Number (10 digits) *'}
@@ -332,7 +343,7 @@ export default function DriverList({
                       setFormData(prev => ({ ...prev, phone: digits }));
                       if (formError) setFormError('');
                     }}
-                    speechLang="en-IN"
+                    speechLang={lang === 'ta' ? 'ta-IN' : 'en-IN'}
                     required
                   />
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginTop: '0.25rem', display: 'block' }}>

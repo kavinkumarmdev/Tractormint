@@ -5,6 +5,7 @@ import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
 import { normalizePhone, validatePhone10, validatePositiveNumber } from '../services/storage';
+import { formatDateDDMMYYYY } from '../utils/dateUtils';
 
 export default function PartnerSplitManager({ 
   partners, 
@@ -136,7 +137,15 @@ export default function PartnerSplitManager({
   const handleOpenEditDrawing = (item) => {
     setEditingDrawing(item);
     setDrawingFormError('');
-    setDrawingForm({ ...item });
+    setDrawingForm({
+      id: item.id || '',
+      date: item.date || new Date().toISOString().slice(0, 10),
+      partnerId: item.partnerId || '',
+      partnerName: item.partnerName || '',
+      amount: item.amount !== undefined && item.amount !== null ? String(item.amount) : '',
+      purpose: item.purpose || '',
+      paymentMode: item.paymentMode || 'bank_transfer'
+    });
     setIsDrawingModalOpen(true);
   };
 
@@ -157,7 +166,14 @@ export default function PartnerSplitManager({
   const handleOpenEditPartner = (p) => {
     setEditingPartner(p);
     setPartnerFormError('');
-    setPartnerForm({ ...p });
+    setPartnerForm({
+      id: p.id || '',
+      name: p.name || '',
+      name_ta: p.name_ta || p.name || '',
+      sharePercent: p.sharePercent !== undefined && p.sharePercent !== null ? String(p.sharePercent) : '50',
+      phone: p.phone ? String(p.phone) : '',
+      investedCapital: p.investedCapital !== undefined && p.investedCapital !== null ? String(p.investedCapital) : ''
+    });
     setIsPartnerModalOpen(true);
   };
 
@@ -418,7 +434,7 @@ export default function PartnerSplitManager({
                 {filteredDrawings.map(d => (
                   <tr key={d.id}>
                     <td style={{ fontWeight: 700, color: 'var(--primary-700)' }}>{d.id}</td>
-                    <td>{d.date}</td>
+                    <td>{formatDateDDMMYYYY(d.date)}</td>
                     <td style={{ fontWeight: 600 }}>{d.partnerName}</td>
                     <td style={{ fontWeight: 800, color: '#d97706', fontSize: '1rem' }}>
                       ₹{Number(d.amount).toLocaleString()}

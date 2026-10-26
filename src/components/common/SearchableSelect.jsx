@@ -37,6 +37,66 @@ function normalizeOption(item) {
   return null;
 }
 
+function formatBadge(badge, lang) {
+  if (!badge) return '';
+  if (lang !== 'ta') return badge;
+  const str = String(badge).trim();
+  const map = {
+    'per_hour': 'மணிக்கு',
+    'per hour': 'மணிக்கு',
+    '/ hour': 'மணிக்கு',
+    '/hour': 'மணிக்கு',
+    'per_acre': 'ஏக்கருக்கு',
+    'per acre': 'ஏக்கருக்கு',
+    '/ acre': 'ஏக்கருக்கு',
+    '/acre': 'ஏக்கருக்கு',
+    'per_km': 'கி.மீக்கு',
+    'per km': 'கி.மீக்கு',
+    '/ km': 'கி.மீக்கு',
+    '/km': 'கி.மீக்கு',
+    'per_trip': 'டிரிப்பிற்கு',
+    'per trip': 'டிரிப்பிற்கு',
+    '/ trip': 'டிரிப்பிற்கு',
+    '/trip': 'டிரிப்பிற்கு',
+    'daily_bata': 'தினசரி படி',
+    'daily bata': 'தினசரி படி',
+    'monthly': 'மாத சம்பளம்',
+    'hour': 'மணி',
+    'acre': 'ஏக்கர்',
+    'km': 'கி.மீ',
+    'trip': 'டிரிப்',
+    'cash': 'ரொக்கம் / கையில்',
+    'hand': 'கையில்',
+    'bank': 'வங்கி',
+    'bank_account': 'வங்கி கணக்கு',
+    'upi': 'UPI / GPAY',
+    'credit': 'கடன் / நிலுவை',
+    'paid': 'செலுத்தப்பட்டது',
+    'unpaid': 'நிலுவை',
+    'active': 'செயலில்',
+    'inactive': 'முடக்கப்பட்டது',
+    'combo': 'கூட்டு',
+    'tractor': 'டிராக்டர்'
+  };
+  return map[str.toLowerCase()] || str;
+}
+
+function formatSubLabel(subLabel, lang) {
+  if (!subLabel) return '';
+  if (lang !== 'ta') return subLabel;
+  const str = String(subLabel).trim();
+  const map = {
+    'driver': 'டிரைவர்',
+    'admin': 'அட்மின்',
+    'operator': 'இயக்குபவர்',
+    'manager': 'மேலாளர்',
+    'collector': 'வசூலிப்பாளர்',
+    'you': 'நீங்கள்'
+  };
+  const lower = str.toLowerCase();
+  return map[lower] || str;
+}
+
 export default function SearchableSelect({
   value = '',
   onChange,
@@ -61,7 +121,7 @@ export default function SearchableSelect({
 
   // Default placeholders
   const defaultPlaceholder = placeholder || (lang === 'ta' ? 'தேர்ந்தெடுக்கவும்...' : 'Select option...');
-  const defaultSearchPlaceholder = searchPlaceholder || (lang === 'ta' ? 'தேட... (Search)' : 'Search options...');
+  const defaultSearchPlaceholder = searchPlaceholder || (lang === 'ta' ? 'தேட...' : 'Search options...');
 
   // Normalize options array
   const normalizedOptions = useMemo(() => {
@@ -201,12 +261,12 @@ export default function SearchableSelect({
               </span>
               {selectedOption.subLabel && (
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-light)', opacity: 0.85 }}>
-                  ({selectedOption.subLabel})
+                  ({formatSubLabel(selectedOption.subLabel, lang)})
                 </span>
               )}
               {selectedOption.badge && (
                 <span style={{ fontSize: '0.68rem', padding: '0.1rem 0.35rem', borderRadius: '4px', background: 'var(--bg-subtle)', color: 'var(--primary-700)', fontWeight: 600 }}>
-                  {selectedOption.badge}
+                  {formatBadge(selectedOption.badge, lang)}
                 </span>
               )}
             </div>
@@ -382,7 +442,7 @@ export default function SearchableSelect({
                     </span>
                     {opt.subLabel && (
                       <span style={{ fontSize: '0.72rem', color: isSelected ? 'rgba(255,255,255,0.85)' : 'var(--text-light)' }}>
-                        {opt.subLabel}
+                        {formatSubLabel(opt.subLabel, lang)}
                       </span>
                     )}
                   </div>
@@ -396,7 +456,7 @@ export default function SearchableSelect({
                         background: isSelected ? 'rgba(255,255,255,0.2)' : 'var(--bg-subtle)',
                         color: isSelected ? '#ffffff' : 'var(--text-light)'
                       }}>
-                        {opt.badge}
+                        {formatBadge(opt.badge, lang)}
                       </span>
                     )}
                     {isSelected && <Check size={14} color="#ffffff" />}
@@ -459,7 +519,7 @@ export default function SearchableSelect({
                         </span>
                         {opt.subLabel && (
                           <span style={{ fontSize: '0.72rem', color: isSelected ? 'rgba(255,255,255,0.85)' : 'var(--text-light)' }}>
-                            {opt.subLabel}
+                            {formatSubLabel(opt.subLabel, lang)}
                           </span>
                         )}
                       </div>
@@ -473,7 +533,7 @@ export default function SearchableSelect({
                             background: isSelected ? 'rgba(255,255,255,0.2)' : 'var(--bg-subtle)',
                             color: isSelected ? '#ffffff' : 'var(--text-light)'
                           }}>
-                            {opt.badge}
+                            {formatBadge(opt.badge, lang)}
                           </span>
                         )}
                         {isSelected && <Check size={14} color="#ffffff" />}

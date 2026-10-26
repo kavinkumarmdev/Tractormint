@@ -285,7 +285,7 @@ function getFleetHeaders() {
 
 function getRateMatrixHeaders() {
   return [
-    'id', 'tractorName', 'implementName', 'unit', 'rate', 
+    'id', 'tractorId', 'tractorName', 'implementId', 'implementName', 'unit', 'rate', 
     'effectiveDate', 'description', 'is_deleted', 'created_at', 'updated_at'
   ];
 }
@@ -306,18 +306,22 @@ function getCustomerHeaders() {
 
 function getTripSheetHeaders() {
   return [
-    'id', 'date', 'startTime', 'endTime', 'customerName', 'driverName', 
-    'tractorName', 'implementName', 'workType', 'workDescription', 
+    'id', 'date', 'startTime', 'endTime', 
+    'customerId', 'customerName', 
+    'driverId', 'driverName', 
+    'tractorId', 'tractorName', 
+    'implementId', 'implementName', 
+    'workType', 'workDescription', 
     'billingUnit', 'startMeter', 'endMeter', 'quantity', 'rate', 
     'grossAmount', 'discount', 'totalAmount', 'paidAmount', 'balanceAmount', 
-    'paymentStatus', 'collectedBy', 'collectedWhen', 'paymentMode', 
+    'paymentStatus', 'paidOnDate', 'collectedBy', 'collectedWhen', 'paymentMode', 
     'driverBata', 'notes', 'is_deleted', 'created_at', 'updated_at'
   ];
 }
 
 function getMaintenanceHeaders() {
   return [
-    'id', 'date', 'assetName', 'category', 'category_ta', 'quantity', 
+    'id', 'date', 'assetId', 'assetName', 'category', 'category_ta', 'quantity', 
     'unit', 'unitCost', 'totalAmount', 'hourMeter', 'vendorName', 
     'billNumber', 'paymentMode', 'notes', 'is_deleted', 'created_at', 'updated_at'
   ];
@@ -339,8 +343,8 @@ function getPartnerHeaders() {
 
 function getPartnerDrawingHeaders() {
   return [
-    'id', 'date', 'partnerName', 'amount', 'purpose', 
-    'paymentMode', 'is_deleted', 'created_at', 'updated_at'
+    'id', 'date', 'partnerId', 'partnerName', 'amount', 'purpose', 
+    'paymentMode', 'notes', 'is_deleted', 'created_at', 'updated_at'
   ];
 }
 

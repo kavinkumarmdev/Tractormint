@@ -78,7 +78,31 @@ export default function RateMatrixManager({
   const handleOpenEdit = (item) => {
     setEditingItem(item);
     setFormError('');
-    setFormData({ ...item });
+    let tracId = item.tractorId;
+    if (!tracId && item.tractorName) {
+      const matchT = tractors.find(t => t.name.toLowerCase() === item.tractorName.toLowerCase());
+      if (matchT) tracId = matchT.id;
+    }
+    let impId = item.implementId;
+    if (!impId && item.implementName) {
+      if (item.implementName.toLowerCase().includes('standalone') || item.implementName === 'none') {
+        impId = 'none';
+      } else {
+        const matchM = implementsList.find(m => m.name.toLowerCase() === item.implementName.toLowerCase());
+        if (matchM) impId = matchM.id;
+      }
+    }
+    setFormData({
+      id: item.id || '',
+      tractorId: tracId || (tractors[0] ? tractors[0].id : ''),
+      tractorName: item.tractorName || (tractors[0] ? tractors[0].name : ''),
+      implementId: impId || 'none',
+      implementName: item.implementName || 'Standalone Tractor',
+      unit: item.unit || 'per_hour',
+      rate: item.rate !== undefined && item.rate !== null ? String(item.rate) : '',
+      effectiveDate: item.effectiveDate || new Date().toISOString().slice(0, 10),
+      description: item.description || ''
+    });
     setIsModalOpen(true);
   };
 

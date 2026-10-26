@@ -17,7 +17,6 @@ import {
   User
 } from 'lucide-react';
 import Logo from './Logo';
-import InstallAppPrompt from './InstallAppPrompt';
 import { translations } from '../translations/dictionary';
 
 export default function Header({ 
@@ -44,28 +43,28 @@ export default function Header({
     switch (role) {
       case 'admin':
         return { 
-          label: lang === 'ta' ? 'நிர்வாகி (Admin)' : 'Admin', 
+          label: lang === 'ta' ? 'நிர்வாகி' : 'Admin', 
           icon: <ShieldCheck size={15} />, 
           className: 'btn-primary',
           title: lang === 'ta' ? 'முதன்மை நிர்வாகி (முழு அணுகல்)' : 'Master Administrator (Full Access)'
         };
       case 'manager':
         return { 
-          label: lang === 'ta' ? 'மேலாளர் (Manager)' : 'Manager', 
+          label: lang === 'ta' ? 'மேலாளர்' : 'Manager', 
           icon: <Shield size={15} />, 
           className: 'btn-outline',
           title: lang === 'ta' ? 'கள மேலாளர் / மேற்பார்வையாளர்' : 'Operations Manager / Supervisor'
         };
       case 'operator':
         return { 
-          label: lang === 'ta' ? 'ஆபரேட்டர் (Operator)' : 'Operator', 
+          label: lang === 'ta' ? 'ஆபரேட்டர்' : 'Operator', 
           icon: <UserCheck size={15} />, 
           className: 'btn-outline',
           title: lang === 'ta' ? 'கள ஆபரேட்டர்' : 'Field Operator'
         };
       case 'driver':
         return { 
-          label: lang === 'ta' ? 'டிரைவர் (Driver)' : 'Driver', 
+          label: lang === 'ta' ? 'டிரைவர்' : 'Driver', 
           icon: <Tractor size={15} />, 
           className: 'btn-outline',
           title: lang === 'ta' ? 'டிராக்டர் டிரைவர்' : 'Tractor Driver'
@@ -140,21 +139,16 @@ export default function Header({
           </div>
         )}
 
-        {/* Launch / Install App Button */}
-        <div className="header-install-wrapper">
-          <InstallAppPrompt lang={lang} />
-        </div>
-
         {/* Language Toggle (English / தமிழ்) */}
         <button 
           className="btn btn-outline btn-sm lang-toggle-btn"
           onClick={() => setLang(lang === 'en' ? 'ta' : 'en')}
-          title="Switch Language / மொழி மாற்றம்"
+          title={lang === 'ta' ? 'ஆங்கிலத்திற்கு மாற்ற கிளிக் செய்க' : 'Switch to Tamil'}
           style={{ fontWeight: 700 }}
         >
           <Languages size={15} />
-          <span className="lang-full-text">{lang === 'en' ? 'தமிழ்' : 'English'}</span>
-          <span className="lang-short-text">{lang === 'en' ? 'த' : 'EN'}</span>
+          <span className="lang-full-text">{lang === 'ta' ? 'தமிழ்' : 'English'}</span>
+          <span className="lang-short-text">{lang === 'ta' ? 'த' : 'EN'}</span>
         </button>
 
         {/* Role Indicator Badge (Displays current role) */}

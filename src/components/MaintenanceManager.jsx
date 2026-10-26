@@ -6,6 +6,7 @@ import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
 import VoiceInput from './common/VoiceInput';
 import { validatePositiveNumber } from '../services/storage';
+import { formatDateDDMMYYYY } from '../utils/dateUtils';
 
 export default function MaintenanceManager({ 
   maintenance, 
@@ -102,7 +103,28 @@ export default function MaintenanceManager({
   const handleOpenEdit = (item) => {
     setEditingItem(item);
     setFormError('');
-    setFormData({ ...item });
+    let assetId = item.assetId;
+    if (!assetId && item.assetName) {
+      const matchF = fleet.find(f => f.name.toLowerCase() === item.assetName.toLowerCase());
+      if (matchF) assetId = matchF.id;
+    }
+    setFormData({
+      id: item.id || '',
+      date: item.date || new Date().toISOString().slice(0, 10),
+      assetId: assetId || (fleet[0] ? fleet[0].id : ''),
+      assetName: item.assetName || (fleet[0] ? fleet[0].name : ''),
+      category: item.category || 'diesel',
+      category_ta: item.category_ta || '',
+      quantity: item.quantity !== undefined && item.quantity !== null ? String(item.quantity) : '',
+      unit: item.unit || 'liters',
+      unitCost: item.unitCost !== undefined && item.unitCost !== null ? String(item.unitCost) : '',
+      totalAmount: item.totalAmount !== undefined && item.totalAmount !== null ? String(item.totalAmount) : '',
+      hourMeter: item.hourMeter !== undefined && item.hourMeter !== null ? String(item.hourMeter) : '',
+      vendorName: item.vendorName || '',
+      billNumber: item.billNumber || '',
+      paymentMode: item.paymentMode || 'cash',
+      notes: item.notes || ''
+    });
     setIsModalOpen(true);
   };
 
@@ -241,22 +263,22 @@ export default function MaintenanceManager({
           <table className="data-table">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Category (பிரிவு)</th>
-                <th>Target Asset (இயந்திரம்)</th>
-                <th>Quantity</th>
-                <th>Unit Cost</th>
-                <th>Total Cost (₹)</th>
-                <th>Meter Reading</th>
-                <th>Vendor / Bill #</th>
-                <th>Payment</th>
+                <th>{lang === 'ta' ? 'தேதி' : 'Date'}</th>
+                <th>{lang === 'ta' ? 'பிரிவு' : 'Category'}</th>
+                <th>{lang === 'ta' ? 'இயந்திரம்' : 'Target Asset'}</th>
+                <th>{lang === 'ta' ? 'அளவு' : 'Quantity'}</th>
+                <th>{lang === 'ta' ? 'அலகு விலை' : 'Unit Cost'}</th>
+                <th>{lang === 'ta' ? 'மொத்த செலவு (₹)' : 'Total Cost (₹)'}</th>
+                <th>{lang === 'ta' ? 'மணி மீட்டர்' : 'Meter Reading'}</th>
+                <th>{lang === 'ta' ? 'விற்பனையாளர் / பில் #' : 'Vendor / Bill #'}</th>
+                <th>{lang === 'ta' ? 'கட்டண முறை' : 'Payment'}</th>
                 <th style={{ textAlign: 'right' }}>{t.actions}</th>
               </tr>
             </thead>
             <tbody>
               {filteredItems.map(item => (
                 <tr key={item.id}>
-                  <td>{item.date}</td>
+                  <td>{formatDateDDMMYYYY(item.date)}</td>
                   <td>
                     <div style={{ fontWeight: 700, color: 'var(--primary-700)' }}>
                       {lang === 'ta' ? (item.category_ta || item.category) : item.category}

@@ -246,7 +246,7 @@ export default function Navigation({
                 }}
               >
                 <LogOut size={13} />
-                {lang === 'ta' ? 'வெளியேறு (Logout)' : 'Sign Out'}
+                {lang === 'ta' ? 'வெளியேறு' : 'Sign Out'}
               </button>
             )}
           </div>
@@ -257,8 +257,8 @@ export default function Navigation({
           {/* On Mobile Drawer: Show All Tabs Categorized */}
           {mobileNavOpen ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', width: '100%' }}>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-light)', fontWeight: 700, padding: '0.5rem 0.75rem 0.2rem', textTransform: 'uppercase' }}>
-                {lang === 'ta' ? 'முக்கிய செயல்பாடுகள் (Core Operations)' : 'Operations'}
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', fontWeight: 700, padding: '0.5rem 0.75rem 0.2rem', textTransform: 'uppercase' }}>
+                {lang === 'ta' ? 'முக்கிய செயல்பாடுகள்' : 'Operations'}
               </div>
               {primaryTabs.map((tab) => {
                 const Icon = tab.icon;
@@ -275,8 +275,8 @@ export default function Navigation({
                 );
               })}
 
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-light)', fontWeight: 700, padding: '0.75rem 0.75rem 0.2rem', textTransform: 'uppercase', borderTop: '1px solid var(--border-color)', marginTop: '0.4rem' }}>
-                {lang === 'ta' ? 'கணக்கு & அமைப்புகள் (Finance & Settings)' : 'Finance & Settings'}
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-light)', fontWeight: 700, padding: '0.75rem 0.75rem 0.2rem', textTransform: 'uppercase', borderTop: '1px solid var(--border-color)', marginTop: '0.4rem' }}>
+                {lang === 'ta' ? 'கணக்கு & அமைப்புகள்' : 'Finance & Settings'}
               </div>
               {secondaryTabs.map((tab) => {
                 const Icon = tab.icon;

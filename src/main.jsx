@@ -9,11 +9,11 @@ createRoot(document.getElementById('root')).render(
   </StrictMode>,
 );
 
-// Register Service Worker for PWA App capability
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+// Register Service Worker for PWA App capability (standalone, offline, like YouTube/Facebook)
+if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch((err) => {
-      console.warn('Service worker registration failed:', err);
+      console.warn('Service worker registration note:', err);
     });
   });
 }

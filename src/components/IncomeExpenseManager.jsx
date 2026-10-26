@@ -5,6 +5,7 @@ import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
 import { validatePositiveNumber } from '../services/storage';
+import { formatDateDDMMYYYY } from '../utils/dateUtils';
 
 export default function IncomeExpenseManager({ 
   incomeExpense, 
@@ -72,7 +73,17 @@ export default function IncomeExpenseManager({
   const handleOpenEdit = (item) => {
     setEditingItem(item);
     setFormError('');
-    setFormData({ ...item });
+    setFormData({
+      id: item.id || '',
+      date: item.date || new Date().toISOString().slice(0, 10),
+      type: item.type || 'expense',
+      category: item.category || '',
+      category_ta: item.category_ta || item.category || '',
+      description: item.description || '',
+      amount: item.amount !== undefined && item.amount !== null ? String(item.amount) : '',
+      paymentMode: item.paymentMode || 'cash',
+      status: item.status || 'completed'
+    });
     setIsModalOpen(true);
   };
 
@@ -209,23 +220,23 @@ export default function IncomeExpenseManager({
           <table className="data-table">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Type</th>
-                <th>Category (பிரிவு)</th>
-                <th>Description / விவரம்</th>
-                <th>Amount (₹)</th>
-                <th>Payment Mode</th>
-                <th>Status (நிலை)</th>
+                <th>{lang === 'ta' ? 'தேதி' : 'Date'}</th>
+                <th>{lang === 'ta' ? 'வகை' : 'Type'}</th>
+                <th>{lang === 'ta' ? 'பிரிவு' : 'Category'}</th>
+                <th>{lang === 'ta' ? 'விளக்கம்' : 'Description'}</th>
+                <th>{lang === 'ta' ? 'தொகை (₹)' : 'Amount (₹)'}</th>
+                <th>{lang === 'ta' ? 'கட்டண முறை' : 'Payment Mode'}</th>
+                <th>{lang === 'ta' ? 'நிலை' : 'Status'}</th>
                 <th style={{ textAlign: 'right' }}>{t.actions}</th>
               </tr>
             </thead>
             <tbody>
               {filteredList.map(item => (
                 <tr key={item.id}>
-                  <td>{item.date}</td>
+                  <td>{formatDateDDMMYYYY(item.date)}</td>
                   <td>
                     <span className={`badge ${item.type === 'income' ? 'badge-paid' : 'badge-unpaid'}`}>
-                      {item.type === 'income' ? '+ Income' : '- Expense'}
+                      {item.type === 'income' ? (lang === 'ta' ? '+ வரவு' : '+ Income') : (lang === 'ta' ? '- செலவு' : '- Expense')}
                     </span>
                   </td>
                   <td>

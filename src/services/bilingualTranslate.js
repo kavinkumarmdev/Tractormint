@@ -429,3 +429,106 @@ export async function autoFillCounterpart({ text, sourceLang = 'auto' }) {
     return { english: trimmed, tamil: localTa || trimmed };
   }
 }
+
+/**
+ * Converts speech recognition transcripts into numeric digits for mobile numbers.
+ * Supports both Tamil and English spoken numbers, single digits, repeated numbers ("double 9"),
+ * and direct digit streams.
+ */
+export function parseSpokenPhoneDigits(text) {
+  if (!text || typeof text !== 'string') return '';
+
+  const clean = text.toLowerCase().trim();
+
+  // Word-to-digit dictionary
+  const DIGIT_WORDS = {
+    // English single digits
+    'zero': '0', 'oh': '0', 'o': '0', 'null': '0',
+    'one': '1', 'won': '1',
+    'two': '2', 'to': '2', 'too': '2',
+    'three': '3', 'tree': '3',
+    'four': '4', 'for': '4', 'fore': '4',
+    'five': '5',
+    'six': '6',
+    'seven': '7',
+    'eight': '8', 'ate': '8',
+    'nine': '9', 'niner': '9',
+
+    // English teens and tens
+    'ten': '10', 'eleven': '11', 'twelve': '12', 'thirteen': '13',
+    'fourteen': '14', 'fifteen': '15', 'sixteen': '16', 'seventeen': '17',
+    'eighteen': '18', 'nineteen': '19',
+    'twenty': '20', 'thirty': '30', 'forty': '40', 'fifty': '50',
+    'sixty': '60', 'seventy': '70', 'eighty': '80', 'ninety': '90',
+
+    // Tamil single digits (colloquial and formal)
+    'பூஜ்ஜியம்': '0', 'பூஜ்யம்': '0', 'சைபர்': '0', 'ஜீரோ': '0',
+    'ஒன்று': '1', 'ஒன்னு': '1', 'ஒரு': '1', 'ஒன்ன': '1',
+    'இரண்டு': '2', 'ரெண்டு': '2', 'ரெண்ட': '2',
+    'மூன்று': '3', 'மூணு': '3', 'மூண': '3',
+    'நான்கு': '4', 'நாலு': '4', 'நாலா': '4',
+    'ஐந்து': '5', 'அஞ்சு': '5', 'அஞ்ச': '5',
+    'ஆறு': '6', 'ஆற': '6',
+    'ஏழு': '7', 'ஏழ': '7',
+    'எட்டு': '8', 'எட்ட': '8',
+    'ஒன்பது': '9', 'ஒம்போது': '9', 'ஒம்பது': '9', 'ஒன்பதாவது': '9',
+
+    // Tamil tens
+    'பத்து': '10', 'இருபது': '20', 'முப்பது': '30', 'நாற்பது': '40',
+    'ஐம்பது': '50', 'அறுபது': '60', 'எழுபது': '70', 'எண்பது': '80', 'தொண்ணூறு': '90'
+  };
+
+  // Split by whitespace, punctuation, commas, hyphens
+  const tokens = clean.split(/[\s,.-]+/);
+  let result = '';
+  let repeatCount = 1;
+
+  for (let i = 0; i < tokens.length; i++) {
+    const rawToken = tokens[i].trim();
+    if (!rawToken) continue;
+
+    // Check for double / triple modifiers
+    if (rawToken === 'double' || rawToken === 'டபுள்' || rawToken === 'இரட்டை') {
+      repeatCount = 2;
+      continue;
+    }
+    if (rawToken === 'triple' || rawToken === 'ட்ரிபிள்' || rawToken === 'மும்முறை') {
+      repeatCount = 3;
+      continue;
+    }
+
+    // Direct numeric match in token (e.g. "98421" or "9")
+    if (/^\d+$/.test(rawToken)) {
+      if (repeatCount > 1) {
+        const firstDigit = rawToken[0];
+        result += firstDigit.repeat(repeatCount) + rawToken.slice(1);
+      } else {
+        result += rawToken;
+      }
+      repeatCount = 1;
+      continue;
+    }
+
+    // Check dictionary
+    if (DIGIT_WORDS[rawToken] !== undefined) {
+      const mapped = DIGIT_WORDS[rawToken];
+      if (repeatCount > 1 && mapped.length === 1) {
+        result += mapped.repeat(repeatCount);
+      } else {
+        result += mapped;
+      }
+      repeatCount = 1;
+      continue;
+    }
+
+    // If token has digits embedded with letters, extract any numbers
+    const embeddedDigits = rawToken.replace(/\D/g, '');
+    if (embeddedDigits) {
+      result += embeddedDigits;
+      repeatCount = 1;
+    }
+  }
+
+  // Remove any remaining non-digit characters and limit to 10 digits
+  return result.replace(/\D/g, '').slice(0, 10);
+}

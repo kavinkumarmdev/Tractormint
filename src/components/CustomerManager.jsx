@@ -20,6 +20,7 @@ export default function CustomerManager({
   const [editingItem, setEditingItem] = useState(null);
   const [deleteModalState, setDeleteModalState] = useState({ isOpen: false, item: null });
   const [formError, setFormError] = useState('');
+  const [paymentFilter, setPaymentFilter] = useState('all'); // all | due | settled
 
   const [formData, setFormData] = useState({
     id: '',
@@ -67,7 +68,15 @@ export default function CustomerManager({
   const handleOpenEdit = (item) => {
     setEditingItem(item);
     setFormError('');
-    setFormData({ ...item });
+    setFormData({
+      id: item.id || '',
+      name: item.name || '',
+      name_ta: item.name_ta || item.name || '',
+      phone: item.phone ? String(item.phone) : '',
+      village: item.village || '',
+      village_ta: item.village_ta || item.village || '',
+      address: item.address || ''
+    });
     setIsModalOpen(true);
   };
 
@@ -143,11 +152,21 @@ export default function CustomerManager({
   };
 
   const filteredCustomers = customers.filter(c => {
-    return (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-           (c.name_ta || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-           (c.village || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-           (c.village_ta || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-           (c.phone || '').includes(searchTerm);
+    const matchesSearch = (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (c.name_ta || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (c.village || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (c.village_ta || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (c.phone || '').includes(searchTerm);
+
+    if (!matchesSearch) return false;
+
+    if (paymentFilter !== 'all') {
+      const ledger = getCustomerLedger(c.id);
+      if (paymentFilter === 'due') return ledger.balance > 0;
+      if (paymentFilter === 'settled') return ledger.balance <= 0 && ledger.tripsCount > 0;
+    }
+
+    return true;
   });
 
   return (
@@ -170,11 +189,22 @@ export default function CustomerManager({
           <Search size={16} className="search-icon-inside" />
           <input
             type="text"
-            placeholder={t.search + ' (Name, Village, Phone...)'}
+            placeholder={lang === 'ta' ? 'தேடுக... (விவசாயி பெயர், ஊர், போன்...)' : 'Search (Name, Village, Phone...)'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+
+        {/* Payment Balance Filter */}
+        <select 
+          className="filter-select"
+          value={paymentFilter}
+          onChange={(e) => setPaymentFilter(e.target.value)}
+        >
+          <option value="all">{lang === 'ta' ? 'அனைத்து விவசாயிகள்' : 'All Customers'}</option>
+          <option value="due">{lang === 'ta' ? 'நிலுவை பாக்கி உள்ளவர்கள்' : 'Pending Dues'}</option>
+          <option value="settled">{lang === 'ta' ? 'பாக்கி இல்லாதவர்கள்' : 'Fully Settled'}</option>
+        </select>
       </div>
 
       {/* Table */}
@@ -183,13 +213,14 @@ export default function CustomerManager({
           <table className="data-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Farmer Name / பெயர்</th>
-                <th>Village / ஊர்</th>
-                <th>Phone Number</th>
-                <th>Total Work Done</th>
-                <th>Total Paid</th>
-                <th>Outstanding Balance (நிலுவை)</th>
+                <th>{lang === 'ta' ? 'குறியீடு' : 'ID'}</th>
+                <th>{lang === 'ta' ? 'விவசாயி பெயர்' : 'Farmer Name'}</th>
+                <th>{lang === 'ta' ? 'அலைபேசி எண்' : 'Phone Number'}</th>
+                <th>{lang === 'ta' ? 'கிராமம் / ஊர்' : 'Village / Town'}</th>
+                <th>{lang === 'ta' ? 'முகவரி / நில விவரம்' : 'Address / Farm Land'}</th>
+                <th>{lang === 'ta' ? 'மொத்த உழவு மதிப்பு' : 'Total Work Done'}</th>
+                <th>{lang === 'ta' ? 'பெறப்பட்ட தொகை' : 'Total Paid'}</th>
+                <th>{lang === 'ta' ? 'நிலுவைத் தொகை' : 'Outstanding Balance'}</th>
                 <th style={{ textAlign: 'right' }}>{t.actions}</th>
               </tr>
             </thead>
@@ -201,13 +232,6 @@ export default function CustomerManager({
                     <td style={{ fontWeight: 700, color: 'var(--primary-700)' }}>{item.id}</td>
                     <td>
                       <div style={{ fontWeight: 600 }}>{lang === 'ta' ? (item.name_ta || item.name) : item.name}</div>
-                      {item.address && <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>{item.address}</div>}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <MapPin size={13} color="var(--amber-600)" />
-                        <span>{lang === 'ta' ? (item.village_ta || item.village) : item.village}</span>
-                      </div>
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}>
@@ -215,7 +239,18 @@ export default function CustomerManager({
                         {item.phone || '--'}
                       </div>
                     </td>
-                    <td style={{ fontWeight: 600 }}>₹{ledger.totalBilled.toLocaleString()} ({ledger.tripsCount} trips)</td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <MapPin size={13} color="var(--amber-600)" />
+                        <span>{lang === 'ta' ? (item.village_ta || item.village || '--') : (item.village || '--')}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: '0.85rem', color: item.address ? 'var(--text-main)' : 'var(--text-light)' }}>
+                        {item.address || '--'}
+                      </span>
+                    </td>
+                    <td style={{ fontWeight: 600 }}>₹{ledger.totalBilled.toLocaleString()} ({ledger.tripsCount} {lang === 'ta' ? 'டிரிப்புகள்' : 'trips'})</td>
                     <td style={{ fontWeight: 700, color: '#16a34a' }}>₹{ledger.totalPaid.toLocaleString()}</td>
                     <td>
                       <span style={{ 
@@ -259,8 +294,8 @@ export default function CustomerManager({
               })}
               {filteredCustomers.length === 0 && (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-light)' }}>
-                    No customers found.
+                  <td colSpan="9" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-light)' }}>
+                    {lang === 'ta' ? 'விவசாயிகள் விவரங்கள் எதுவும் காணப்படவில்லை.' : 'No customers found.'}
                   </td>
                 </tr>
               )}
@@ -306,33 +341,35 @@ export default function CustomerManager({
             <form onSubmit={handleSubmit}>
               <div className="modal-body form-grid">
                 
-                {/* Name English & Tamil with Mic & Auto-Fill */}
+                {/* Name English & Tamil with Voice */}
                 <BilingualVoiceGroup
-                  englishLabel="Customer Name (English)"
-                  tamilLabel="விவசாயி பெயர் (தமிழ்)"
+                  englishLabel="Customer Name"
+                  tamilLabel="விவசாயி பெயர்"
                   englishValue={formData.name}
                   tamilValue={formData.name_ta}
                   onEnglishChange={(val) => setFormData(prev => ({ ...prev, name: val }))}
                   onTamilChange={(val) => setFormData(prev => ({ ...prev, name_ta: val }))}
                   englishPlaceholder="e.g. A. Arumugam Gounder"
                   tamilPlaceholder="எ.கா. ஏ. ஆறுமுகம் கவுண்டர்"
+                  lang={lang}
                   required
                 />
 
-                {/* Village English & Tamil with Mic & Auto-Fill */}
+                {/* Village / Town - NOT Mandatory */}
                 <BilingualVoiceGroup
-                  englishLabel="Village / Town (English)"
-                  tamilLabel="கிராமம் / ஊர் (தமிழ்)"
+                  englishLabel="Village / Town (Optional)"
+                  tamilLabel="கிராமம் / ஊர் (விருப்பத்தேர்வு)"
                   englishValue={formData.village}
                   tamilValue={formData.village_ta}
                   onEnglishChange={(val) => setFormData(prev => ({ ...prev, village: val }))}
                   onTamilChange={(val) => setFormData(prev => ({ ...prev, village_ta: val }))}
                   englishPlaceholder="e.g. Perur / Alandurai"
                   tamilPlaceholder="எ.கா. பேரூர் / ஆலாந்துறை"
-                  required
+                  lang={lang}
+                  required={false}
                 />
 
-                {/* Phone - Strictly 10 digits & Unique */}
+                {/* Phone - Strictly 10 digits & Unique with Working Mic */}
                 <div className="form-group">
                   <VoiceInput
                     label={lang === 'ta' ? 'அலைபேசி எண் (10 இலக்கங்கள்) *' : 'Mobile Number (10 digits) *'}
@@ -344,7 +381,7 @@ export default function CustomerManager({
                       setFormData(prev => ({ ...prev, phone: digits }));
                       if (formError) setFormError('');
                     }}
-                    speechLang="en-IN"
+                    speechLang={lang === 'ta' ? 'ta-IN' : 'en-IN'}
                     required
                   />
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginTop: '0.25rem', display: 'block' }}>
@@ -352,12 +389,12 @@ export default function CustomerManager({
                   </span>
                 </div>
 
-                {/* Farm Land Address / Notes */}
+                {/* Farm Land Address / Notes - NOT Mandatory */}
                 <div className="form-group col-full">
                   <VoiceInput
-                    label="Farm Location / Land Details (நில விபரம்)"
-                    placeholder="e.g. Canal Road, North Thottam, 4.5 Acres Sugarcane"
-                    value={formData.address}
+                    label={lang === 'ta' ? 'விவசாய நிலம் / முகவரி (விருப்பத்தேர்வு)' : 'Farm Location / Address (Optional)'}
+                    placeholder={lang === 'ta' ? 'எ.கா. வாய்க்கால் ரோடு, வடக்கு தோட்டம்' : 'e.g. Canal Road, North Thottam, 4.5 Acres Sugarcane'}
+                    value={formData.address || ''}
                     onChange={(val) => setFormData(prev => ({ ...prev, address: val }))}
                     speechLang={lang === 'ta' ? 'ta-IN' : 'en-IN'}
                   />

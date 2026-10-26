@@ -651,9 +651,9 @@ body.dark-mode .filter-select {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
-  max-width: 680px;
+  max-width: 760px;
   width: 100%;
-  max-height: 90vh;
+  max-height: 92vh;
   overflow-y: auto;
   box-shadow: var(--shadow-lg), var(--shadow-glow);
   animation: scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
@@ -668,9 +668,10 @@ body.dark-mode .filter-select {
 }
 
 .modal-header h3 {
-  font-size: 1.15rem;
-  font-weight: 700;
+  font-size: 1.25rem;
+  font-weight: 800;
   color: var(--text-main);
+  letter-spacing: -0.01em;
 }
 
 .modal-body {
@@ -690,10 +691,10 @@ body.dark-mode .filter-select {
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
+  gap: 1.1rem;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 640px) {
   .form-grid {
     grid-template-columns: 1fr;
   }
@@ -702,7 +703,7 @@ body.dark-mode .filter-select {
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.4rem;
 }
 
 .form-group.col-full {
@@ -710,14 +711,14 @@ body.dark-mode .filter-select {
 }
 
 .form-group label {
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 0.88rem;
+  font-weight: 700;
   color: var(--text-muted);
 }
 
 .form-control {
-  padding: 0.6rem 0.85rem;
-  font-size: 0.875rem;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.95rem;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);

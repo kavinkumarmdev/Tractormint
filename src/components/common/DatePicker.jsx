@@ -182,15 +182,15 @@ export default function DatePicker({
 
     const d = new Date(value + 'T00:00:00');
     if (!isNaN(d.getTime())) {
-      const day = d.getDate();
-      const month = monthShort[d.getMonth()];
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
       const year = d.getFullYear();
       const tagText = isToday 
         ? (lang === 'ta' ? ' (இன்று)' : ' (Today)') 
         : isYesterday 
         ? (lang === 'ta' ? ' (நேற்று)' : ' (Yesterday)') 
         : '';
-      displayValue = `${day} ${month} ${year}${tagText}`;
+      displayValue = `${day}/${month}/${year}${tagText}`;
     } else {
       displayValue = value;
     }
