@@ -96,6 +96,66 @@ export default function TripSheetManager({
   const tractors = fleet.filter(f => f.type === 'tractor');
   const implementsList = fleet.filter(f => f.type === 'implement');
 
+  const getCurrentTimeFormatted = () => {
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
+  const formatTimer = (totalSec) => {
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  const resolveUnitLabel = (unit) => {
+    if (unit === 'per_hour') return lang === 'ta' ? 'மணி நேரத்திற்கு' : 'Per Hour';
+    if (unit === 'per_acre') return lang === 'ta' ? 'ஏக்கருக்கு' : 'Per Acre';
+    if (unit === 'per_km') return lang === 'ta' ? 'கி.மீக்கு' : 'Per Km';
+    if (unit === 'per_trip') return lang === 'ta' ? 'டிரிப்பிற்கு' : 'Per Trip';
+    return unit || '';
+  };
+
+  // Form State
+  const [formData, setFormData] = useState({
+    id: '',
+    date: new Date().toISOString().slice(0, 10),
+    startTime: getCurrentTimeFormatted(),
+    endTime: getCurrentTimeFormatted(),
+    customerId: '',
+    customerName: '',
+    driverId: '',
+    driverName: '',
+    tractorId: '',
+    tractorName: '',
+    implementId: '',
+    implementName: '',
+    implementIds: [],
+    implementNames: [],
+    workType: '5-Tyne Ploughing (5 கொழு உழவு)',
+    workDescription: '',
+    billingUnit: 'per_hour',
+    startMeter: '',
+    endMeter: '',
+    quantity: '4',
+    rate: '900',
+    grossAmount: '3600',
+    discount: '0',
+    totalAmount: '3600',
+    paidAmount: '0',
+    balanceAmount: '3600',
+    paymentStatus: 'unpaid',
+    cashInHandStatus: 'settled',
+    paidOnDate: new Date().toISOString().slice(0, 10),
+    collectedBy: '',
+    collectedWhen: new Date().toISOString().slice(0, 16).replace('T', ' '),
+    paymentMode: 'cash',
+    driverBata: '400',
+    notes: ''
+  });
+
   const [quickSettleState, setQuickSettleState] = useState({
     isOpen: false,
     trip: null,
@@ -110,14 +170,15 @@ export default function TripSheetManager({
 
   // Compute selected farmer's previous total outstanding due
   const customerPreviousDue = useMemo(() => {
-    if (!formData.customerId && !formData.customerName) return 0;
+    if (!formData?.customerId && !formData?.customerName) return 0;
+    if (!Array.isArray(tripSheets)) return 0;
     return tripSheets
       .filter(t => (
         (formData.customerId && t.customerId === formData.customerId) || 
         (formData.customerName && t.customerName && t.customerName.toLowerCase() === formData.customerName.toLowerCase())
       ) && t.id !== formData.id)
       .reduce((sum, t) => sum + (parseFloat(t.balanceAmount) || 0), 0);
-  }, [formData.customerId, formData.customerName, formData.id, tripSheets]);
+  }, [formData?.customerId, formData?.customerName, formData?.id, tripSheets]);
 
   // Live Timer Interval
   useEffect(() => {
@@ -230,28 +291,6 @@ export default function TripSheetManager({
     setTimeout(() => setTimerMessage(''), 4500);
   };
 
-  const formatTimer = (totalSec) => {
-    const h = Math.floor(totalSec / 3600);
-    const m = Math.floor((totalSec % 3600) / 60);
-    const s = totalSec % 60;
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  };
-
-  const getCurrentTimeFormatted = () => {
-    const now = new Date();
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    return `${hours}:${minutes}`;
-  };
-
-  const resolveUnitLabel = (unit) => {
-    if (unit === 'per_hour') return lang === 'ta' ? 'மணி நேரத்திற்கு' : 'Per Hour';
-    if (unit === 'per_acre') return lang === 'ta' ? 'ஏக்கருக்கு' : 'Per Acre';
-    if (unit === 'per_km') return lang === 'ta' ? 'கி.மீக்கு' : 'Per Km';
-    if (unit === 'per_trip') return lang === 'ta' ? 'டிரிப்பிற்கு' : 'Per Trip';
-    return unit || '';
-  };
-
   // Build the Unified Single Select Options: (Tractor + Implement / Rate Card Combos)
   const comboOptions = [];
   rateMatrix.forEach(r => {
@@ -316,43 +355,6 @@ export default function TripSheetManager({
         });
       }
     });
-  });
-
-  // Form State
-  const [formData, setFormData] = useState({
-    id: '',
-    date: new Date().toISOString().slice(0, 10),
-    startTime: getCurrentTimeFormatted(),
-    endTime: getCurrentTimeFormatted(),
-    customerId: '',
-    customerName: '',
-    driverId: '',
-    driverName: '',
-    tractorId: '',
-    tractorName: '',
-    implementId: '',
-    implementName: '',
-    implementIds: [],
-    implementNames: [],
-    workType: '5-Tyne Ploughing (5 கொழு உழவு)',
-    workDescription: '',
-    billingUnit: 'per_hour',
-    startMeter: '',
-    endMeter: '',
-    quantity: '4',
-    rate: '900',
-    grossAmount: '3600',
-    discount: '0',
-    totalAmount: '3600',
-    paidAmount: '0',
-    balanceAmount: '3600',
-    paymentStatus: 'unpaid',
-    paidOnDate: new Date().toISOString().slice(0, 10),
-    collectedBy: '',
-    collectedWhen: new Date().toISOString().slice(0, 16).replace('T', ' '),
-    paymentMode: 'cash',
-    driverBata: '400',
-    notes: ''
   });
 
   // Rule 4: Compute machinery options mapped to the currently selected tractor
