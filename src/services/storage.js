@@ -2,6 +2,7 @@
 import { syncAllToGoogleSheet, recordLoginAttemptInSheet } from './googleSheets';
 import { ENV_GOOGLE_SHEETS_URL, getEffectiveGoogleSheetUrl } from '../config/env';
 import { cleanDeep } from '../utils/timeCalcUtils';
+import { healShiftedTripRecord } from '../utils/langUtils';
 
 const STORAGE_KEYS = {
   FLEET: "tractomint_fleet",
@@ -205,7 +206,16 @@ export const StorageService = {
 
   getTripSheets: (includeDeleted = false) => {
     const list = loadData(STORAGE_KEYS.TRIP_SHEETS, INITIAL_TRIP_SHEETS);
-    return includeDeleted ? list : list.filter(item => !isDeleted(item));
+    let wasRepaired = false;
+    const normalized = list.map(item => {
+      const healed = healShiftedTripRecord(item);
+      if (healed && healed._healed) wasRepaired = true;
+      return healed;
+    });
+    if (wasRepaired) {
+      saveData(STORAGE_KEYS.TRIP_SHEETS, normalized);
+    }
+    return includeDeleted ? normalized : normalized.filter(item => !isDeleted(item));
   },
 
   getMaintenance: (includeDeleted = false) => {
@@ -520,7 +530,8 @@ export const StorageService = {
       }
     }
 
-    const saved = StorageService.saveItem(STORAGE_KEYS.TRIP_SHEETS, trip, role);
+    const healed = healShiftedTripRecord(trip);
+    const saved = StorageService.saveItem(STORAGE_KEYS.TRIP_SHEETS, healed, role);
     return { success: true, item: saved };
   },
 
@@ -1092,7 +1103,7 @@ export const StorageService = {
     if (Array.isArray(dataset.rateMatrix)) saveData(STORAGE_KEYS.RATE_MATRIX, dataset.rateMatrix);
     if (Array.isArray(dataset.drivers)) saveData(STORAGE_KEYS.DRIVERS, dataset.drivers);
     if (Array.isArray(dataset.customers)) saveData(STORAGE_KEYS.CUSTOMERS, dataset.customers);
-    if (Array.isArray(dataset.tripSheets)) saveData(STORAGE_KEYS.TRIP_SHEETS, dataset.tripSheets);
+    if (Array.isArray(dataset.tripSheets)) saveData(STORAGE_KEYS.TRIP_SHEETS, dataset.tripSheets.map(healShiftedTripRecord));
     if (Array.isArray(dataset.maintenance)) saveData(STORAGE_KEYS.MAINTENANCE, dataset.maintenance);
     if (Array.isArray(dataset.incomeExpense)) saveData(STORAGE_KEYS.INCOME_EXPENSE, dataset.incomeExpense);
     if (Array.isArray(dataset.partners)) saveData(STORAGE_KEYS.PARTNERS, dataset.partners);

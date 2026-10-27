@@ -42,6 +42,15 @@ import {
   formatDurationLabel, 
   calculateTimeDifferenceHours 
 } from '../utils/timeCalcUtils';
+import { 
+  healShiftedTripRecord, 
+  localizeName, 
+  localizeMachineryName, 
+  localizeWorkType, 
+  localizeBillingRate, 
+  localizePaymentMode, 
+  localizeCollectedBy 
+} from '../utils/langUtils';
 
 export default function TripSheetManager({ 
   tripSheets, 
@@ -1524,7 +1533,11 @@ export default function TripSheetManager({
     setIsModalOpen(false);
   };
 
-  const filteredTrips = tripSheets.filter(t => {
+  const healedTrips = useMemo(() => {
+    return (tripSheets || []).map(t => healShiftedTripRecord(t));
+  }, [tripSheets]);
+
+  const filteredTrips = healedTrips.filter(t => {
     const matchesSearch = (t.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (t.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (t.driverName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1546,8 +1559,8 @@ export default function TripSheetManager({
     return matchesSearch && matchesStatus && matchesCustomer;
   });
 
-  const pendingTripsCount = tripSheets.filter(t => parseFloat(t.balanceAmount) > 0 || t.paymentStatus === 'unpaid').length;
-  const paidTripsCount = tripSheets.filter(t => t.paymentStatus === 'paid' && parseFloat(t.balanceAmount) === 0).length;
+  const pendingTripsCount = healedTrips.filter(t => parseFloat(t.balanceAmount) > 0 || t.paymentStatus === 'unpaid').length;
+  const paidTripsCount = healedTrips.filter(t => t.paymentStatus === 'paid' && parseFloat(t.balanceAmount) === 0).length;
 
   return (
     <div>
@@ -1665,35 +1678,54 @@ export default function TripSheetManager({
               </tr>
             </thead>
             <tbody>
-              {filteredTrips.map(trip => {
+              {filteredTrips.map(rawTrip => {
+                const trip = healShiftedTripRecord(rawTrip);
                 const hasPendingBalance = parseFloat(trip.balanceAmount) > 0;
                 const formattedDate = formatDateDDMMYYYY(trip.date);
                 const startT = formatTimeDisplay(trip.startTime);
                 const endT = formatTimeDisplay(trip.endTime);
 
                 const foundCust = customers.find(c => c.id === trip.customerId || (c.name && c.name.toLowerCase() === (trip.customerName || '').toLowerCase()));
-                const dispCustomer = (lang === 'ta' && (trip.customerName_ta || foundCust?.name_ta)) 
-                  ? (trip.customerName_ta || foundCust?.name_ta) 
-                  : (trip.customerName || '---');
+                const dispCustomer = lang === 'ta'
+                  ? (trip.customerName_ta || foundCust?.name_ta || localizeName(trip.customerName, 'ta') || '---')
+                  : (foundCust?.name || localizeName(trip.customerName_ta || trip.customerName, 'en') || '---');
 
                 const foundDrv = drivers.find(d => d.id === trip.driverId || (d.name && d.name.toLowerCase() === (trip.driverName || '').toLowerCase()));
-                const dispDriver = (lang === 'ta' && (trip.driverName_ta || foundDrv?.name_ta)) 
-                  ? (trip.driverName_ta || foundDrv?.name_ta) 
-                  : (trip.driverName || '---');
+                const dispDriver = lang === 'ta'
+                  ? (trip.driverName_ta || foundDrv?.name_ta || localizeName(trip.driverName, 'ta') || '---')
+                  : (foundDrv?.name || localizeName(trip.driverName_ta || trip.driverName, 'en') || '---');
 
                 const foundTrac = tractors.find(t => t.id === trip.tractorId || (t.name && t.name.toLowerCase() === (trip.tractorName || '').toLowerCase()));
-                const dispTractor = (lang === 'ta' && (trip.tractorName_ta || foundTrac?.name_ta)) 
-                  ? (trip.tractorName_ta || foundTrac?.name_ta) 
-                  : (trip.tractorName || '---');
+                const dispTractor = lang === 'ta'
+                  ? (trip.tractorName_ta || foundTrac?.name_ta || localizeMachineryName(trip.tractorName || foundTrac?.name, 'ta') || '---')
+                  : (foundTrac?.name || localizeMachineryName(trip.tractorName_ta || trip.tractorName, 'en') || '---');
 
                 const foundImp = implementsList.find(m => m.id === trip.implementId);
-                const dispImplement = (lang === 'ta' && (trip.implementName_ta || foundImp?.name_ta)) 
-                  ? (trip.implementName_ta || foundImp?.name_ta) 
-                  : (trip.implementName || '');
+                const rawImpName = trip.implementName || foundImp?.name || '';
+                const dispImplement = rawImpName 
+                  ? localizeMachineryName(lang === 'ta' ? (trip.implementName_ta || foundImp?.name_ta || rawImpName) : rawImpName, lang)
+                  : (lang === 'ta' ? 'தனி டிராக்டர்' : 'Standalone Tractor');
+
+                const dispWorkType = localizeWorkType(trip.workType || trip.workDescription, lang);
 
                 const dispDuration = trip.billingUnit === 'per_hour' 
                   ? formatDurationLabel(trip.quantity, lang) 
-                  : `${trip.quantity} ${trip.billingUnit === 'per_acre' ? (lang === 'ta' ? 'ஏக்கர்' : 'acres') : (lang === 'ta' ? 'டிரிப்' : trip.billingUnit)}`;
+                  : `${trip.quantity} ${trip.billingUnit === 'per_acre' ? (lang === 'ta' ? 'ஏக்கர்' : 'acres') : (lang === 'ta' ? 'டிரிப்' : 'trips')}`;
+
+                const dispRate = localizeBillingRate(trip.billingUnit, trip.rate, lang);
+
+                const totalAmt = !isNaN(Number(trip.totalAmount)) ? Number(trip.totalAmount) : (parseFloat(trip.quantity || 1) * parseFloat(trip.rate || 0));
+                const paidAmt = !isNaN(Number(trip.paidAmount)) ? Number(trip.paidAmount) : 0;
+                const balAmt = !isNaN(Number(trip.balanceAmount)) ? Number(trip.balanceAmount) : Math.max(0, totalAmt - paidAmt);
+
+                const dispCollectedBy = localizeCollectedBy(trip.collectedBy, lang);
+                const dispPaymentMode = localizePaymentMode(trip.paymentMode, lang);
+
+                const dispStatus = trip.paymentStatus === 'paid' 
+                  ? (lang === 'ta' ? 'முழுவதும் செலுத்தப்பட்டது' : 'Paid')
+                  : trip.paymentStatus === 'partial' 
+                  ? (lang === 'ta' ? 'பகுதி வசூல்' : 'Partial')
+                  : (lang === 'ta' ? 'நிலுவை' : 'Pending');
 
                 return (
                   <tr 
@@ -1713,7 +1745,7 @@ export default function TripSheetManager({
                     </td>
                     <td>
                       <div style={{ fontWeight: 700 }}>{dispCustomer}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>{trip.workType}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>{dispWorkType}</div>
                     </td>
                     <td style={{ fontSize: '0.85rem' }}>
                       <span style={{ fontWeight: 600 }}>{dispDriver}</span>
@@ -1739,17 +1771,17 @@ export default function TripSheetManager({
                       <div style={{ fontWeight: 700, color: 'var(--primary-800)' }}>
                         {dispDuration}
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>@ ₹{trip.rate}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>{dispRate}</div>
                     </td>
-                    <td style={{ fontWeight: 800 }}>₹{trip.totalAmount}</td>
-                    <td style={{ fontWeight: 800, color: '#16a34a' }}>₹{trip.paidAmount}</td>
+                    <td style={{ fontWeight: 800 }}>₹{totalAmt}</td>
+                    <td style={{ fontWeight: 800, color: '#16a34a' }}>₹{paidAmt}</td>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                         <span style={{ 
                           fontWeight: 800, 
                           color: hasPendingBalance ? '#dc2626' : '#16a34a' 
                         }}>
-                          ₹{trip.balanceAmount}
+                          ₹{balAmt}
                         </span>
                         {hasPendingBalance && (
                           <button
@@ -1759,7 +1791,7 @@ export default function TripSheetManager({
                               setQuickSettleState({
                                 isOpen: true,
                                 trip,
-                                amount: String(trip.balanceAmount || ''),
+                                amount: String(balAmt || ''),
                                 paymentMode: 'cash',
                                 cashInHandStatus: trip.cashInHandStatus || 'settled',
                                 notes: ''
@@ -1788,10 +1820,10 @@ export default function TripSheetManager({
                     </td>
                     <td>
                       <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>
-                        {trip.collectedBy ? trip.collectedBy : '--'}
+                        {dispCollectedBy}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>
-                        {trip.paymentMode ? trip.paymentMode.toUpperCase() : ''} {trip.collectedWhen ? `• ${trip.collectedWhen.slice(0, 10)}` : ''}
+                        {dispPaymentMode} {trip.collectedWhen ? `• ${trip.collectedWhen.slice(0, 10)}` : ''}
                       </div>
                     </td>
                     <td>
@@ -1800,8 +1832,7 @@ export default function TripSheetManager({
                           trip.paymentStatus === 'paid' ? 'badge-paid' :
                           trip.paymentStatus === 'partial' ? 'badge-partial' : 'badge-unpaid'
                         }`}>
-                          {trip.paymentStatus === 'paid' ? t.paid :
-                           trip.paymentStatus === 'partial' ? t.partial : (lang === 'ta' ? 'நிலுவை' : 'Pending')}
+                          {dispStatus}
                         </span>
                         {trip.cashInHandStatus === 'in_hand' && (
                           <div style={{ 
@@ -1814,11 +1845,12 @@ export default function TripSheetManager({
                             marginTop: '3px',
                             display: 'inline-block' 
                           }}>
-                            💵 {lang === 'ta' ? 'டிரைவர் கையில்' : 'Cash in Hand'}
+                            💵 {lang === 'ta' ? 'டிரைவர் கையில் ரொக்கம்' : 'Cash with Driver'}
                           </div>
                         )}
                       </div>
                     </td>
+
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', gap: '0.35rem' }} onClick={(e) => e.stopPropagation()}>
                         <button 

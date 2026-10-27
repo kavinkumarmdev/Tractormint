@@ -2,10 +2,39 @@ import React from 'react';
 import { Printer, Share2, X, CheckCircle, Clock } from 'lucide-react';
 import { translations } from '../translations/dictionary';
 import { formatDateDDMMYYYY, formatTimeDisplay } from '../utils/dateUtils';
+import { 
+  healShiftedTripRecord, 
+  localizeName, 
+  localizeMachineryName, 
+  localizeWorkType, 
+  localizePaymentMode, 
+  localizeCollectedBy 
+} from '../utils/langUtils';
 
-export default function TripSlipModal({ isOpen, onClose, trip, lang, settings }) {
-  if (!isOpen || !trip) return null;
-  const t = translations[lang];
+export default function TripSlipModal({ isOpen, onClose, trip: rawTrip, lang, settings }) {
+  if (!isOpen || !rawTrip) return null;
+  const trip = healShiftedTripRecord(rawTrip);
+  const t = translations[lang] || translations.en;
+
+  const dispCustomer = lang === 'ta'
+    ? (trip.customerName_ta || localizeName(trip.customerName, 'ta'))
+    : (localizeName(trip.customerName_ta || trip.customerName, 'en'));
+
+  const dispDriver = lang === 'ta'
+    ? (trip.driverName_ta || localizeName(trip.driverName, 'ta'))
+    : (localizeName(trip.driverName_ta || trip.driverName, 'en'));
+
+  const dispTractor = lang === 'ta'
+    ? (trip.tractorName_ta || localizeMachineryName(trip.tractorName, 'ta'))
+    : (localizeMachineryName(trip.tractorName_ta || trip.tractorName, 'en'));
+
+  const dispImplement = trip.implementName 
+    ? (lang === 'ta' ? (trip.implementName_ta || localizeMachineryName(trip.implementName, 'ta')) : localizeMachineryName(trip.implementName_ta || trip.implementName, 'en'))
+    : (lang === 'ta' ? 'தனி டிராக்டர்' : 'Standalone Tractor');
+
+  const dispWork = localizeWorkType(trip.workType || trip.workDescription, lang);
+  const dispMode = localizePaymentMode(trip.paymentMode, lang);
+  const dispCollector = localizeCollectedBy(trip.collectedBy, lang);
 
   const handlePrint = () => {
     window.print();
@@ -15,25 +44,26 @@ export default function TripSlipModal({ isOpen, onClose, trip, lang, settings })
     const startT = formatTimeDisplay(trip.startTime);
     const endT = formatTimeDisplay(trip.endTime);
     const timeSnippet = startT ? ` (${startT}${endT ? ` - ${endT}` : ''})` : '';
-    const text = `🚜 *${settings.companyName || 'TRACTOR BILL SLIP'}* 🚜
+    const company = lang === 'ta' ? (settings.companyName_ta || settings.companyName) : settings.companyName;
+    const text = `🚜 *${company || 'TRACTOR BILL SLIP'}* 🚜
 ==============================
-*Trip Slip No:* ${trip.id}
-*Date:* ${formatDateDDMMYYYY(trip.date)}${timeSnippet}
-*Customer:* ${trip.customerName}
-*Driver:* ${trip.driverName}
-*Tractor:* ${trip.tractorName}
-*Implement:* ${trip.implementName || 'Standalone'}
-*Work Done:* ${trip.workType || trip.workDescription}
+*${lang === 'ta' ? 'ரசீது எண்' : 'Trip Slip No'}:* ${trip.id}
+*${lang === 'ta' ? 'தேதி' : 'Date'}:* ${formatDateDDMMYYYY(trip.date)}${timeSnippet}
+*${lang === 'ta' ? 'வாடிக்கையாளர்' : 'Customer'}:* ${dispCustomer}
+*${lang === 'ta' ? 'ஓட்டுநர்' : 'Driver'}:* ${dispDriver}
+*${lang === 'ta' ? 'டிராக்டர்' : 'Tractor'}:* ${dispTractor}
+*${lang === 'ta' ? 'கருவி' : 'Implement'}:* ${dispImplement}
+*${lang === 'ta' ? 'வேலை விவரம்' : 'Work Done'}:* ${dispWork}
 ------------------------------
-*Units / Hours:* ${trip.quantity} ${trip.billingUnit}
-*Rate:* ₹${trip.rate}
-*Gross Total:* ₹${trip.grossAmount}
-${trip.discount ? `*Discount:* ₹${trip.discount}\n` : ''}*Net Total Amount:* ₹${trip.totalAmount}
-*Amount Paid:* ₹${trip.paidAmount} (${trip.paymentMode?.toUpperCase()})
-*Balance Due:* ₹${trip.balanceAmount}
+*${lang === 'ta' ? 'அளவு' : 'Units'}:* ${trip.quantity} ${trip.billingUnit}
+*${lang === 'ta' ? 'கட்டணம்' : 'Rate'}:* ₹${trip.rate}
+*${lang === 'ta' ? 'மொத்த தொகை' : 'Gross Total'}:* ₹${trip.grossAmount}
+${trip.discount ? `*${lang === 'ta' ? 'தள்ளுபடி' : 'Discount'}:* ₹${trip.discount}\n` : ''}*${lang === 'ta' ? 'நிகர தொகை' : 'Net Total'}:* ₹${trip.totalAmount}
+*${lang === 'ta' ? 'செலுத்தியது' : 'Amount Paid'}:* ₹${trip.paidAmount} (${dispMode})
+*${lang === 'ta' ? 'நிலுவை' : 'Balance Due'}:* ₹${trip.balanceAmount}
 ------------------------------
-*Status:* ${trip.paymentStatus?.toUpperCase()}
-${trip.collectedBy ? `*Collected By:* ${trip.collectedBy} on ${trip.collectedWhen}\n` : ''}Thank you for your business! 🙏`;
+*${lang === 'ta' ? 'கட்டண நிலை' : 'Status'}:* ${trip.paymentStatus?.toUpperCase()}
+${trip.collectedBy ? `*${lang === 'ta' ? 'வசூலித்தவர்' : 'Collected By'}:* ${dispCollector} on ${trip.collectedWhen}\n` : ''}${lang === 'ta' ? 'நன்றி! மீண்டும் வருக! 🙏' : 'Thank you for your business! 🙏'}`;
 
     const encodedText = encodeURIComponent(text);
     const whatsappUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
@@ -87,23 +117,23 @@ ${trip.collectedBy ? `*Collected By:* ${trip.collectedBy} on ${trip.collectedWhe
                 </tr>
                 <tr>
                   <td className="slip-label">{t.customerName}:</td>
-                  <td className="slip-value" style={{ fontWeight: 700 }}>{trip.customerName}</td>
+                  <td className="slip-value" style={{ fontWeight: 700 }}>{dispCustomer}</td>
                 </tr>
                 <tr>
                   <td className="slip-label">{t.driverName}:</td>
-                  <td className="slip-value">{trip.driverName}</td>
+                  <td className="slip-value">{dispDriver}</td>
                 </tr>
                 <tr>
                   <td className="slip-label">{t.tractor}:</td>
-                  <td className="slip-value">{trip.tractorName}</td>
+                  <td className="slip-value">{dispTractor}</td>
                 </tr>
                 <tr>
                   <td className="slip-label">{t.machine}:</td>
-                  <td className="slip-value">{trip.implementName || 'Direct'}</td>
+                  <td className="slip-value">{dispImplement}</td>
                 </tr>
                 <tr>
                   <td className="slip-label">{t.workDescription}:</td>
-                  <td className="slip-value">{trip.workDescription || trip.workType}</td>
+                  <td className="slip-value">{dispWork}</td>
                 </tr>
                 {trip.startMeter && trip.endMeter && (
                   <tr>

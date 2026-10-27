@@ -435,6 +435,45 @@ function getSheetData(sheet) {
       item.is_deleted = false;
     }
 
+    if (sheet.getName() === SHEET_NAMES.TRIP_SHEETS) {
+      var totalStr = String(item.totalAmount || '').trim();
+      var balStr = String(item.balanceAmount || '').trim().toLowerCase();
+      var isShifted = isNaN(Number(item.totalAmount)) && (
+        ['admin', 'operator', 'manager', 'driver'].indexOf(totalStr.toLowerCase()) !== -1 ||
+        ['cash', 'credit', 'gpay', 'upi', 'bank'].indexOf(balStr) !== -1
+      );
+      if (isShifted) {
+        var realCustomer = item.customerId && item.customerId.indexOf('CUST-') !== 0 ? item.customerId : (item.customerName || 'General Customer');
+        var realDriver = item.customerName && item.customerName.toLowerCase().indexOf('rotavator') === -1 ? item.customerName : 'General Driver';
+        var realImplement = item.driverName || 'Standalone Tractor';
+        var realTotal = Number(item.quantity) || 1600;
+        var realCollectedBy = totalStr || 'Admin';
+        var realPaymentMode = ['cash', 'credit', 'gpay', 'upi', 'bank'].indexOf(balStr) !== -1 ? balStr : 'cash';
+        var isPaid = realPaymentMode !== 'credit' && realCollectedBy;
+
+        item.customerId = item.customerId && item.customerId.indexOf('CUST-') === 0 ? item.customerId : '';
+        item.customerName = realCustomer;
+        item.driverId = '';
+        item.driverName = realDriver;
+        item.tractorId = '';
+        item.tractorName = 'General Tractor';
+        item.implementId = '';
+        item.implementName = realImplement;
+        item.workType = '5-Tyne Ploughing (5 கொழு உழவு)';
+        item.billingUnit = 'per_trip';
+        item.quantity = 1;
+        item.rate = realTotal;
+        item.grossAmount = realTotal;
+        item.discount = 0;
+        item.totalAmount = realTotal;
+        item.paidAmount = isPaid ? realTotal : 0;
+        item.balanceAmount = isPaid ? 0 : realTotal;
+        item.paymentStatus = isPaid ? 'paid' : 'unpaid';
+        item.paymentMode = realPaymentMode;
+        item.collectedBy = realCollectedBy;
+      }
+    }
+
     data.push(item);
   }
   return data;
