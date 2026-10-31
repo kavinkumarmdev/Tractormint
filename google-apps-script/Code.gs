@@ -576,6 +576,31 @@ function getSheetData(sheet) {
       }
     }
 
+    if (sheet.getName() === SHEET_NAMES.RATE_MATRIX) {
+      var rawImp = String(item.implementName || '').trim();
+      var rawTrac = String(item.tractorName || '').trim();
+      var rawRate = String(item.rate || '').trim();
+      var rawDesc = String(item.description || '').trim();
+
+      var impIsNum = rawImp !== '' && !isNaN(Number(rawImp)) && Number(rawImp) > 0;
+      var descIsDate = /^\d{4}-\d{2}-\d{2}/.test(rawDesc);
+      
+      if (impIsNum || (descIsDate && (!rawRate || rawRate === '0'))) {
+        var realRate = impIsNum ? Number(rawImp) : (Number(rawRate) || 0);
+        var realImplement = rawTrac || 'Standard Implement';
+        var realEffDate = descIsDate ? rawDesc : (item.effectiveDate || Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Kolkata', 'yyyy-MM-dd'));
+
+        item.tractorId = 'TRAC-01';
+        item.tractorName = 'General Tractor';
+        item.implementId = 'none';
+        item.implementName = realImplement;
+        item.rate = realRate;
+        item.unit = item.unit || 'per_trip';
+        item.effectiveDate = realEffDate;
+        item.description = descIsDate ? '' : rawDesc;
+      }
+    }
+
     item = normalizeRecordBilingual(item);
     data.push(item);
   }

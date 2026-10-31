@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Tag, Plus, Edit3, Trash2, Calendar, Search, X, AlertCircle } from 'lucide-react';
 import { translations } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
@@ -6,7 +6,7 @@ import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
 import VoiceInput from './common/VoiceInput';
 import { validatePositiveNumber } from '../services/storage';
-import { getBilingualText, isNameMatch, toSafeLower, toSafeStr } from '../utils/langUtils';
+import { getBilingualText, isNameMatch, toSafeLower, toSafeStr, healShiftedRateMatrixRecord } from '../utils/langUtils';
 
 export default function RateMatrixManager({ 
   rateMatrix = [], 
@@ -76,7 +76,8 @@ export default function RateMatrixManager({
     setIsModalOpen(true);
   };
 
-  const handleOpenEdit = (item) => {
+  const handleOpenEdit = (rawItem) => {
+    const item = healShiftedRateMatrixRecord(rawItem, tractors, implementsList);
     setEditingItem(item);
     setFormError('');
     let tracId = item.tractorId;
@@ -176,12 +177,17 @@ export default function RateMatrixManager({
     setIsModalOpen(false);
   };
 
-  const filteredRates = rateMatrix.filter(r => {
+  const healedRates = useMemo(() => {
+    return (rateMatrix || []).map(r => healShiftedRateMatrixRecord(r, tractors, implementsList));
+  }, [rateMatrix, tractors, implementsList]);
+
+  const filteredRates = healedRates.filter(r => {
     const sLower = toSafeLower(searchTerm);
     if (!sLower) return true;
     return toSafeLower(r.tractorName).includes(sLower) ||
            toSafeLower(r.implementName).includes(sLower) ||
-           toSafeLower(r.description).includes(sLower);
+           toSafeLower(r.description).includes(sLower) ||
+           String(r.rate || '').includes(sLower);
   });
 
   return (

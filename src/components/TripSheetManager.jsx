@@ -44,6 +44,7 @@ import {
 } from '../utils/timeCalcUtils';
 import { 
   healShiftedTripRecord, 
+  healShiftedRateMatrixRecord,
   localizeName, 
   localizeMachineryName, 
   localizeWorkType, 
@@ -307,8 +308,9 @@ export default function TripSheetManager({
 
   // Build the Unified Single Select Options: (Tractor + Implement / Rate Card Combos)
   const comboOptions = [];
-  (rateMatrix || []).forEach(r => {
-    if (!r) return;
+  (rateMatrix || []).forEach(rawR => {
+    if (!rawR) return;
+    const r = healShiftedRateMatrixRecord(rawR, tractors, implementsList);
     const rTracName = toSafeStr(r.tractorName);
     const rImpName = toSafeStr(r.implementName);
 

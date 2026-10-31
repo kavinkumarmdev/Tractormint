@@ -592,6 +592,81 @@ export function healShiftedTripRecord(trip) {
 }
 
 /**
+ * Auto-Repair & Un-shifting for Corrupted Rate Matrix Records
+ * Fixes instances where columns were shifted during Google Sheet sync or manual imports:
+ * - tractorName received implement name (e.g. "டிரெய்லர்", "வாழை ரோட்டாவேடர்")
+ * - implementName received rate number (e.g. 300, 1100)
+ * - rate received empty
+ * - effectiveDate received empty
+ * - description received date (e.g. "2026-10-31")
+ */
+export function healShiftedRateMatrixRecord(rateItem, tractors = [], implementsList = []) {
+  if (!rateItem || typeof rateItem !== 'object') return rateItem;
+
+  const rawImp = toSafeStr(rateItem.implementName).trim();
+  const rawTrac = toSafeStr(rateItem.tractorName).trim();
+  const rawRate = toSafeStr(rateItem.rate).trim();
+  const rawDesc = toSafeStr(rateItem.description).trim();
+  const rawEffDate = toSafeStr(rateItem.effectiveDate).trim();
+
+  // Signature 1: implementName is a pure number (e.g., 300, 1100) AND rate is empty or 0
+  const impIsNumeric = rawImp !== '' && !isNaN(Number(rawImp)) && Number(rawImp) > 0;
+  
+  // Signature 2: description contains a YYYY-MM-DD date while effectiveDate is empty
+  const descIsDate = /^\d{4}-\d{2}-\d{2}/.test(rawDesc);
+  
+  // Signature 3: tractorName contains an implement keyword or matches an implement
+  const tracIsImplement = implementsList.some(m => isNameMatch(m.name, rawTrac) || isNameMatch(m.name_ta, rawTrac)) ||
+    /டிரெய்லர்|ரோட்டாவேடர்|கலப்பை|கொழு|trailer|rotavator|cultivator|plough|harvester/i.test(rawTrac);
+
+  const isShifted = impIsNumeric || (descIsDate && (!rawRate || rawRate === '0') && tracIsImplement);
+
+  if (!isShifted) {
+    const validRate = !isNaN(Number(rateItem.rate)) ? Number(rateItem.rate) : (Number(rawImp) || 0);
+    return {
+      ...rateItem,
+      rate: validRate,
+      effectiveDate: rawEffDate || (descIsDate ? rawDesc : new Date().toISOString().slice(0, 10))
+    };
+  }
+
+  // Un-shift values to their correct schema positions!
+  const realRate = impIsNumeric ? Number(rawImp) : (Number(rawRate) || 0);
+  const realImplementName = rawTrac || 'Standard Implement';
+
+  const matchedImp = implementsList.find(m => 
+    isNameMatch(m.name, realImplementName) || 
+    isNameMatch(m.name_ta, realImplementName)
+  );
+  const realImplementId = matchedImp 
+    ? matchedImp.id 
+    : (rateItem.implementId && rateItem.implementId !== 'none' ? rateItem.implementId : 'IMP-01');
+
+  const defaultTractor = tractors[0] || { id: 'TRAC-01', name: 'General Tractor', name_ta: 'பொது டிராக்டர்' };
+  const realTractorId = defaultTractor.id || 'TRAC-01';
+  const realTractorName = defaultTractor.name || 'General Tractor';
+
+  const realEffectiveDate = descIsDate 
+    ? rawDesc 
+    : (rawEffDate || new Date().toISOString().slice(0, 10));
+    
+  const realDescription = descIsDate ? '' : rawDesc;
+
+  return {
+    ...rateItem,
+    tractorId: realTractorId,
+    tractorName: realTractorName,
+    implementId: realImplementId,
+    implementName: realImplementName,
+    rate: realRate,
+    unit: rateItem.unit || 'per_trip',
+    effectiveDate: realEffectiveDate,
+    description: realDescription,
+    _healed: true
+  };
+}
+
+/**
  * Robust string extractor & case-insensitive matcher
  * Safely handles strings, numbers, objects ({ en, ta }), null and undefined
  * Prevents "TypeError: ...toLowerCase is not a function"

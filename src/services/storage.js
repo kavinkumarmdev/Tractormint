@@ -2,7 +2,7 @@
 import { syncAllToGoogleSheet, recordLoginAttemptInSheet } from './googleSheets';
 import { ENV_GOOGLE_SHEETS_URL, getEffectiveGoogleSheetUrl } from '../config/env';
 import { cleanDeep } from '../utils/timeCalcUtils';
-import { healShiftedTripRecord, resolveBilingualPair, localizeName, hasTamilCharacters, isNameMatch, toSafeLower, toSafeStr } from '../utils/langUtils';
+import { healShiftedTripRecord, healShiftedRateMatrixRecord, resolveBilingualPair, localizeName, hasTamilCharacters, isNameMatch, toSafeLower, toSafeStr } from '../utils/langUtils';
 
 const STORAGE_KEYS = {
   FLEET: "tractomint_fleet",
@@ -195,7 +195,19 @@ export const StorageService = {
 
   getRateMatrix: (includeDeleted = false) => {
     const list = loadData(STORAGE_KEYS.RATE_MATRIX, INITIAL_RATE_MATRIX);
-    return includeDeleted ? list : list.filter(item => !isDeleted(item));
+    const fleet = loadData(STORAGE_KEYS.FLEET, []);
+    const tractors = fleet.filter(f => f && f.type === 'tractor');
+    const implementsList = fleet.filter(f => f && f.type === 'implement');
+    let hasRepaired = false;
+    const healed = list.map(item => {
+      const h = healShiftedRateMatrixRecord(item, tractors, implementsList);
+      if (h._healed) hasRepaired = true;
+      return h;
+    });
+    if (hasRepaired) {
+      saveData(STORAGE_KEYS.RATE_MATRIX, healed);
+    }
+    return includeDeleted ? healed : healed.filter(item => !isDeleted(item));
   },
 
   getDrivers: (includeDeleted = false) => {
@@ -1336,7 +1348,12 @@ export const StorageService = {
     if (!dataset) return { success: false, error: "Empty dataset provided." };
 
     if (Array.isArray(dataset.fleet)) saveData(STORAGE_KEYS.FLEET, dataset.fleet);
-    if (Array.isArray(dataset.rateMatrix)) saveData(STORAGE_KEYS.RATE_MATRIX, dataset.rateMatrix);
+    if (Array.isArray(dataset.rateMatrix)) {
+      const fleet = Array.isArray(dataset.fleet) ? dataset.fleet : loadData(STORAGE_KEYS.FLEET, []);
+      const tractors = fleet.filter(f => f && f.type === 'tractor');
+      const implementsList = fleet.filter(f => f && f.type === 'implement');
+      saveData(STORAGE_KEYS.RATE_MATRIX, dataset.rateMatrix.map(r => healShiftedRateMatrixRecord(r, tractors, implementsList)));
+    }
     if (Array.isArray(dataset.drivers)) saveData(STORAGE_KEYS.DRIVERS, dataset.drivers);
     if (Array.isArray(dataset.customers)) saveData(STORAGE_KEYS.CUSTOMERS, dataset.customers);
     if (Array.isArray(dataset.tripSheets)) saveData(STORAGE_KEYS.TRIP_SHEETS, dataset.tripSheets.map(healShiftedTripRecord));
