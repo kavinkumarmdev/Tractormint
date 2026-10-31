@@ -6,7 +6,7 @@ import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
 import VoiceInput from './common/VoiceInput';
 import { validatePositiveNumber } from '../services/storage';
-import { getBilingualText, isNameMatch, toSafeLower, toSafeStr, healShiftedRateMatrixRecord } from '../utils/langUtils';
+import { getBilingualText, isNameMatch, toSafeLower, toSafeStr, healShiftedRateMatrixRecord, normalizeBillingUnit } from '../utils/langUtils';
 
 export default function RateMatrixManager({ 
   rateMatrix = [], 
@@ -100,7 +100,7 @@ export default function RateMatrixManager({
       tractorName: item.tractorName || (tractors[0] ? tractors[0].name : ''),
       implementId: impId || 'none',
       implementName: item.implementName || 'Standalone Tractor',
-      unit: item.unit || 'per_hour',
+      unit: normalizeBillingUnit(item.unit || 'per_hour'),
       rate: item.rate !== undefined && item.rate !== null ? String(item.rate) : '',
       effectiveDate: item.effectiveDate || new Date().toISOString().slice(0, 10),
       description: item.description || ''
@@ -254,10 +254,25 @@ export default function RateMatrixManager({
                     </span>
                   </td>
                   <td>
-                    <span style={{ fontWeight: 600 }}>
-                      {item.unit === 'per_hour' ? t.perHour :
-                       item.unit === 'per_acre' ? t.perAcre :
-                       item.unit === 'per_km' ? t.perKm : t.perTrip}
+                    <span className="badge badge-blue" style={{
+                      fontWeight: 700,
+                      fontSize: '0.8rem',
+                      padding: '0.25rem 0.6rem',
+                      borderRadius: '6px',
+                      background: 'rgba(2, 132, 199, 0.1)',
+                      color: '#0284c7',
+                      border: '1px solid rgba(2, 132, 199, 0.25)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem'
+                    }}>
+                      {(() => {
+                        const norm = normalizeBillingUnit(item.unit);
+                        if (norm === 'per_hour') return lang === 'ta' ? '⏱️ மணிக்கு' : '⏱️ Per Hour';
+                        if (norm === 'per_acre') return lang === 'ta' ? '🌾 ஏக்கருக்கு' : '🌾 Per Acre';
+                        if (norm === 'per_km') return lang === 'ta' ? '🛣️ கி.மீக்கு' : '🛣️ Per Km';
+                        return lang === 'ta' ? '🚜 டிரிப்பிற்கு' : '🚜 Per Trip';
+                      })()}
                     </span>
                   </td>
                   <td style={{ fontWeight: 800, fontSize: '1rem', color: '#16a34a' }}>
@@ -296,7 +311,7 @@ export default function RateMatrixManager({
               {filteredRates.length === 0 && (
                 <tr>
                   <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-light)' }}>
-                    No rate entries found.
+                    {lang === 'ta' ? 'வாடகை கட்டணப் பதிவுகள் எதுவும் இல்லை.' : 'No rate entries found.'}
                   </td>
                 </tr>
               )}
@@ -379,20 +394,48 @@ export default function RateMatrixManager({
                   />
                 </div>
 
-                {/* Billing Unit */}
-                <div className="form-group">
-                  <SearchableSelect
-                    label={t.unit}
-                    value={formData.unit}
-                    onChange={(val) => setFormData({ ...formData, unit: val })}
-                    options={[
-                      { value: 'per_hour', label: t.perHour },
-                      { value: 'per_acre', label: t.perAcre },
-                      { value: 'per_km', label: t.perKm },
-                      { value: 'per_trip', label: t.perTrip }
-                    ]}
-                    lang={lang}
-                  />
+                {/* Billing Unit / அலகு */}
+                <div className="form-group col-full">
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '0.4rem' }}>
+                    {lang === 'ta' ? 'Unit (அலகு) / கணக்கீட்டு அலகு' : 'Billing Unit (அலகு)'} <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(125px, 1fr))', gap: '0.5rem' }}>
+                    {[
+                      { value: 'per_hour', en: 'Per Hour', ta: 'மணி நேரத்திற்கு', icon: '⏱️' },
+                      { value: 'per_acre', en: 'Per Acre', ta: 'ஏக்கருக்கு', icon: '🌾' },
+                      { value: 'per_km', en: 'Per Km', ta: 'கி.மீக்கு', icon: '🛣️' },
+                      { value: 'per_trip', en: 'Per Trip', ta: 'டிரிப்பிற்கு', icon: '🚜' }
+                    ].map(u => {
+                      const curUnit = normalizeBillingUnit(formData.unit);
+                      const isSelected = curUnit === u.value;
+                      return (
+                        <button
+                          key={u.value}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, unit: u.value })}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.45rem',
+                            padding: '0.65rem 0.6rem',
+                            borderRadius: '8px',
+                            fontSize: '0.85rem',
+                            fontWeight: isSelected ? 800 : 600,
+                            cursor: 'pointer',
+                            border: isSelected ? '2px solid #059669' : '1px solid var(--border-color)',
+                            background: isSelected ? 'rgba(5, 150, 105, 0.12)' : 'var(--bg-card)',
+                            color: isSelected ? '#047857' : 'var(--text-main)',
+                            boxShadow: isSelected ? '0 0 0 1px #059669' : 'none',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <span style={{ fontSize: '1rem' }}>{u.icon}</span>
+                          <span>{lang === 'ta' ? u.ta : u.en}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Rate (₹) */}

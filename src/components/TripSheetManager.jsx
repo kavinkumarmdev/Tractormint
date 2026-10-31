@@ -1975,7 +1975,7 @@ export default function TripSheetManager({
               {filteredTrips.length === 0 && (
                 <tr>
                   <td colSpan="12" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-light)' }}>
-                    No trip sheets found.
+                    {lang === 'ta' ? 'டிரிப் சீட்டுகள் எதுவும் காணப்படவில்லை.' : 'No trip sheets found.'}
                   </td>
                 </tr>
               )}

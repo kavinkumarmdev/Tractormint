@@ -150,7 +150,9 @@ export default function CustomerManager({
 தங்களின் டிராக்டர் உழவு வேலைக்கான கணக்கு நிலவரம்:
 நிலுவைத் தொகை: ₹${balance.toLocaleString()}
 நேரம் கிடைக்கும்போது செலுத்தவும். நன்றி! 🙏`;
-    window.open(`https://api.whatsapp.com/send?phone=${customer.phone.replace(/[^0-9]/g, '')}&text=${encodeURIComponent(text)}`, '_blank');
+    const digits = (customer.phone || '').replace(/\D/g, '');
+    const waPhone = digits.length === 10 ? `91${digits}` : digits;
+    window.open(`https://api.whatsapp.com/send?phone=${waPhone}&text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const filteredCustomers = customers.filter(c => {

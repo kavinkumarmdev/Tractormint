@@ -479,7 +479,7 @@ export default function PartnerSplitManager({
                 {filteredDrawings.length === 0 && (
                   <tr>
                     <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-light)' }}>
-                      No partner withdrawals logged yet.
+                      {lang === 'ta' ? 'பங்குதாரர் பணம் எடுத்த பதிவுகள் எதுவும் இல்லை.' : 'No partner withdrawals logged yet.'}
                     </td>
                   </tr>
                 )}
@@ -535,6 +535,13 @@ export default function PartnerSplitManager({
                     </td>
                   </tr>
                 ))}
+                {partners.length === 0 && (
+                  <tr>
+                    <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-light)' }}>
+                      {lang === 'ta' ? 'பங்குதாரர்கள் விவரம் எதுவும் இல்லை.' : 'No partners registered yet.'}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

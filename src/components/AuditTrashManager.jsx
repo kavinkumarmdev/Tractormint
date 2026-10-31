@@ -80,11 +80,11 @@ export default function AuditTrashManager({
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Module / Table</th>
-                    <th>Record ID</th>
-                    <th>Record Description</th>
-                    <th>Deleted Date & Time</th>
-                    <th>Deleted By</th>
+                    <th>{lang === 'ta' ? 'பிரிவு / அட்டவணை' : 'Module / Table'}</th>
+                    <th>{lang === 'ta' ? 'பதிவு குறியீடு' : 'Record ID'}</th>
+                    <th>{lang === 'ta' ? 'பதிவு விவரம்' : 'Record Description'}</th>
+                    <th>{lang === 'ta' ? 'நீக்கப்பட்ட தேதி & நேரம்' : 'Deleted Date & Time'}</th>
+                    <th>{lang === 'ta' ? 'நீக்கியவர்' : 'Deleted By'}</th>
                     <th style={{ textAlign: 'right' }}>{t.actions}</th>
                   </tr>
                 </thead>
@@ -131,7 +131,7 @@ export default function AuditTrashManager({
                   {filtered.length === 0 && (
                     <tr>
                       <td colSpan="6" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-light)' }}>
-                        Recycle bin is empty. No deleted records found.
+                        {lang === 'ta' ? 'மறுசுழற்சி தொட்டி காலியாக உள்ளது. நீக்கப்பட்ட பதிவுகள் எதுவும் இல்லை.' : 'Recycle bin is empty. No deleted records found.'}
                       </td>
                     </tr>
                   )}

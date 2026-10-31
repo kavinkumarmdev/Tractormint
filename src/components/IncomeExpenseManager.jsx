@@ -201,7 +201,7 @@ export default function IncomeExpenseManager({
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
         >
-          <option value="all">All Types</option>
+          <option value="all">{lang === 'ta' ? 'அனைத்து வகைகள்' : 'All Types'}</option>
           <option value="income">{t.income}</option>
           <option value="expense">{t.expense}</option>
         </select>
@@ -211,7 +211,7 @@ export default function IncomeExpenseManager({
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         >
-          <option value="all">All Statuses</option>
+          <option value="all">{lang === 'ta' ? 'அனைத்து நிலைகள்' : 'All Statuses'}</option>
           <option value="completed">{t.completed}</option>
           <option value="pending">{t.pending}</option>
         </select>
@@ -287,7 +287,7 @@ export default function IncomeExpenseManager({
               {filteredList.length === 0 && (
                 <tr>
                   <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-light)' }}>
-                    No income or expense records found.
+                    {lang === 'ta' ? 'வரவு அல்லது செலவுப் பதிவுகள் எதுவும் இல்லை.' : 'No income or expense records found.'}
                   </td>
                 </tr>
               )}

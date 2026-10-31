@@ -295,7 +295,7 @@ export default function FleetManager({
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
         >
-          <option value="all">All Fleet Types</option>
+          <option value="all">{lang === 'ta' ? 'அனைத்து வண்டி வகைகள்' : 'All Fleet Types'}</option>
           <option value="tractor">{t.tractor}</option>
           <option value="implement">{t.machine}</option>
         </select>
@@ -305,7 +305,7 @@ export default function FleetManager({
           value={acquisitionFilter}
           onChange={(e) => setAcquisitionFilter(e.target.value)}
         >
-          <option value="all">All Acquisition Methods</option>
+          <option value="all">{lang === 'ta' ? 'அனைத்து உரிமை முறைகள்' : 'All Acquisition Methods'}</option>
           <option value="buy_cash">{t.buyCash}</option>
           <option value="rent">{t.rent}</option>
           <option value="lease">{t.lease}</option>
@@ -399,7 +399,7 @@ export default function FleetManager({
               {filteredFleet.length === 0 && (
                 <tr>
                   <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-light)' }}>
-                    No machines or tractors found.
+                    {lang === 'ta' ? 'டிராக்டர்கள் அல்லது கருவிகள் எதுவும் காணப்படவில்லை.' : 'No machines or tractors found.'}
                   </td>
                 </tr>
               )}

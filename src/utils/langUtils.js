@@ -592,6 +592,20 @@ export function healShiftedTripRecord(trip) {
 }
 
 /**
+ * Normalizes any unit string to standard key:
+ * 'per_hour' | 'per_acre' | 'per_km' | 'per_trip'
+ */
+export function normalizeBillingUnit(unit) {
+  if (!unit) return 'per_hour';
+  const u = String(unit).trim().toLowerCase();
+  if (u.includes('hour') || u.includes('மணி')) return 'per_hour';
+  if (u.includes('acre') || u.includes('ஏக்கர்')) return 'per_acre';
+  if (u.includes('km') || u.includes('கி.மீ') || u.includes('கிமீ')) return 'per_km';
+  if (u.includes('trip') || u.includes('டிரிப்') || u.includes('டிரிப')) return 'per_trip';
+  return 'per_hour';
+}
+
+/**
  * Auto-Repair & Un-shifting for Corrupted Rate Matrix Records
  * Fixes instances where columns were shifted during Google Sheet sync or manual imports:
  * - tractorName received implement name (e.g. "டிரெய்லர்", "வாழை ரோட்டாவேடர்")
@@ -608,6 +622,7 @@ export function healShiftedRateMatrixRecord(rateItem, tractors = [], implementsL
   const rawRate = toSafeStr(rateItem.rate).trim();
   const rawDesc = toSafeStr(rateItem.description).trim();
   const rawEffDate = toSafeStr(rateItem.effectiveDate).trim();
+  const rawUnit = toSafeStr(rateItem.unit).trim();
 
   // Signature 1: implementName is a pure number (e.g., 300, 1100) AND rate is empty or 0
   const impIsNumeric = rawImp !== '' && !isNaN(Number(rawImp)) && Number(rawImp) > 0;
@@ -621,10 +636,14 @@ export function healShiftedRateMatrixRecord(rateItem, tractors = [], implementsL
 
   const isShifted = impIsNumeric || (descIsDate && (!rawRate || rawRate === '0') && tracIsImplement);
 
+  // Auto-normalize the unit
+  const resolvedUnit = normalizeBillingUnit(rawUnit || (isShifted ? 'per_trip' : 'per_hour'));
+
   if (!isShifted) {
     const validRate = !isNaN(Number(rateItem.rate)) ? Number(rateItem.rate) : (Number(rawImp) || 0);
     return {
       ...rateItem,
+      unit: resolvedUnit,
       rate: validRate,
       effectiveDate: rawEffDate || (descIsDate ? rawDesc : new Date().toISOString().slice(0, 10))
     };
@@ -659,7 +678,7 @@ export function healShiftedRateMatrixRecord(rateItem, tractors = [], implementsL
     implementId: realImplementId,
     implementName: realImplementName,
     rate: realRate,
-    unit: rateItem.unit || 'per_trip',
+    unit: resolvedUnit,
     effectiveDate: realEffectiveDate,
     description: realDescription,
     _healed: true

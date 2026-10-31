@@ -331,7 +331,7 @@ export default function DriverList({
               {filteredDrivers.length === 0 && (
                 <tr>
                   <td colSpan="10" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-light)' }}>
-                    No drivers found.
+                    {lang === 'ta' ? 'ஓட்டுநர்கள் விவரம் எதுவும் காணப்படவில்லை.' : 'No drivers found.'}
                   </td>
                 </tr>
               )}
