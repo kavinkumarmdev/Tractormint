@@ -453,7 +453,8 @@ function getMaintenanceHeaders() {
   return [
     'id', 'date', 'assetId', 'assetName', 'category', 'category_ta', 'quantity', 
     'unit', 'unitCost', 'totalAmount', 'hourMeter', 'vendorName', 
-    'billNumber', 'paymentMode', 'notes', 'is_deleted', 'created_at', 'updated_at'
+    'billNumber', 'paymentMode', 'notes', 'entryType', 'paidStatus', 'person', 
+    'description', 'amount', 'is_deleted', 'created_at', 'updated_at'
   ];
 }
 
@@ -575,9 +576,95 @@ function getSheetData(sheet) {
       }
     }
 
+    item = normalizeRecordBilingual(item);
     data.push(item);
   }
   return data;
+}
+
+/**
+ * Auto-resolves bilingual pair (English & Tamil) for any entity field
+ */
+function normalizeBilingualField(item, enField, taField) {
+  if (!item) return;
+  var en = item[enField] !== undefined && item[enField] !== null ? String(item[enField]).trim() : '';
+  var ta = item[taField] !== undefined && item[taField] !== null ? String(item[taField]).trim() : '';
+  if (!en && !ta) return;
+
+  var tamilRegex = /[\u0B80-\u0BFF]/;
+  var enHasTamil = tamilRegex.test(en);
+  var taHasTamil = tamilRegex.test(ta);
+
+  // Both present, correctly placed
+  if (en && !enHasTamil && ta && taHasTamil) {
+    item[enField] = en;
+    item[taField] = ta;
+    return;
+  }
+
+  // Both identical and Tamil (e.g. "தருண்" in both)
+  if (en === ta && enHasTamil) {
+    try {
+      item[enField] = LanguageApp.translate(en, 'ta', 'en');
+      item[taField] = en;
+    } catch (e) {
+      item[taField] = en;
+    }
+    return;
+  }
+
+  // Both identical and English (e.g. "kirubakaran" in both)
+  if (en === ta && !enHasTamil) {
+    try {
+      item[enField] = en;
+      item[taField] = LanguageApp.translate(en, 'en', 'ta');
+    } catch (e) {
+      item[enField] = en;
+    }
+    return;
+  }
+
+  // enField contains Tamil text, taField is empty
+  if (enHasTamil && !ta) {
+    item[taField] = en;
+    try {
+      item[enField] = LanguageApp.translate(en, 'ta', 'en');
+    } catch (e) {}
+    return;
+  }
+
+  // taField contains Tamil, but enField is empty
+  if (!en && taHasTamil) {
+    item[taField] = ta;
+    try {
+      item[enField] = LanguageApp.translate(ta, 'ta', 'en');
+    } catch (e) {}
+    return;
+  }
+
+  // enField is English, but taField is empty
+  if (en && !enHasTamil && !ta) {
+    item[enField] = en;
+    try {
+      item[taField] = LanguageApp.translate(en, 'en', 'ta');
+    } catch (e) {}
+    return;
+  }
+}
+
+/**
+ * Normalizes all bilingual fields for any record
+ */
+function normalizeRecordBilingual(item) {
+  if (!item || typeof item !== 'object') return item;
+  normalizeBilingualField(item, 'name', 'name_ta');
+  normalizeBilingualField(item, 'customerName', 'customerName_ta');
+  normalizeBilingualField(item, 'driverName', 'driverName_ta');
+  normalizeBilingualField(item, 'tractorName', 'tractorName_ta');
+  normalizeBilingualField(item, 'implementName', 'implementName_ta');
+  normalizeBilingualField(item, 'village', 'village_ta');
+  normalizeBilingualField(item, 'companyName', 'companyName_ta');
+  return item;
 }
 
 /**
@@ -598,6 +685,7 @@ function overwriteSheetData(sheet, items, headers, headerColor) {
   if (list.length === 0) return;
 
   var rows = list.map(function(item) {
+    normalizeRecordBilingual(item);
     return headers.map(function(header) {
       var val = item[header];
       if (val !== undefined && val !== null) {
@@ -618,6 +706,7 @@ function overwriteSheetData(sheet, items, headers, headerColor) {
  */
 function appendRow(sheet, item, headers) {
   if (!sheet) return;
+  normalizeRecordBilingual(item);
   var row = headers.map(function(h) {
     var val = item[h];
     if (val !== undefined && val !== null) {
@@ -634,6 +723,7 @@ function appendRow(sheet, item, headers) {
  */
 function updateRowById(sheet, id, item, headers) {
   if (!sheet || !id) return;
+  normalizeRecordBilingual(item);
   var data = sheet.getDataRange().getValues();
   var idColIndex = headers.indexOf('id');
   if (idColIndex === -1) return;

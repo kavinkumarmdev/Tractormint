@@ -6,6 +6,7 @@ import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
 import { validatePositiveNumber } from '../services/storage';
 import { formatDateDDMMYYYY } from '../utils/dateUtils';
+import { getBilingualText } from '../utils/langUtils';
 
 export default function IncomeExpenseManager({ 
   incomeExpense, 
@@ -240,7 +241,7 @@ export default function IncomeExpenseManager({
                   </td>
                   <td>
                     <div style={{ fontWeight: 700 }}>
-                      {lang === 'ta' ? (item.category_ta || item.category) : item.category}
+                      {getBilingualText(item.category, item.category_ta, lang)}
                     </div>
                   </td>
                   <td style={{ fontSize: '0.85rem' }}>{item.description || '--'}</td>

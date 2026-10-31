@@ -19,6 +19,7 @@ import SearchableSelect from './common/SearchableSelect';
 import BilingualVoiceGroup from './common/BilingualVoiceGroup';
 import VoiceInput from './common/VoiceInput';
 import { normalizeRegNumber, validatePositiveNumber } from '../services/storage';
+import { getBilingualText } from '../utils/langUtils';
 
 export default function FleetManager({ 
   fleet, 
@@ -334,7 +335,7 @@ export default function FleetManager({
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>{item.regNumber || '--'}</div>
                   </td>
                   <td>
-                    <div style={{ fontWeight: 600 }}>{lang === 'ta' ? (item.name_ta || item.name) : item.name}</div>
+                    <div style={{ fontWeight: 600 }}>{getBilingualText(item.name, item.name_ta, lang)}</div>
                     {item.notes && <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>{item.notes}</div>}
                   </td>
                   <td>

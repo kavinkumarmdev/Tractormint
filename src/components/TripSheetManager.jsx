@@ -49,7 +49,9 @@ import {
   localizeWorkType, 
   localizeBillingRate, 
   localizePaymentMode, 
-  localizeCollectedBy 
+  localizeCollectedBy,
+  resolveBilingualPair,
+  getBilingualText
 } from '../utils/langUtils';
 
 export default function TripSheetManager({ 
@@ -305,11 +307,11 @@ export default function TripSheetManager({
   rateMatrix.forEach(r => {
     let matchedT = tractors.find(t => (r.tractorId && t.id === r.tractorId) || (r.tractorName && t.name.toLowerCase() === r.tractorName.toLowerCase()));
     const resolvedTractorId = matchedT ? matchedT.id : (r.tractorId || (tractors[0] ? tractors[0].id : 'TRAC-01'));
-    const resolvedTractorName = matchedT ? matchedT.name : (r.tractorName || (tractors[0] ? tractors[0].name : 'Tractor'));
+    const resolvedTractorName = matchedT ? getBilingualText(matchedT.name, matchedT.name_ta, lang) : (r.tractorName || (tractors[0] ? tractors[0].name : 'Tractor'));
 
     let matchedI = implementsList.find(m => (r.implementId && m.id === r.implementId) || (r.implementName && m.name.toLowerCase() === r.implementName.toLowerCase()));
     const resolvedImplementId = matchedI ? matchedI.id : (r.implementId || 'none');
-    const resolvedImplementName = matchedI ? matchedI.name : (r.implementName || 'Standalone Tractor');
+    const resolvedImplementName = matchedI ? getBilingualText(matchedI.name, matchedI.name_ta, lang) : (r.implementName || (lang === 'ta' ? 'தனி டிராக்டர்' : 'Standalone Tractor'));
 
     comboOptions.push({
       value: `rate_${r.id}`,
@@ -331,7 +333,7 @@ export default function TripSheetManager({
     if (!hasStandaloneInRate) {
       comboOptions.push({
         value: `tr_${tr.id}_none`,
-        label: `${tr.name} (${lang === 'ta' ? 'தனி டிராக்டர்' : 'Standalone Tractor'})`,
+        label: `${getBilingualText(tr.name, tr.name_ta, lang)} (${lang === 'ta' ? 'தனி டிராக்டர்' : 'Standalone Tractor'})`,
         subLabel: tr.regNumber || '',
         badge: 'Tractor',
         customCombo: {
@@ -350,7 +352,7 @@ export default function TripSheetManager({
       if (!hasComboInRate) {
         comboOptions.push({
           value: `tr_${tr.id}_imp_${imp.id}`,
-          label: `${tr.name} + ${lang === 'ta' && imp.name_ta ? imp.name_ta : imp.name}`,
+          label: `${getBilingualText(tr.name, tr.name_ta, lang)} + ${getBilingualText(imp.name, imp.name_ta, lang)}`,
           subLabel: imp.category || (lang === 'ta' ? 'கருவி' : 'Implement'),
           badge: 'Combo',
           customCombo: {
@@ -386,7 +388,7 @@ export default function TripSheetManager({
       const impId = matchedImp ? matchedImp.id : (r.implementId || 'none');
       const impNameEn = matchedImp ? matchedImp.name : (r.implementName || 'Standalone Tractor');
       const impNameTa = matchedImp?.name_ta || '';
-      const displayLabel = (lang === 'ta' && impNameTa ? impNameTa : impNameEn);
+      const displayLabel = getBilingualText(impNameEn, impNameTa, lang);
       const isStandalone = impId === 'none' || impNameEn.toLowerCase().includes('standalone');
 
       options.push({
@@ -407,7 +409,7 @@ export default function TripSheetManager({
     implementsList.forEach(imp => {
       const alreadyIncluded = options.some(o => o.value === imp.id);
       if (!alreadyIncluded) {
-        const displayLabel = lang === 'ta' && imp.name_ta ? imp.name_ta : imp.name;
+        const displayLabel = getBilingualText(imp.name, imp.name_ta, lang);
         options.push({
           value: imp.id,
           label: displayLabel,
@@ -456,7 +458,7 @@ export default function TripSheetManager({
       });
     }
     drivers.forEach(d => {
-      const dName = (lang === 'ta' && d.name_ta ? d.name_ta : d.name);
+      const dName = getBilingualText(d.name, d.name_ta, lang);
       if (dName !== formData.driverName && dName !== loggedUserName) {
         list.push({
           value: `${dName} (${lang === 'ta' ? 'டிரைவர்' : 'Driver'})`,
@@ -468,6 +470,35 @@ export default function TripSheetManager({
     });
     return list;
   }, [loggedUserName, formData.driverName, drivers, lang]);
+
+  // Driver options including Owner
+  const driverOptions = useMemo(() => {
+    const list = drivers.map(d => ({ 
+      value: d.id, 
+      label: getBilingualText(d.name, d.name_ta, lang) + (d.name.toLowerCase() === loggedUserName.toLowerCase() ? (lang === 'ta' ? ' (நீங்கள்)' : ' (You)') : ''), 
+      subLabel: d.phone || '', 
+      badge: d.wageType === 'owner' ? (lang === 'ta' ? '⭐ உரிமையாளர்' : '⭐ Owner') : (d.wageType || '') 
+    }));
+
+    const hasOwnerInList = drivers.some(d => 
+      (d.name && d.name.toLowerCase() === loggedUserName.toLowerCase()) ||
+      (currentUser?.phone && d.phone && d.phone === currentUser.phone) ||
+      d.wageType === 'owner' ||
+      d.id === 'DRV-OWNER'
+    );
+
+    if (!hasOwnerInList) {
+      const ownerNameEn = currentUser?.displayName || loggedUserName || 'Owner';
+      const ownerNameTa = currentUser?.displayName_ta || 'உரிமையாளர்';
+      list.unshift({
+        value: 'DRV-OWNER',
+        label: `${getBilingualText(ownerNameEn, ownerNameTa, lang)} (${lang === 'ta' ? 'உரிமையாளர் / ஓட்டுநர்' : 'Owner / Driver'})`,
+        subLabel: currentUser?.phone || '',
+        badge: lang === 'ta' ? 'உரிமையாளர்' : 'Owner'
+      });
+    }
+    return list;
+  }, [drivers, loggedUserName, currentUser, lang]);
 
   // Determine current active value for the single select (Tractor + Implement)
   const currentComboValue = (() => {
@@ -660,19 +691,28 @@ export default function TripSheetManager({
     if (mode === 'driver') {
       const matched = drivers.find(d => 
         (d.name && d.name.toLowerCase() === loggedUserName.toLowerCase()) ||
-        (currentUser?.phone && d.phone && d.phone === currentUser.phone)
+        (currentUser?.phone && d.phone && d.phone === currentUser.phone) ||
+        d.wageType === 'owner'
       );
       if (matched) {
+        const pair = resolveBilingualPair(matched.name, matched.name_ta);
         setFormData(prev => ({
           ...prev,
           driverId: matched.id,
-          driverName: matched.name
+          driverName: pair.en,
+          driverName_ta: pair.ta,
+          driverBata: matched.wageType === 'owner' ? '0' : prev.driverBata
         }));
       } else {
+        const ownerNameEn = currentUser?.displayName || loggedUserName || 'Owner';
+        const ownerNameTa = currentUser?.displayName_ta || 'உரிமையாளர்';
+        const pair = resolveBilingualPair(ownerNameEn, ownerNameTa);
         setFormData(prev => ({
           ...prev,
-          driverId: prev.driverId || (drivers[0] ? drivers[0].id : 'DRV-1'),
-          driverName: loggedUserName
+          driverId: 'DRV-OWNER',
+          driverName: pair.en,
+          driverName_ta: pair.ta,
+          driverBata: '0'
         }));
       }
     } else if (mode === 'collector') {
@@ -808,8 +848,8 @@ export default function TripSheetManager({
     const initialImplementIds = initialImpId && initialImpId !== 'none' ? [initialImpId] : [];
     const initialImplementNames = initialImpName && initialImpName !== 'Standalone Tractor' ? [initialImpName] : [];
 
-    const initialQty = '4';
-    const gross = (parseFloat(initialQty) * parseFloat(initialRate)) || 3600;
+    const initialQty = '1';
+    const gross = (parseFloat(initialQty) * parseFloat(initialRate)) || parseFloat(initialRate) || 900;
     const net = gross;
 
     const isDriverRole = loggedUserRole === 'driver';
@@ -817,27 +857,37 @@ export default function TripSheetManager({
 
     let chosenDrvId = defaultDrv.id || 'DRV-01';
     let chosenDrvName = defaultDrv.name || 'Default Driver';
+    let chosenDrvNameTa = defaultDrv.name_ta || defaultDrv.name || 'டிரைவர்';
     if (initAssignment === 'driver') {
       const matchDrv = drivers.find(d => 
         (d.name && d.name.toLowerCase() === loggedUserName.toLowerCase()) ||
-        (currentUser?.phone && d.phone && d.phone === currentUser.phone)
+        (currentUser?.phone && d.phone && d.phone === currentUser.phone) ||
+        d.wageType === 'owner'
       );
       if (matchDrv) {
         chosenDrvId = matchDrv.id;
         chosenDrvName = matchDrv.name;
+        chosenDrvNameTa = matchDrv.name_ta || matchDrv.name;
       } else {
-        chosenDrvName = loggedUserName;
+        chosenDrvId = 'DRV-OWNER';
+        chosenDrvName = currentUser?.displayName || loggedUserName || 'Owner';
+        chosenDrvNameTa = currentUser?.displayName_ta || 'உரிமையாளர்';
       }
     }
 
+    const custPair = resolveBilingualPair(defaultCust.name, defaultCust.name_ta);
+    const drvPair = resolveBilingualPair(chosenDrvName, chosenDrvNameTa);
+    const tracPair = resolveBilingualPair(initialTracName, defaultTrac.name_ta);
+    const impPair = resolveBilingualPair(initialImpName, defaultImp?.name_ta);
+
     const collectorString = initAssignment === 'collector'
       ? `${loggedUserName} (${loggedUserRole === 'admin' ? 'Admin' : loggedUserRole === 'partner' ? 'Partner' : 'Collector'})`
-      : `${chosenDrvName} (Driver)`;
+      : `${drvPair.en} (Driver)`;
 
     setEditingItem(null);
     setFormError('');
     setIsCollectionActive(false);
-    setTimeEntryMode('manual');
+    setTimeEntryMode('timer'); // Rule: Open Stopwatch / Live Timer first by default!
     setTimerSeconds(0);
     setTimerRunning(false);
     setTimerMessage('');
@@ -852,16 +902,20 @@ export default function TripSheetManager({
       startTime: currentTimeStr,
       endTime: currentTimeStr,
       customerId: defaultCust.id,
-      customerName: defaultCust.name,
+      customerName: custPair.en,
+      customerName_ta: custPair.ta,
       driverId: chosenDrvId,
-      driverName: chosenDrvName,
+      driverName: drvPair.en,
+      driverName_ta: drvPair.ta,
       tractorId: initialTracId,
-      tractorName: initialTracName,
+      tractorName: tracPair.en,
+      tractorName_ta: tracPair.ta,
       implementId: initialImpId,
-      implementName: initialImpName,
+      implementName: impPair.en,
+      implementName_ta: impPair.ta,
       implementIds: initialImplementIds,
       implementNames: initialImplementNames,
-      workType: initialImpName && initialImpName !== 'Standalone Tractor' ? `${initialImpName} Work` : '5-Tyne Ploughing (5 கொழு உழவு)',
+      workType: impPair.en && impPair.en !== 'Standalone Tractor' ? `${impPair.en} Work` : '5-Tyne Ploughing (5 கொழு உழவு)',
       workDescription: '',
       billingUnit: initialUnit,
       startMeter: '',
@@ -874,10 +928,11 @@ export default function TripSheetManager({
       paidAmount: '0',
       balanceAmount: net,
       paymentStatus: 'unpaid',
+      cashInHandStatus: 'settled',
       collectedBy: collectorString,
       collectedWhen: new Date().toISOString().slice(0, 16).replace('T', ' '),
       paymentMode: 'credit',
-      driverBata: '400',
+      driverBata: chosenDrvId === 'DRV-OWNER' ? '0' : '400',
       notes: ''
     });
     setIsModalOpen(true);
@@ -1094,18 +1149,36 @@ export default function TripSheetManager({
       if (field === 'customerId') {
         const found = customers.find(c => c.id === value);
         if (found) {
-          updated.customerName = found.name;
-          updated.customerName_ta = found.name_ta || found.name;
+          const pair = resolveBilingualPair(found.name, found.name_ta);
+          updated.customerName = pair.en;
+          updated.customerName_ta = pair.ta;
         }
       }
 
       if (field === 'driverId') {
-        const found = drivers.find(d => d.id === value);
-        if (found) {
-          updated.driverName = found.name;
-          updated.driverName_ta = found.name_ta || found.name;
+        if (value === 'DRV-OWNER') {
+          const ownerNameEn = currentUser?.displayName || loggedUserName || 'Owner';
+          const ownerNameTa = currentUser?.displayName_ta || 'உரிமையாளர்';
+          const pair = resolveBilingualPair(ownerNameEn, ownerNameTa);
+          updated.driverId = 'DRV-OWNER';
+          updated.driverName = pair.en;
+          updated.driverName_ta = pair.ta;
+          updated.driverBata = '0';
           if (loginUserAssignment !== 'collector' && (!prev.collectedBy || prev.collectedBy.includes('Driver'))) {
-            updated.collectedBy = `${found.name_ta || found.name} (Driver)`;
+            updated.collectedBy = `${getBilingualText(pair.en, pair.ta, lang)} (${lang === 'ta' ? 'உரிமையாளர்' : 'Owner'})`;
+          }
+        } else {
+          const found = drivers.find(d => d.id === value);
+          if (found) {
+            const pair = resolveBilingualPair(found.name, found.name_ta);
+            updated.driverName = pair.en;
+            updated.driverName_ta = pair.ta;
+            if (found.wageType === 'owner') {
+              updated.driverBata = '0';
+            }
+            if (loginUserAssignment !== 'collector' && (!prev.collectedBy || prev.collectedBy.includes('Driver'))) {
+              updated.collectedBy = `${getBilingualText(pair.en, pair.ta, lang)} (${found.wageType === 'owner' ? (lang === 'ta' ? 'உரிமையாளர்' : 'Owner') : (lang === 'ta' ? 'டிரைவர்' : 'Driver')})`;
+            }
           }
         }
       }
@@ -1113,8 +1186,9 @@ export default function TripSheetManager({
       if (field === 'tractorId') {
         const found = tractors.find(t => t.id === value);
         if (found) {
-          updated.tractorName = found.name;
-          updated.tractorName_ta = found.name_ta || found.name;
+          const pair = resolveBilingualPair(found.name, found.name_ta);
+          updated.tractorName = pair.en;
+          updated.tractorName_ta = pair.ta;
         }
         const suggestedRate = lookupRate(value, updated.implementId, updated.date, updated.billingUnit);
         if (suggestedRate) updated.rate = suggestedRate;
@@ -1122,8 +1196,12 @@ export default function TripSheetManager({
 
       if (field === 'implementId') {
         const found = implementsList.find(m => m.id === value);
-        updated.implementName = found ? found.name : 'Standalone Tractor';
-        updated.implementName_ta = found ? (found.name_ta || found.name) : 'தனி டிராக்டர்';
+        const pair = resolveBilingualPair(
+          found ? found.name : 'Standalone Tractor',
+          found ? (found.name_ta || found.name) : 'தனி டிராக்டர்'
+        );
+        updated.implementName = pair.en;
+        updated.implementName_ta = pair.ta;
         const suggestedRate = lookupRate(updated.tractorId, value, updated.date, updated.billingUnit);
         if (suggestedRate) updated.rate = suggestedRate;
       }
@@ -1485,30 +1563,48 @@ export default function TripSheetManager({
     }
 
     const matchedCust = customers.find(c => c.id === resolvedCustomerId || c.name === resolvedCustomerName);
-    const resolvedCustomerName_ta = formData.customerName_ta || matchedCust?.name_ta || resolvedCustomerName;
+    const custPair = resolveBilingualPair(
+      formData.customerName || matchedCust?.name || resolvedCustomerName,
+      formData.customerName_ta || matchedCust?.name_ta || resolvedCustomerName
+    );
 
     const matchedDrv = drivers.find(d => d.id === resolvedDriverId || d.name === resolvedDriverName);
-    const resolvedDriverName_ta = formData.driverName_ta || matchedDrv?.name_ta || resolvedDriverName;
+    const drvPair = resolvedDriverId === 'DRV-OWNER'
+      ? resolveBilingualPair(
+          currentUser?.displayName || loggedUserName || 'Owner',
+          currentUser?.displayName_ta || 'உரிமையாளர்'
+        )
+      : resolveBilingualPair(
+          formData.driverName || matchedDrv?.name || resolvedDriverName,
+          formData.driverName_ta || matchedDrv?.name_ta || resolvedDriverName
+        );
 
     const matchedTrac = tractors.find(t => t.id === resolvedTractorId || t.name === resolvedTractorName);
-    const resolvedTractorName_ta = formData.tractorName_ta || matchedTrac?.name_ta || resolvedTractorName;
+    const tracPair = resolveBilingualPair(
+      formData.tractorName || matchedTrac?.name || resolvedTractorName,
+      formData.tractorName_ta || matchedTrac?.name_ta || resolvedTractorName
+    );
 
     const matchedImp = implementsList.find(m => m.id === formData.implementId);
-    const resolvedImplementName_ta = formData.implementName_ta || matchedImp?.name_ta || formData.implementName;
+    const impPair = resolveBilingualPair(
+      formData.implementName || matchedImp?.name || 'Standalone Tractor',
+      formData.implementName_ta || matchedImp?.name_ta || 'தனி டிராக்டர்'
+    );
 
     const finalPayload = {
       ...formData,
       _isEditing: Boolean(editingItem),
       customerId: resolvedCustomerId,
-      customerName: resolvedCustomerName,
-      customerName_ta: resolvedCustomerName_ta,
+      customerName: custPair.en,
+      customerName_ta: custPair.ta,
       tractorId: resolvedTractorId,
-      tractorName: resolvedTractorName,
-      tractorName_ta: resolvedTractorName_ta,
+      tractorName: tracPair.en,
+      tractorName_ta: tracPair.ta,
       driverId: resolvedDriverId,
-      driverName: resolvedDriverName,
-      driverName_ta: resolvedDriverName_ta,
-      implementName_ta: resolvedImplementName_ta,
+      driverName: drvPair.en,
+      driverName_ta: drvPair.ta,
+      implementName: impPair.en,
+      implementName_ta: impPair.ta,
       cashInHandStatus: formData.cashInHandStatus || 'settled',
       grossAmount: gross,
       totalAmount: netTotal,
@@ -1521,7 +1617,7 @@ export default function TripSheetManager({
       implementIds: finalIds,
       implementNames: finalNames,
       implementId: finalIds.length > 0 ? finalIds.join(',') : (formData.implementId || 'none'),
-      implementName: finalNames.length > 0 ? finalNames.join(' + ') : (formData.implementName || 'Standalone Tractor')
+      implementName: finalNames.length > 0 ? finalNames.join(' + ') : impPair.en
     };
 
     const res = onSaveTrip(finalPayload);
@@ -1639,7 +1735,7 @@ export default function TripSheetManager({
           <option value="all">{lang === 'ta' ? 'அனைத்து விவசாயிகள்' : 'All Customers'}</option>
           {customers.map(c => (
             <option key={c.id} value={c.id}>
-              {lang === 'ta' && c.name_ta ? c.name_ta : c.name} {c.village ? `(${c.village})` : ''}
+              {getBilingualText(c.name, c.name_ta, lang)} {c.village ? `(${getBilingualText(c.village, c.village_ta, lang)})` : ''}
             </option>
           ))}
         </select>
@@ -1686,24 +1782,19 @@ export default function TripSheetManager({
                 const endT = formatTimeDisplay(trip.endTime);
 
                 const foundCust = customers.find(c => c.id === trip.customerId || (c.name && c.name.toLowerCase() === (trip.customerName || '').toLowerCase()));
-                const dispCustomer = lang === 'ta'
-                  ? (trip.customerName_ta || foundCust?.name_ta || localizeName(trip.customerName, 'ta') || '---')
-                  : (foundCust?.name || localizeName(trip.customerName_ta || trip.customerName, 'en') || '---');
+                const dispCustomer = getBilingualText(trip.customerName || foundCust?.name, trip.customerName_ta || foundCust?.name_ta, lang) || '---';
 
                 const foundDrv = drivers.find(d => d.id === trip.driverId || (d.name && d.name.toLowerCase() === (trip.driverName || '').toLowerCase()));
-                const dispDriver = lang === 'ta'
-                  ? (trip.driverName_ta || foundDrv?.name_ta || localizeName(trip.driverName, 'ta') || '---')
-                  : (foundDrv?.name || localizeName(trip.driverName_ta || trip.driverName, 'en') || '---');
+                const dispDriver = getBilingualText(trip.driverName || foundDrv?.name, trip.driverName_ta || foundDrv?.name_ta, lang) || '---';
 
                 const foundTrac = tractors.find(t => t.id === trip.tractorId || (t.name && t.name.toLowerCase() === (trip.tractorName || '').toLowerCase()));
-                const dispTractor = lang === 'ta'
-                  ? (trip.tractorName_ta || foundTrac?.name_ta || localizeMachineryName(trip.tractorName || foundTrac?.name, 'ta') || '---')
-                  : (foundTrac?.name || localizeMachineryName(trip.tractorName_ta || trip.tractorName, 'en') || '---');
+                const dispTractor = getBilingualText(trip.tractorName || foundTrac?.name, trip.tractorName_ta || foundTrac?.name_ta, lang) || '---';
 
                 const foundImp = implementsList.find(m => m.id === trip.implementId);
                 const rawImpName = trip.implementName || foundImp?.name || '';
-                const dispImplement = rawImpName 
-                  ? localizeMachineryName(lang === 'ta' ? (trip.implementName_ta || foundImp?.name_ta || rawImpName) : rawImpName, lang)
+                const rawImpNameTa = trip.implementName_ta || foundImp?.name_ta || '';
+                const dispImplement = (rawImpName || rawImpNameTa)
+                  ? getBilingualText(rawImpName, rawImpNameTa, lang)
                   : (lang === 'ta' ? 'தனி டிராக்டர்' : 'Standalone Tractor');
 
                 const dispWorkType = localizeWorkType(trip.workType || trip.workDescription, lang);
@@ -1834,20 +1925,6 @@ export default function TripSheetManager({
                         }`}>
                           {dispStatus}
                         </span>
-                        {trip.cashInHandStatus === 'in_hand' && (
-                          <div style={{ 
-                            fontSize: '0.68rem', 
-                            fontWeight: 700, 
-                            color: '#b45309', 
-                            background: '#fef3c7', 
-                            padding: '1px 5px', 
-                            borderRadius: '4px', 
-                            marginTop: '3px',
-                            display: 'inline-block' 
-                          }}>
-                            💵 {lang === 'ta' ? 'டிரைவர் கையில் ரொக்கம்' : 'Cash with Driver'}
-                          </div>
-                        )}
                       </div>
                     </td>
 
@@ -1941,8 +2018,8 @@ export default function TripSheetManager({
                     onChange={(val) => handleFieldChange('customerId', val)}
                     options={customers.map(c => ({
                       value: c.id,
-                      label: (lang === 'ta' && c.name_ta ? c.name_ta : c.name),
-                      subLabel: (lang === 'ta' && c.village_ta ? c.village_ta : c.village) || '',
+                      label: getBilingualText(c.name, c.name_ta, lang),
+                      subLabel: getBilingualText(c.village, c.village_ta, lang) || '',
                       badge: c.phone || ''
                     }))}
                     placeholder={lang === 'ta' ? '-- விவசாயியைத் தேர்வு செய்க --' : '-- Select Farmer / Customer --'}
@@ -2001,12 +2078,7 @@ export default function TripSheetManager({
                     label=""
                     value={formData.driverId}
                     onChange={(val) => handleFieldChange('driverId', val)}
-                    options={drivers.map(d => ({ 
-                      value: d.id, 
-                      label: (lang === 'ta' && d.name_ta ? d.name_ta : d.name) + (d.name.toLowerCase() === loggedUserName.toLowerCase() ? (lang === 'ta' ? ' (நீங்கள்)' : ' (You)') : ''), 
-                      subLabel: d.phone || '', 
-                      badge: d.wageType || '' 
-                    }))}
+                    options={driverOptions}
                     placeholder={lang === 'ta' ? '-- ஓட்டுநரைத் தேர்வு செய்க --' : '-- Select Driver --'}
                     searchPlaceholder={lang === 'ta' ? 'ஓட்டுநரைத் தேட...' : 'Search driver...'}
                     required
@@ -2022,7 +2094,7 @@ export default function TripSheetManager({
                     onChange={handleSelectTractor}
                     options={tractors.map(t => ({
                       value: t.id,
-                      label: (lang === 'ta' && t.name_ta ? t.name_ta : t.name),
+                      label: getBilingualText(t.name, t.name_ta, lang),
                       subLabel: t.regNumber || '',
                       badge: lang === 'ta' ? 'டிராக்டர்' : 'Tractor'
                     }))}
@@ -2079,7 +2151,7 @@ export default function TripSheetManager({
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.4rem' }}>
                         {(formData.implementIds || []).map(impId => {
                           const found = implementsList.find(m => m.id === impId);
-                          const impLabel = found ? (lang === 'ta' && found.name_ta ? found.name_ta : found.name) : impId;
+                          const impLabel = found ? getBilingualText(found.name, found.name_ta, lang) : impId;
                           return (
                             <span
                               key={impId}
@@ -2124,7 +2196,7 @@ export default function TripSheetManager({
                               cursor: 'pointer'
                             }}
                           >
-                            + {lang === 'ta' && imp.name_ta ? imp.name_ta : imp.name}
+                            + {getBilingualText(imp.name, imp.name_ta, lang)}
                           </button>
                         ))}
                       </div>
@@ -2618,54 +2690,6 @@ export default function TripSheetManager({
                             </span>
                           </div>
 
-                          {/* Quick Preset Buttons */}
-                          <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '4px' }}>
-                            <button 
-                              type="button" 
-                              className="btn btn-outline btn-sm" 
-                              style={{ padding: '2px 5px', fontSize: '0.68rem', fontWeight: 700 }}
-                              onClick={() => handleFieldChange('quantity', '0:45')}
-                              title="45 minutes = 0.75 hours"
-                            >
-                              .45 (0.75h)
-                            </button>
-                            <button 
-                              type="button" 
-                              className="btn btn-outline btn-sm" 
-                              style={{ padding: '2px 5px', fontSize: '0.68rem', fontWeight: 700 }}
-                              onClick={() => handleFieldChange('quantity', '1:00')}
-                              title="1 hour"
-                            >
-                              1 {lang === 'ta' ? 'மணி' : 'hr'}
-                            </button>
-                            <button 
-                              type="button" 
-                              className="btn btn-outline btn-sm" 
-                              style={{ padding: '2px 5px', fontSize: '0.68rem', fontWeight: 700 }}
-                              onClick={() => handleFieldChange('quantity', '1:30')}
-                              title="1 hour 30 mins = 1.5 hours"
-                            >
-                              1:30 (1.5h)
-                            </button>
-                            <button 
-                              type="button" 
-                              className="btn btn-outline btn-sm" 
-                              style={{ padding: '2px 5px', fontSize: '0.68rem', fontWeight: 700 }}
-                              onClick={() => handleFieldChange('quantity', '2:00')}
-                              title="2 hours"
-                            >
-                              2 {lang === 'ta' ? 'மணி' : 'hrs'}
-                            </button>
-                            <button 
-                              type="button" 
-                              className="btn btn-outline btn-sm" 
-                              style={{ padding: '2px 5px', fontSize: '0.68rem', fontWeight: 700 }}
-                              onClick={() => handleFieldChange('quantity', '2:30')}
-                              title="2 hours 30 mins = 2.5 hours"
-                            >
-                              2:30 (2.5h)
-                            </button>
-                          </div>
                         </div>
                       )}
                     </div>
@@ -3004,63 +3028,7 @@ export default function TripSheetManager({
                           </div>
                         </div>
 
-                        {/* Driver Cash in Hand Split Selector ("current cash have in not split in hand") */}
-                        {formData.paymentMode === 'cash' && (
-                          <div style={{
-                            gridColumn: '1 / -1',
-                            background: formData.cashInHandStatus === 'in_hand' ? '#fef3c7' : '#f0fdf4',
-                            border: formData.cashInHandStatus === 'in_hand' ? '1.5px dashed #d97706' : '1.5px solid #86efac',
-                            borderRadius: '8px',
-                            padding: '0.75rem',
-                            marginTop: '0.25rem'
-                          }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                              <div style={{ fontWeight: 800, fontSize: '0.85rem', color: formData.cashInHandStatus === 'in_hand' ? '#92400e' : '#166534', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                <span>🤝</span>
-                                <span>{lang === 'ta' ? 'ரொக்கம் ஒப்படைப்பு & பிரித்தல் நிலை (Cash Split Status)' : 'Cash Split / Handover Status'}</span>
-                              </div>
-                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>
-                                {formData.cashInHandStatus === 'in_hand' 
-                                  ? (lang === 'ta' ? '🟡 டிரைவர் கையில் உள்ளது (இன்னும் பிரிக்கவில்லை)' : '🟡 Not Split in Hand')
-                                  : (lang === 'ta' ? '🟢 கணக்கு ஒப்படைக்கப்பட்டு பிரிக்கப்பட்டது' : '🟢 Settled & Split')}
-                              </span>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleFieldChange('cashInHandStatus', 'in_hand')}
-                                style={{
-                                  padding: '0.5rem',
-                                  borderRadius: '6px',
-                                  border: formData.cashInHandStatus === 'in_hand' ? '2px solid #d97706' : '1px solid #cbd5e1',
-                                  background: formData.cashInHandStatus === 'in_hand' ? '#fef3c7' : '#ffffff',
-                                  color: formData.cashInHandStatus === 'in_hand' ? '#92400e' : '#475569',
-                                  fontWeight: 800,
-                                  fontSize: '0.8rem',
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                🟡 {lang === 'ta' ? 'டிரைவர் கையில் ரொக்கம் (இன்னும் பிரிக்கவில்லை)' : 'Cash In Hand (Not Split Yet)'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleFieldChange('cashInHandStatus', 'settled')}
-                                style={{
-                                  padding: '0.5rem',
-                                  borderRadius: '6px',
-                                  border: formData.cashInHandStatus === 'settled' ? '2px solid #16a34a' : '1px solid #cbd5e1',
-                                  background: formData.cashInHandStatus === 'settled' ? '#dcfce7' : '#ffffff',
-                                  color: formData.cashInHandStatus === 'settled' ? '#166534' : '#475569',
-                                  fontWeight: 800,
-                                  fontSize: '0.8rem',
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                🟢 {lang === 'ta' ? 'ஒப்படைக்கப்பட்டு பிரிக்கப்பட்டது (Settled & Split)' : 'Handed Over & Split'}
-                              </button>
-                            </div>
-                          </div>
-                        )}
+
 
                         {/* Collector Person */}
                         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
@@ -3240,57 +3208,7 @@ export default function TripSheetManager({
                   )}
                 </div>
 
-                {/* Cash in Hand Split Box */}
-                <div style={{
-                  background: quickSettleState.cashInHandStatus === 'in_hand' ? '#fffbeb' : '#f0fdf4',
-                  border: quickSettleState.cashInHandStatus === 'in_hand' ? '1.5px solid #f59e0b' : '1.5px solid #86efac',
-                  borderRadius: '10px',
-                  padding: '0.85rem'
-                }}>
-                  <div style={{ fontWeight: 800, fontSize: '0.875rem', color: quickSettleState.cashInHandStatus === 'in_hand' ? '#92400e' : '#166534', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <span>🤝</span>
-                    <span>{lang === 'ta' ? 'டிரைவர் கையில் ரொக்கம் & கணக்கு பிரித்தல்' : 'Driver Cash in Hand & Split'}</span>
-                  </div>
-                  <div style={{ fontSize: '0.78rem', color: '#475569', marginBottom: '0.6rem' }}>
-                    {lang === 'ta' 
-                      ? 'டிரைவரிடம் ரொக்கம் இருந்தால், அது ஒப்படைக்கப்பட்டு கணக்கு பிரிக்கப்பட்டதா அல்லது டிரைவர் கையிலேயே உள்ளதா?' 
-                      : 'Has the driver handed over the collected cash, or is it still in the driver\'s hand?'}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                    <button
-                      type="button"
-                      onClick={() => setQuickSettleState(prev => ({ ...prev, cashInHandStatus: 'in_hand' }))}
-                      style={{
-                        padding: '0.5rem',
-                        borderRadius: '6px',
-                        border: quickSettleState.cashInHandStatus === 'in_hand' ? '2px solid #d97706' : '1px solid #cbd5e1',
-                        background: quickSettleState.cashInHandStatus === 'in_hand' ? '#fef3c7' : '#ffffff',
-                        color: quickSettleState.cashInHandStatus === 'in_hand' ? '#92400e' : '#475569',
-                        fontWeight: 800,
-                        fontSize: '0.8rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      🟡 {lang === 'ta' ? 'டிரைவர் கையில் உள்ளது (இன்னும் பிரிக்கவில்லை)' : 'In Hand (Not Split)'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setQuickSettleState(prev => ({ ...prev, cashInHandStatus: 'settled' }))}
-                      style={{
-                        padding: '0.5rem',
-                        borderRadius: '6px',
-                        border: quickSettleState.cashInHandStatus === 'settled' ? '2px solid #16a34a' : '1px solid #cbd5e1',
-                        background: quickSettleState.cashInHandStatus === 'settled' ? '#dcfce7' : '#ffffff',
-                        color: quickSettleState.cashInHandStatus === 'settled' ? '#166534' : '#475569',
-                        fontWeight: 800,
-                        fontSize: '0.8rem',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      🟢 {lang === 'ta' ? 'ஒப்படைக்கப்பட்டு பிரிக்கப்பட்டது' : 'Handed Over & Split'}
-                    </button>
-                  </div>
-                </div>
+
 
                 {/* Collect Pending Amount Box (if balance > 0) */}
                 {tripBal > 0 && (

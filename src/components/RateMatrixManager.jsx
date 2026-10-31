@@ -6,6 +6,7 @@ import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
 import VoiceInput from './common/VoiceInput';
 import { validatePositiveNumber } from '../services/storage';
+import { getBilingualText } from '../utils/langUtils';
 
 export default function RateMatrixManager({ 
   rateMatrix, 
@@ -227,9 +228,22 @@ export default function RateMatrixManager({
               {filteredRates.map(item => (
                 <tr key={item.id}>
                   <td style={{ fontWeight: 700, color: 'var(--primary-700)' }}>{item.id}</td>
-                  <td style={{ fontWeight: 600 }}>{item.tractorName}</td>
+                  <td style={{ fontWeight: 600 }}>
+                    {(() => {
+                      const matched = tractors.find(t => t.id === item.tractorId || t.name === item.tractorName);
+                      return getBilingualText(item.tractorName || matched?.name, matched?.name_ta, lang);
+                    })()}
+                  </td>
                   <td>
-                    <span className="badge badge-purple">{item.implementName}</span>
+                    <span className="badge badge-purple">
+                      {(() => {
+                        if (item.implementId === 'none' || (item.implementName || '').toLowerCase().includes('standalone')) {
+                          return lang === 'ta' ? 'தனி டிராக்டர்' : 'Standalone Tractor';
+                        }
+                        const matched = implementsList.find(m => m.id === item.implementId || m.name === item.implementName);
+                        return getBilingualText(item.implementName || matched?.name, matched?.name_ta, lang);
+                      })()}
+                    </span>
                   </td>
                   <td>
                     <span style={{ fontWeight: 600 }}>
@@ -328,10 +342,10 @@ export default function RateMatrixManager({
                     onChange={handleTractorChange}
                     options={tractors.map(tr => ({
                       value: tr.id,
-                      label: tr.name,
+                      label: getBilingualText(tr.name, tr.name_ta, lang),
                       subLabel: tr.regNumber || ''
                     }))}
-                    placeholder="-- Select Tractor --"
+                    placeholder={lang === 'ta' ? '-- டிராக்டரைத் தேர்வு செய்க --' : '-- Select Tractor --'}
                     required
                     lang={lang}
                   />
@@ -344,14 +358,14 @@ export default function RateMatrixManager({
                     value={formData.implementId}
                     onChange={handleImplementChange}
                     options={[
-                      { value: 'none', label: 'None (Standalone Tractor / Haulage)' },
+                      { value: 'none', label: lang === 'ta' ? 'கருவி ஏதுமில்லை (தனி டிராக்டர்)' : 'None (Standalone Tractor / Haulage)' },
                       ...implementsList.map(imp => ({
                         value: imp.id,
-                        label: imp.name,
+                        label: getBilingualText(imp.name, imp.name_ta, lang),
                         subLabel: imp.category || ''
                       }))
                     ]}
-                    placeholder="-- Select Implement --"
+                    placeholder={lang === 'ta' ? '-- கருவியைத் தேர்வு செய்க --' : '-- Select Implement --'}
                     required
                     lang={lang}
                   />

@@ -2,7 +2,7 @@
 import { syncAllToGoogleSheet, recordLoginAttemptInSheet } from './googleSheets';
 import { ENV_GOOGLE_SHEETS_URL, getEffectiveGoogleSheetUrl } from '../config/env';
 import { cleanDeep } from '../utils/timeCalcUtils';
-import { healShiftedTripRecord } from '../utils/langUtils';
+import { healShiftedTripRecord, resolveBilingualPair, localizeName, hasTamilCharacters } from '../utils/langUtils';
 
 const STORAGE_KEYS = {
   FLEET: "tractomint_fleet",
@@ -94,7 +94,7 @@ const INITIAL_SETTINGS = {
   autoSync: false, // Manual Developer / Admin sync per user requirement
   companyName: "Tractor & Agri Machinery Works",
   companyName_ta: "டிராக்டர் மற்றும் விவசாய இயந்திரங்கள் லெட்ஜர்",
-  contactPhone: "",
+  contactPhone: "6383728267",
   address: "",
   darkMode: false,
   lastSynced: "",
@@ -183,10 +183,14 @@ export const normalizeRegNumber = (reg) => {
 };
 
 export const StorageService = {
-  // Getters for active (non-soft-deleted) items
+  // Getters for active (non-soft-deleted) items with automatic bilingual resolution
   getFleet: (includeDeleted = false) => {
     const list = loadData(STORAGE_KEYS.FLEET, INITIAL_FLEET);
-    return includeDeleted ? list : list.filter(item => !isDeleted(item));
+    const resolved = list.map(item => {
+      const namePair = resolveBilingualPair(item.name, item.name_ta);
+      return { ...item, name: namePair.en, name_ta: namePair.ta };
+    });
+    return includeDeleted ? resolved : resolved.filter(item => !isDeleted(item));
   },
 
   getRateMatrix: (includeDeleted = false) => {
@@ -196,12 +200,27 @@ export const StorageService = {
 
   getDrivers: (includeDeleted = false) => {
     const list = loadData(STORAGE_KEYS.DRIVERS, INITIAL_DRIVERS);
-    return includeDeleted ? list : list.filter(item => !isDeleted(item));
+    const resolved = list.map(item => {
+      const namePair = resolveBilingualPair(item.name, item.name_ta);
+      return { ...item, name: namePair.en, name_ta: namePair.ta };
+    });
+    return includeDeleted ? resolved : resolved.filter(item => !isDeleted(item));
   },
 
   getCustomers: (includeDeleted = false) => {
     const list = loadData(STORAGE_KEYS.CUSTOMERS, INITIAL_CUSTOMERS);
-    return includeDeleted ? list : list.filter(item => !isDeleted(item));
+    const resolved = list.map(item => {
+      const namePair = resolveBilingualPair(item.name, item.name_ta);
+      const vilPair = resolveBilingualPair(item.village, item.village_ta);
+      return {
+        ...item,
+        name: namePair.en,
+        name_ta: namePair.ta,
+        village: vilPair.en,
+        village_ta: vilPair.ta
+      };
+    });
+    return includeDeleted ? resolved : resolved.filter(item => !isDeleted(item));
   },
 
   getTripSheets: (includeDeleted = false) => {
@@ -210,7 +229,21 @@ export const StorageService = {
     const normalized = list.map(item => {
       const healed = healShiftedTripRecord(item);
       if (healed && healed._healed) wasRepaired = true;
-      return healed;
+      const cPair = resolveBilingualPair(healed.customerName, healed.customerName_ta);
+      const dPair = resolveBilingualPair(healed.driverName, healed.driverName_ta);
+      const trPair = resolveBilingualPair(healed.tractorName, healed.tractorName_ta);
+      const imPair = resolveBilingualPair(healed.implementName, healed.implementName_ta);
+      return {
+        ...healed,
+        customerName: cPair.en,
+        customerName_ta: cPair.ta,
+        driverName: dPair.en,
+        driverName_ta: dPair.ta,
+        tractorName: trPair.en,
+        tractorName_ta: trPair.ta,
+        implementName: imPair.en,
+        implementName_ta: imPair.ta
+      };
     });
     if (wasRepaired) {
       saveData(STORAGE_KEYS.TRIP_SHEETS, normalized);
@@ -230,7 +263,11 @@ export const StorageService = {
 
   getPartners: (includeDeleted = false) => {
     const list = loadData(STORAGE_KEYS.PARTNERS, INITIAL_PARTNERS);
-    return includeDeleted ? list : list.filter(item => !isDeleted(item));
+    const resolved = list.map(item => {
+      const namePair = resolveBilingualPair(item.name, item.name_ta);
+      return { ...item, name: namePair.en, name_ta: namePair.ta };
+    });
+    return includeDeleted ? resolved : resolved.filter(item => !isDeleted(item));
   },
 
   getPartnerDrawings: (includeDeleted = false) => {
@@ -254,14 +291,26 @@ export const StorageService = {
         saveData(STORAGE_KEYS.USERS, list);
       }
     }
-    return includeDeleted ? list : list.filter(item => !isDeleted(item));
+    const resolved = list.map(item => {
+      const namePair = resolveBilingualPair(item.displayName, item.displayName_ta);
+      return { ...item, displayName: namePair.en, displayName_ta: namePair.ta };
+    });
+    return includeDeleted ? resolved : resolved.filter(item => !isDeleted(item));
   },
 
   getSettings: () => {
     const s = loadData(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
+    let changed = false;
+    if (!s.contactPhone || !s.contactPhone.trim()) {
+      s.contactPhone = "6383728267";
+      changed = true;
+    }
     const effectiveUrl = getEffectiveGoogleSheetUrl(s.webAppUrl);
     if (!s.webAppUrl || s.webAppUrl !== effectiveUrl) {
       s.webAppUrl = effectiveUrl;
+      changed = true;
+    }
+    if (changed) {
       saveData(STORAGE_KEYS.SETTINGS, s);
     }
     return s;
@@ -307,9 +356,15 @@ export const StorageService = {
       };
     }
 
+    const namePair = resolveBilingualPair(customer.name, customer.name_ta);
+    const villagePair = resolveBilingualPair(customer.village, customer.village_ta);
+
     const customerToSave = {
       ...customer,
-      name: customer.name.trim(),
+      name: namePair.en,
+      name_ta: namePair.ta,
+      village: villagePair.en,
+      village_ta: villagePair.ta,
       phone: cleanPhone
     };
 
@@ -351,9 +406,12 @@ export const StorageService = {
       if (!wageVal.valid) return { success: false, error: wageVal.error };
     }
 
+    const namePair = resolveBilingualPair(driver.name, driver.name_ta);
+
     const driverToSave = {
       ...driver,
-      name: driver.name.trim(),
+      name: namePair.en,
+      name_ta: namePair.ta,
       phone: cleanPhone
     };
 
@@ -410,9 +468,12 @@ export const StorageService = {
       if (!emiVal.valid) return { success: false, error: emiVal.error };
     }
 
+    const namePair = resolveBilingualPair(item.name, item.name_ta);
+
     const fleetToSave = {
       ...item,
-      name: item.name.trim(),
+      name: namePair.en,
+      name_ta: namePair.ta,
       regNumber: rawReg.toUpperCase()
     };
 
@@ -531,7 +592,24 @@ export const StorageService = {
     }
 
     const healed = healShiftedTripRecord(trip);
-    const saved = StorageService.saveItem(STORAGE_KEYS.TRIP_SHEETS, healed, role);
+    const cPair = resolveBilingualPair(healed.customerName, healed.customerName_ta);
+    const dPair = resolveBilingualPair(healed.driverName, healed.driverName_ta);
+    const trPair = resolveBilingualPair(healed.tractorName, healed.tractorName_ta);
+    const imPair = resolveBilingualPair(healed.implementName, healed.implementName_ta);
+
+    const tripWithBilingual = {
+      ...healed,
+      customerName: cPair.en,
+      customerName_ta: cPair.ta,
+      driverName: dPair.en,
+      driverName_ta: dPair.ta,
+      tractorName: trPair.en,
+      tractorName_ta: trPair.ta,
+      implementName: imPair.en,
+      implementName_ta: imPair.ta
+    };
+
+    const saved = StorageService.saveItem(STORAGE_KEYS.TRIP_SHEETS, tripWithBilingual, role);
     return { success: true, item: saved };
   },
 
@@ -570,25 +648,53 @@ export const StorageService = {
     return { success: true, item: saved };
   },
 
-  // Dedicated Fuel & Maintenance Save with Quantity & Cost Validation
+  getCustomExpenseTypes: () => {
+    return loadData('tractomint_custom_expense_types', []);
+  },
+
+  saveCustomExpenseType: (newType) => {
+    if (!newType || !newType.name) return [];
+    const list = loadData('tractomint_custom_expense_types', []);
+    const exists = list.some(item => 
+      (newType.id && item.id === newType.id) || 
+      (item.name && item.name.toLowerCase() === newType.name.toLowerCase()) ||
+      (item.name_ta && newType.name_ta && item.name_ta === newType.name_ta)
+    );
+    if (!exists) {
+      list.push(newType);
+      saveData('tractomint_custom_expense_types', list);
+    }
+    return list;
+  },
+
+  // Dedicated Fuel, Spares & Maintenance Save supporting Things & Machine Service
   saveMaintenance: (item, role = "operator") => {
-    if (!item.assetId) {
-      return { success: false, error: 'Tractor / Machine asset selection is required.' };
-    }
-    if (!item.category) {
-      return { success: false, error: 'Expense category (Diesel, Spares, Oil, Service) is required.' };
-    }
     if (!item.date) {
-      return { success: false, error: 'Maintenance / Fuel date is required.' };
+      return { success: false, error: 'Date is required.' };
     }
 
-    const qtyVal = validatePositiveNumber(item.quantity, 'Quantity', false);
-    if (!qtyVal.valid) return { success: false, error: qtyVal.error };
+    const isService = item.entryType === 'service';
+    if (isService && !item.assetId) {
+      return { success: false, error: 'Tractor / Machine selection is required for Service.' };
+    }
 
-    const totalVal = validatePositiveNumber(item.totalAmount, 'Total Cost (₹)', false);
+    if (!isService && !item.category && !item.category_ta) {
+      return { success: false, error: 'Type of expense (Category) is required.' };
+    }
+
+    const amt = item.amount || item.totalAmount;
+    const totalVal = validatePositiveNumber(amt, 'Amount (₹)', false);
     if (!totalVal.valid) return { success: false, error: totalVal.error };
 
-    if (item.hourMeter !== undefined && item.hourMeter !== '') {
+    item.totalAmount = String(amt);
+    item.amount = String(amt);
+
+    if (item.quantity !== undefined && item.quantity !== '' && item.quantity !== null) {
+      const qtyVal = validatePositiveNumber(item.quantity, 'Quantity', false);
+      if (!qtyVal.valid) return { success: false, error: qtyVal.error };
+    }
+
+    if (item.hourMeter !== undefined && item.hourMeter !== '' && item.hourMeter !== null) {
       const hrVal = validatePositiveNumber(item.hourMeter, 'Hour Meter reading', true);
       if (!hrVal.valid) return { success: false, error: hrVal.error };
     }
@@ -664,9 +770,12 @@ export const StorageService = {
       if (!capVal.valid) return { success: false, error: capVal.error };
     }
 
+    const namePair = resolveBilingualPair(partner.name, partner.name_ta);
+
     const partnerToSave = {
       ...partner,
-      name: partner.name.trim(),
+      name: namePair.en,
+      name_ta: namePair.ta,
       phone: cleanPhone,
       sharePercent: shareVal.value
     };
@@ -827,13 +936,15 @@ export const StorageService = {
       return { success: false, error: 'Login PIN / Password must be at least 4 digits.' };
     }
 
+    const namePair = resolveBilingualPair(user.displayName, user.displayName_ta);
+
     const now = new Date().toISOString().replace('T', ' ').slice(0, 16);
     const userToSave = {
       ...user,
       username: cleanUsername,
       pin: String(user.pin).trim(),
-      displayName: user.displayName || user.username,
-      displayName_ta: user.displayName_ta || user.displayName || user.username,
+      displayName: namePair.en || cleanUsername,
+      displayName_ta: namePair.ta || namePair.en || cleanUsername,
       role: user.role || 'operator',
       status: user.status || 'active',
       phone: cleanPhone,
@@ -855,6 +966,131 @@ export const StorageService = {
     saveData(STORAGE_KEYS.USERS, list);
     StorageService.triggerAutoSyncIfEnabled();
     return { success: true, user: userToSave };
+  },
+
+  // Auto-heal all stored data ensuring English columns have English and Tamil columns have Tamil
+  healAllBilingualData: () => {
+    try {
+      let anyModified = false;
+
+      // 1. Customers
+      const rawCustomers = loadData(STORAGE_KEYS.CUSTOMERS, []);
+      let custModified = false;
+      const healedCustomers = rawCustomers.map(c => {
+        const namePair = resolveBilingualPair(c.name, c.name_ta);
+        const vilPair = resolveBilingualPair(c.village, c.village_ta);
+        if (c.name !== namePair.en || c.name_ta !== namePair.ta || c.village !== vilPair.en || c.village_ta !== vilPair.ta) {
+          custModified = true;
+          return { ...c, name: namePair.en, name_ta: namePair.ta, village: vilPair.en, village_ta: vilPair.ta };
+        }
+        return c;
+      });
+      if (custModified) {
+        saveData(STORAGE_KEYS.CUSTOMERS, healedCustomers);
+        anyModified = true;
+      }
+
+      // 2. Drivers
+      const rawDrivers = loadData(STORAGE_KEYS.DRIVERS, []);
+      let drvModified = false;
+      const healedDrivers = rawDrivers.map(d => {
+        const namePair = resolveBilingualPair(d.name, d.name_ta);
+        if (d.name !== namePair.en || d.name_ta !== namePair.ta) {
+          drvModified = true;
+          return { ...d, name: namePair.en, name_ta: namePair.ta };
+        }
+        return d;
+      });
+      if (drvModified) {
+        saveData(STORAGE_KEYS.DRIVERS, healedDrivers);
+        anyModified = true;
+      }
+
+      // 3. Fleet
+      const rawFleet = loadData(STORAGE_KEYS.FLEET, []);
+      let fltModified = false;
+      const healedFleet = rawFleet.map(f => {
+        const namePair = resolveBilingualPair(f.name, f.name_ta);
+        if (f.name !== namePair.en || f.name_ta !== namePair.ta) {
+          fltModified = true;
+          return { ...f, name: namePair.en, name_ta: namePair.ta };
+        }
+        return f;
+      });
+      if (fltModified) {
+        saveData(STORAGE_KEYS.FLEET, healedFleet);
+        anyModified = true;
+      }
+
+      // 4. Partners
+      const rawPartners = loadData(STORAGE_KEYS.PARTNERS, []);
+      let prtModified = false;
+      const healedPartners = rawPartners.map(p => {
+        const namePair = resolveBilingualPair(p.name, p.name_ta);
+        if (p.name !== namePair.en || p.name_ta !== namePair.ta) {
+          prtModified = true;
+          return { ...p, name: namePair.en, name_ta: namePair.ta };
+        }
+        return p;
+      });
+      if (prtModified) {
+        saveData(STORAGE_KEYS.PARTNERS, healedPartners);
+        anyModified = true;
+      }
+
+      // 5. Users
+      const rawUsers = loadData(STORAGE_KEYS.USERS, []);
+      let usrModified = false;
+      const healedUsers = rawUsers.map(u => {
+        const namePair = resolveBilingualPair(u.displayName, u.displayName_ta);
+        if (u.displayName !== namePair.en || u.displayName_ta !== namePair.ta) {
+          usrModified = true;
+          return { ...u, displayName: namePair.en, displayName_ta: namePair.ta };
+        }
+        return u;
+      });
+      if (usrModified) {
+        saveData(STORAGE_KEYS.USERS, healedUsers);
+        anyModified = true;
+      }
+
+      // 6. Trip Sheets
+      const rawTrips = loadData(STORAGE_KEYS.TRIP_SHEETS, []);
+      let trpModified = false;
+      const healedTrips = rawTrips.map(t => {
+        const cPair = resolveBilingualPair(t.customerName, t.customerName_ta);
+        const dPair = resolveBilingualPair(t.driverName, t.driverName_ta);
+        const trPair = resolveBilingualPair(t.tractorName, t.tractorName_ta);
+        const imPair = resolveBilingualPair(t.implementName, t.implementName_ta);
+        if (t.customerName !== cPair.en || t.customerName_ta !== cPair.ta ||
+            t.driverName !== dPair.en || t.driverName_ta !== dPair.ta ||
+            t.tractorName !== trPair.en || t.tractorName_ta !== trPair.ta ||
+            t.implementName !== imPair.en || t.implementName_ta !== imPair.ta) {
+          trpModified = true;
+          return {
+            ...t,
+            customerName: cPair.en,
+            customerName_ta: cPair.ta,
+            driverName: dPair.en,
+            driverName_ta: dPair.ta,
+            tractorName: trPair.en,
+            tractorName_ta: trPair.ta,
+            implementName: imPair.en,
+            implementName_ta: imPair.ta
+          };
+        }
+        return t;
+      });
+      if (trpModified) {
+        saveData(STORAGE_KEYS.TRIP_SHEETS, healedTrips);
+        anyModified = true;
+      }
+
+      return anyModified;
+    } catch (err) {
+      console.warn('healAllBilingualData error:', err);
+      return false;
+    }
   },
 
   deleteUser: (id, pin) => {

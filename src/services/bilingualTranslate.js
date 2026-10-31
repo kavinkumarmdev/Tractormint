@@ -94,17 +94,35 @@ export const AGRI_DICTIONARY = {
   "repair": "பழுது பார்த்தல்",
   "maintenance": "பராமரிப்பு",
 
-  // Common Tamil Nadu Farmer Names
+  // Common Tamil Nadu Farmer & Driver Names
   "arumugam": "ஆறுமுகம்",
   "murugan": "முருகன்",
   "palanisamy": "பழனிசாமி",
+  "palaniswamy": "பழனிசாமி",
   "velusamy": "வேலுசாமி",
+  "veluswamy": "வேலுசாமி",
+  "muthusamy": "முத்துசாமி",
+  "muthuswamy": "முத்துசாமி",
+  "muthu": "முத்து",
+  "samy": "சாமி",
+  "swamy": "சாமி",
   "marimuthu": "மாரிமுத்து",
   "kandhasamy": "கந்தசாமி",
+  "kandasamy": "கந்தசாமி",
   "kaliappan": "காளியப்பன்",
   "kumar": "குமார்",
   "kavinkumar": "கவின்குமார்",
+  "kavin kumar": "கவின் குமார்",
   "kavin": "கவின்",
+  "tharun": "தருண்",
+  "tarun": "தருண்",
+  "dharun": "தருண்",
+  "kirubakaran": "கிருபாகரன்",
+  "krubakaran": "கிருபாகரன்",
+  "kiruba": "கிருபா",
+  "pandian": "பாண்டியன்",
+  "pandiyan": "பாண்டியன்",
+  "pandi": "பாண்டி",
   "selvam": "செல்வம்",
   "selvaraj": "செல்வராஜ்",
   "ramesh": "ரமேஷ்",
@@ -112,29 +130,71 @@ export const AGRI_DICTIONARY = {
   "senthil": "செந்தில்",
   "senthilkumar": "செந்தில்குமார்",
   "thangavel": "தங்கவேல்",
+  "thangavelu": "தங்கவேலு",
   "mani": "மணி",
+  "manickam": "மாணிக்கம்",
   "subramani": "சுப்பிரமணி",
+  "subramanian": "சுப்பிரமணியன்",
   "gounder": "கவுண்டர்",
   "thevar": "தேவர்",
   "chettiar": "செட்டியார்",
   "naicker": "நாயக்கர்",
+  "naidu": "நாயுடு",
+  "reddy": "ரெட்டி",
+  "reddiar": "ரெட்டியார்",
+  "pillai": "பிள்ளை",
   "raja": "ராஜா",
   "natraj": "நடராஜ்",
+  "nataraj": "நடராஜ்",
+  "natarajan": "நடராஜன்",
   "chinnasamy": "சின்னசாமி",
   "periasamy": "பெரியசாமி",
+  "periyasamy": "பெரியசாமி",
+  "perumal": "பெருமாள்",
+  "kuppusamy": "குப்புசாமி",
+  "ramasamy": "ராமசாமி",
   "ravi": "ரவி",
   "ravichandran": "ரவிச்சந்திரன்",
   "chandran": "சந்திரன்",
   "moorthy": "மூர்த்தி",
   "krishnan": "கிருஷ்ணன்",
+  "radhakrishnan": "ராதாகிருஷ்ணன்",
   "vijay": "விஜய்",
   "ajith": "அஜித்",
   "saravanan": "சரவணன்",
   "sakthivel": "சக்திவேல்",
+  "vadivel": "வடிவேல்",
+  "vadivelu": "வடிவேலு",
+  "vignesh": "விக்னேஷ்",
   "dharmaraj": "தர்மராஜ்",
   "boopathy": "பூபதி",
+  "prakash": "பிரகாஷ்",
   "govindasamy": "கோவிந்தசாமி",
+  "govindaraj": "கோவிந்தராஜ்",
   "venkatachalam": "வெங்கடாசலம்",
+  "venkatesh": "வெங்கடேஷ்",
+  "venkat": "வெங்கடேஷ்",
+  "mohan": "மோகன்",
+  "anbu": "அன்பு",
+  "elango": "இளங்கோ",
+  "nagaraj": "நாகராஜ்",
+  "nagarajan": "நாகராஜன்",
+  "easwaran": "ஈஸ்வரன்",
+  "dhanapal": "தனபால்",
+  "dhandapani": "தண்டபாணி",
+  "ganesan": "கணேசன்",
+  "rajendran": "ராஜேந்திரன்",
+  "arun": "அருண்",
+  "shankar": "சங்கர்",
+  "sankar": "சங்கர்",
+  "siva": "சிவா",
+  "sivakumar": "சிவக்குமார்",
+  "general customer": "பொது வாடிக்கையாளர்",
+  "general driver": "பொது ஓட்டுநர்",
+  "operator": "இயக்குனர்",
+  "driver": "ஓட்டுநர்",
+  "admin": "நிர்வாகி",
+  "manager": "மேலாளர்",
 
   // Common Towns & Villages
   "salem": "சேலம்",
@@ -175,11 +235,52 @@ export const AGRI_DICTIONARY = {
 };
 
 // Build reverse dictionary (Tamil to English)
-export const REVERSE_AGRI_DICTIONARY = {};
+export const REVERSE_AGRI_DICTIONARY = {
+  "தருண்": "Tharun",
+  "கவின் குமார்": "Kavin Kumar",
+  "கவின்குமார்": "Kavinkumar",
+  "கவின்": "Kavin",
+  "குமார்": "Kumar",
+  "கிருபாகரன்": "Kirubakaran",
+  "கிருபா": "Kiruba",
+  "பாண்டியன்": "Pandian",
+  "பாண்டி": "Pandi",
+  "முத்துசாமி": "Muthusamy",
+  "பழனிசாமி": "Palanisamy",
+  "வேலுசாமி": "Velusamy",
+  "செல்வம்": "Selvam",
+  "செல்வராஜ்": "Selvaraj",
+  "முருகன்": "Murugan",
+  "ஆறுமுகம்": "Arumugam",
+  "பெருமாள்": "Perumal",
+  "கவுண்டர்": "Gounder",
+  "சுரேஷ்": "Suresh",
+  "ரமேஷ்": "Ramesh",
+  "செந்தில்": "Senthil",
+  "செந்தில்குமார்": "Senthilkumar",
+  "தங்கவேல்": "Thangavel",
+  "மணி": "Mani",
+  "மாணிக்கம்": "Manickam",
+  "சுப்பிரமணி": "Subramani",
+  "ராஜேந்திரன்": "Rajendran",
+  "கணேசன்": "Ganesan",
+  "வெங்கடேஷ்": "Venkatesh",
+  "சிவா": "Siva",
+  "சிவக்குமார்": "Sivakumar",
+  "அருண்": "Arun",
+  "சங்கர்": "Shankar",
+  "விஜய்": "Vijay",
+  "சரவணன்": "Saravanan",
+  "சக்திவேல்": "Sakthivel",
+  "விக்னேஷ்": "Vignesh",
+  "பூபதி": "Boopathy",
+  "பிரகாஷ்": "Prakash",
+  "தனபால்": "Dhanapal"
+};
+
 Object.entries(AGRI_DICTIONARY).forEach(([en, ta]) => {
   const cleanTa = ta.toLowerCase().trim();
   if (!REVERSE_AGRI_DICTIONARY[cleanTa]) {
-    // Capitalize each word in English
     const enCap = en.replace(/\b\w/g, l => l.toUpperCase());
     REVERSE_AGRI_DICTIONARY[cleanTa] = enCap;
   }
@@ -188,7 +289,7 @@ Object.entries(AGRI_DICTIONARY).forEach(([en, ta]) => {
 // Tamil to English Phonetic Transliteration Rules
 const TA_VOWELS = {
   'அ': 'a', 'ஆ': 'aa', 'இ': 'i', 'ஈ': 'ee', 'உ': 'u', 'ஊ': 'oo',
-  'எ': 'e', 'ஏ': 'ae', 'ஐ': 'ai', 'ஒ': 'o', 'ஓ': 'oa', 'ஔ': 'au'
+  'எ': 'e', 'ஏ': 'e', 'ஐ': 'ai', 'ஒ': 'o', 'ஓ': 'o', 'ஔ': 'au'
 };
 
 const TA_CONSONANTS = {
@@ -200,7 +301,7 @@ const TA_CONSONANTS = {
 
 const TA_MATRAS = {
   'ா': 'aa', 'ி': 'i', 'ீ': 'ee', 'ு': 'u', 'ூ': 'oo',
-  'ெ': 'e', 'ே': 'ae', 'ை': 'ai', 'ொ': 'o', 'ோ': 'oa', 'ௌ': 'au',
+  'ெ': 'e', 'ே': 'e', 'ை': 'ai', 'ொ': 'o', 'ோ': 'o', 'ௌ': 'au',
   '்': '' // pulli (virama)
 };
 
@@ -216,6 +317,9 @@ export function transliterateTamilToEnglish(text) {
   if (REVERSE_AGRI_DICTIONARY[lower]) {
     return REVERSE_AGRI_DICTIONARY[lower];
   }
+  if (REVERSE_AGRI_DICTIONARY[trimmed]) {
+    return REVERSE_AGRI_DICTIONARY[trimmed];
+  }
 
   // Check word by word
   const words = trimmed.split(/\s+/);
@@ -224,6 +328,22 @@ export function transliterateTamilToEnglish(text) {
     if (REVERSE_AGRI_DICTIONARY[wLower]) {
       return REVERSE_AGRI_DICTIONARY[wLower];
     }
+    if (REVERSE_AGRI_DICTIONARY[w]) {
+      return REVERSE_AGRI_DICTIONARY[w];
+    }
+
+    // Single initial check (e.g. "ஏ.", "கே.", "எஸ்.", "ஆர்.")
+    const initialsMap = {
+      'ஏ': 'A', 'பி': 'B', 'சி': 'C', 'டி': 'D', 'இ': 'E', 'எப்': 'F',
+      'ஜி': 'G', 'ஹெச்': 'H', 'ஐ': 'I', 'ஜே': 'J', 'கே': 'K', 'எல்': 'L',
+      'எம்': 'M', 'என்': 'N', 'ஓ': 'O', 'பி': 'P', 'கியூ': 'Q', 'ஆர்': 'R',
+      'எஸ்': 'S', 'டி': 'T', 'யு': 'U', 'வி': 'V', 'டபிள்யூ': 'W', 'எக்ஸ்': 'X',
+      'ஒய்': 'Y', 'இசட்': 'Z'
+    };
+    const cleanInit = w.replace(/\./g, '');
+    if (initialsMap[cleanInit]) {
+      return `${initialsMap[cleanInit]}.`;
+    }
 
     // Phonetic letter conversion
     let res = '';
@@ -231,6 +351,34 @@ export function transliterateTamilToEnglish(text) {
     for (let i = 0; i < chars.length; i++) {
       const c = chars[i];
       const next = chars[i + 1];
+      const next2 = chars[i + 2];
+
+      // Handle 'ண்ட' -> 'nd', 'த்த' -> 'th', 'ட்ட' -> 'tt'
+      if (c === 'ண' && next === '்' && next2 === 'ட') {
+        res += 'nd';
+        i += 2;
+        continue;
+      }
+      if (c === 'த' && next === '்' && next2 === 'த') {
+        res += 'th';
+        i += 2;
+        continue;
+      }
+      if (c === 'ட' && next === '்' && next2 === 'ட') {
+        res += 'tt';
+        i += 2;
+        continue;
+      }
+      if (c === 'ந' && next === '்' && next2 === 'த') {
+        res += 'nth';
+        i += 2;
+        continue;
+      }
+      if (c === 'ம' && next === '்' && next2 === 'ப') {
+        res += 'mb';
+        i += 2;
+        continue;
+      }
 
       if (TA_VOWELS[c]) {
         res += TA_VOWELS[c];
@@ -247,9 +395,13 @@ export function transliterateTamilToEnglish(text) {
         res += c;
       }
     }
-    // Clean up trailing 'a' if common name end, e.g. murugana -> murugan
-    if (res.endsWith('a') && res.length > 3) {
-      // gentle cleanup
+
+    // Cleanup trailing doubled vowels or awkward ends
+    if (res.length > 2) {
+      res = res.replace(/aa/g, 'a').replace(/ee/g, 'i').replace(/oo/g, 'u');
+      if (res.endsWith('a') && res.length > 3) {
+        res = res.slice(0, -1);
+      }
     }
     return res.charAt(0).toUpperCase() + res.slice(1);
   });
@@ -258,27 +410,12 @@ export function transliterateTamilToEnglish(text) {
 }
 
 // English to Tamil Phonetic Transliteration Rules
-const EN_DIGRAPHS = [
-  { en: 'sh', ta: 'ஷ' },
-  { en: 'th', ta: 'த' },
-  { en: 'zh', ta: 'ழ' },
-  { en: 'ch', ta: 'ச' },
-  { en: 'dh', ta: 'த' },
-  { en: 'kh', ta: 'க' },
-  { en: 'ph', ta: 'ப' },
-  { en: 'ng', ta: 'ங' },
-  { en: 'gn', ta: 'ஞ' },
-  { en: 'aa', ta: 'ா' },
-  { en: 'ee', ta: 'ீ' },
-  { en: 'oo', ta: 'ூ' },
-  { en: 'ai', ta: 'ை' },
-  { en: 'au', ta: 'ௌ' }
-];
-
-const EN_SINGLE_LETTERS = {
-  'k': 'க்', 'c': 'க்', 's': 'ஸ்', 't': 'ட்', 'p': 'ப்', 'b': 'ப்', 'm': 'ம்',
-  'n': 'ன்', 'r': 'ர்', 'l': 'ல்', 'v': 'வ்', 'w': 'வ்', 'y': 'ய்', 'j': 'ஜ்',
-  'g': 'க்', 'd': 'ட்', 'h': 'ஹ்', 'f': 'ஃப்', 'z': 'ஸ்'
+const EN_INITIALS_MAP = {
+  'a': 'ஏ', 'b': 'பி', 'c': 'சி', 'd': 'டி', 'e': 'இ', 'f': 'எப்',
+  'g': 'ஜி', 'h': 'ஹெச்', 'i': 'ஐ', 'j': 'ஜே', 'k': 'கே', 'l': 'எல்',
+  'm': 'எம்', 'n': 'என்', 'o': 'ஓ', 'p': 'பி', 'q': 'கியூ', 'r': 'ஆர்',
+  's': 'எஸ்', 't': 'டி', 'u': 'யு', 'v': 'வி', 'w': 'டபிள்யூ', 'x': 'எக்ஸ்',
+  'y': 'ஒய்', 'z': 'இசட்'
 };
 
 /**
@@ -297,49 +434,101 @@ export function transliterateEnglishToTamil(text) {
   // Check word by word
   const words = trimmed.split(/\s+/);
   const convertedWords = words.map(w => {
-    const wLower = w.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (AGRI_DICTIONARY[wLower]) {
-      return AGRI_DICTIONARY[wLower];
+    const rawClean = w.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!rawClean) return w;
+
+    // Check initials like "K." or "A."
+    if (w.length <= 2 && EN_INITIALS_MAP[rawClean]) {
+      return `${EN_INITIALS_MAP[rawClean]}.`;
     }
 
-    // Phonetic heuristic for names / words
-    let mapped = wLower;
-    // Handle specific common names
-    if (AGRI_DICTIONARY[wLower]) return AGRI_DICTIONARY[wLower];
+    if (AGRI_DICTIONARY[rawClean]) {
+      return AGRI_DICTIONARY[rawClean];
+    }
 
-    // Simple rule-based phonetics
+    // Heuristics for common suffixes
+    if (rawClean.endsWith('kumar') && rawClean.length > 5) {
+      const prefix = rawClean.replace('kumar', '');
+      const preTa = AGRI_DICTIONARY[prefix] || transliterateEnglishToTamil(prefix);
+      return `${preTa} குமார்`.trim();
+    }
+    if (rawClean.endsWith('samy') && rawClean.length > 4) {
+      const prefix = rawClean.replace('samy', '');
+      const preTa = AGRI_DICTIONARY[prefix] || transliterateEnglishToTamil(prefix);
+      return `${preTa}சாமி`.trim();
+    }
+    if (rawClean.endsWith('swamy') && rawClean.length > 5) {
+      const prefix = rawClean.replace('swamy', '');
+      const preTa = AGRI_DICTIONARY[prefix] || transliterateEnglishToTamil(prefix);
+      return `${preTa}சாமி`.trim();
+    }
+
+    // Letter-by-letter phonetic conversion
     let out = '';
     let i = 0;
-    while (i < wLower.length) {
-      const sub2 = wLower.slice(i, i + 2);
-      if (sub2 === 'th') { out += 'த'; i += 2; continue; }
-      if (sub2 === 'sh') { out += 'ஷ'; i += 2; continue; }
-      if (sub2 === 'ch') { out += 'ச'; i += 2; continue; }
-      if (sub2 === 'zh') { out += 'ழ'; i += 2; continue; }
+    const len = rawClean.length;
+    while (i < len) {
+      const isEnd = (i === len - 1);
+      const sub2 = rawClean.slice(i, i + 2);
+      const sub3 = rawClean.slice(i, i + 3);
+
+      if (sub3 === 'nth') { out += 'ந்த'; i += 3; continue; }
+      if (sub2 === 'th') { out += (isEnd ? 'த்' : 'த'); i += 2; continue; }
+      if (sub2 === 'sh') { out += (isEnd ? 'ஷ்' : 'ஷ'); i += 2; continue; }
+      if (sub2 === 'ch') { out += (isEnd ? 'ச்' : 'ச'); i += 2; continue; }
+      if (sub2 === 'zh') { out += (isEnd ? 'ழ்' : 'ழ'); i += 2; continue; }
       if (sub2 === 'aa') { out += 'ா'; i += 2; continue; }
       if (sub2 === 'ee') { out += 'ீ'; i += 2; continue; }
       if (sub2 === 'oo') { out += 'ூ'; i += 2; continue; }
       if (sub2 === 'ai') { out += 'ை'; i += 2; continue; }
+      if (sub2 === 'nd') { out += 'ண்ட'; i += 2; continue; }
+      if (sub2 === 'mb') { out += 'ம்ப'; i += 2; continue; }
 
-      const char = wLower[i];
+      const char = rawClean[i];
       switch (char) {
-        case 'a': out += out ? 'ா' : 'அ'; break;
-        case 'e': out += out ? 'ெ' : 'எ'; break;
-        case 'i': out += out ? 'ி' : 'இ'; break;
-        case 'o': out += out ? 'ொ' : 'ஒ'; break;
-        case 'u': out += out ? 'ு' : 'உ'; break;
-        case 'k': case 'c': case 'g': out += 'க'; break;
-        case 's': out += 'ச'; break;
-        case 't': case 'd': out += 'ட'; break;
-        case 'p': case 'b': case 'f': out += 'ப'; break;
-        case 'm': out += 'ம'; break;
-        case 'n': out += 'ன'; break;
-        case 'r': out += 'ர'; break;
-        case 'l': out += 'ல'; break;
-        case 'v': case 'w': out += 'வ'; break;
-        case 'y': out += 'ய'; break;
-        case 'j': out += 'ஜ'; break;
-        default: out += char; break;
+        case 'a':
+          out += (out ? (i > 1 ? 'ா' : '') : 'அ');
+          break;
+        case 'e': out += (out ? 'ெ' : 'எ'); break;
+        case 'i': out += (out ? 'ி' : 'இ'); break;
+        case 'o': out += (out ? 'ொ' : 'ஒ'); break;
+        case 'u': out += (out ? 'ு' : 'உ'); break;
+        case 'k': case 'c': case 'g':
+          out += (isEnd ? 'க்' : 'க');
+          break;
+        case 's':
+          out += (isEnd ? 'ஸ்' : 'ச');
+          break;
+        case 't': case 'd':
+          out += (isEnd ? 'ட்' : 'ட');
+          break;
+        case 'p': case 'b': case 'f':
+          out += (isEnd ? 'ப்' : 'ப');
+          break;
+        case 'm':
+          out += (isEnd ? 'ம்' : 'ம');
+          break;
+        case 'n':
+          out += (isEnd ? 'ன்' : 'ன');
+          break;
+        case 'r':
+          out += (isEnd ? 'ர்' : 'ர');
+          break;
+        case 'l':
+          out += (isEnd ? 'ல்' : 'ல');
+          break;
+        case 'v': case 'w':
+          out += (isEnd ? 'வ்' : 'வ');
+          break;
+        case 'y':
+          out += (isEnd ? 'ய்' : 'ய');
+          break;
+        case 'j':
+          out += (isEnd ? 'ஜ்' : 'ஜ');
+          break;
+        default:
+          out += char;
+          break;
       }
       i++;
     }

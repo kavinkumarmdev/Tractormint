@@ -4,8 +4,10 @@ import { translations } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
+import BilingualVoiceGroup from './common/BilingualVoiceGroup';
 import { normalizePhone, validatePhone10, validatePositiveNumber } from '../services/storage';
 import { formatDateDDMMYYYY } from '../utils/dateUtils';
+import { getBilingualText } from '../utils/langUtils';
 
 export default function PartnerSplitManager({ 
   partners, 
@@ -430,39 +432,42 @@ export default function PartnerSplitManager({
                 </tr>
               </thead>
               <tbody>
-                {filteredDrawings.map(d => (
-                  <tr key={d.id}>
-                    <td style={{ fontWeight: 700, color: 'var(--primary-700)' }}>{d.id}</td>
-                    <td>{formatDateDDMMYYYY(d.date)}</td>
-                    <td style={{ fontWeight: 600 }}>{d.partnerName}</td>
-                    <td style={{ fontWeight: 800, color: '#d97706', fontSize: '1rem' }}>
-                      ₹{Number(d.amount).toLocaleString()}
-                    </td>
-                    <td>{d.purpose || '--'}</td>
-                    <td>
-                      <span className="badge badge-info">{d.paymentMode?.toUpperCase()}</span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
-                        <button 
-                          className="btn btn-outline btn-sm"
-                          onClick={() => handleOpenEditDrawing(d)}
-                          title="Edit Drawing"
-                        >
-                          <Edit3 size={14} />
-                        </button>
-                        <button 
-                          className="btn btn-outline btn-sm"
-                          style={{ color: '#ef4444' }}
-                          onClick={() => setDeleteModalState({ isOpen: true, item: d, type: 'drawing' })}
-                          title={role === 'admin' ? "Delete Record" : "Admin Only"}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filteredDrawings.map(d => {
+                  const matchedP = partners.find(p => p.id === d.partnerId || p.name === d.partnerName);
+                  return (
+                    <tr key={d.id}>
+                      <td style={{ fontWeight: 700, color: 'var(--primary-700)' }}>{d.id}</td>
+                      <td>{formatDateDDMMYYYY(d.date)}</td>
+                      <td style={{ fontWeight: 600 }}>{matchedP ? getBilingualText(matchedP.name, matchedP.name_ta, lang) : getBilingualText(d.partnerName, '', lang)}</td>
+                      <td style={{ fontWeight: 800, color: '#d97706', fontSize: '1rem' }}>
+                        ₹{Number(d.amount).toLocaleString()}
+                      </td>
+                      <td>{d.purpose || '--'}</td>
+                      <td>
+                        <span className="badge badge-info">{d.paymentMode?.toUpperCase()}</span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
+                          <button 
+                            className="btn btn-outline btn-sm"
+                            onClick={() => handleOpenEditDrawing(d)}
+                            title="Edit Drawing"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                          <button 
+                            className="btn btn-outline btn-sm"
+                            style={{ color: '#ef4444' }}
+                            onClick={() => setDeleteModalState({ isOpen: true, item: d, type: 'drawing' })}
+                            title={role === 'admin' ? "Delete Record" : "Admin Only"}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {filteredDrawings.length === 0 && (
                   <tr>
                     <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-light)' }}>
@@ -481,11 +486,11 @@ export default function PartnerSplitManager({
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>Partner Name</th>
-                  <th>Share Ratio (%)</th>
-                  <th>Phone Number</th>
-                  <th>Invested Capital (₹)</th>
+                  <th>{lang === 'ta' ? 'குறியீடு' : 'ID'}</th>
+                  <th>{lang === 'ta' ? 'பங்குதாரர் பெயர்' : 'Partner Name'}</th>
+                  <th>{lang === 'ta' ? 'பங்கு விகிதம் (%)' : 'Share Ratio (%)'}</th>
+                  <th>{lang === 'ta' ? 'அலைபேசி எண்' : 'Phone Number'}</th>
+                  <th>{lang === 'ta' ? 'முதலீடு (₹)' : 'Invested Capital (₹)'}</th>
                   <th style={{ textAlign: 'right' }}>{t.actions}</th>
                 </tr>
               </thead>
@@ -494,7 +499,7 @@ export default function PartnerSplitManager({
                   <tr key={p.id}>
                     <td style={{ fontWeight: 700, color: 'var(--primary-700)' }}>{p.id}</td>
                     <td>
-                      <div style={{ fontWeight: 600 }}>{lang === 'ta' ? (p.name_ta || p.name) : p.name}</div>
+                      <div style={{ fontWeight: 600 }}>{getBilingualText(p.name, p.name_ta, lang)}</div>
                     </td>
                     <td>
                       <span className="badge badge-purple">{p.sharePercent}%</span>
@@ -693,30 +698,19 @@ export default function PartnerSplitManager({
             <form onSubmit={handlePartnerSubmit}>
               <div className="modal-body form-grid">
                 
-                {/* Name English */}
-                <div className="form-group">
-                  <label>Partner Name (English)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="e.g. Kuppusamy"
-                    value={partnerForm.name}
-                    onChange={(e) => setPartnerForm({ ...partnerForm, name: e.target.value })}
-                    required
-                  />
-                </div>
-
-                {/* Name Tamil */}
-                <div className="form-group">
-                  <label>பெயர் (தமிழ்)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="எ.கா. குப்புசாமி"
-                    value={partnerForm.name_ta}
-                    onChange={(e) => setPartnerForm({ ...partnerForm, name_ta: e.target.value })}
-                  />
-                </div>
+                {/* Partner Name Bilingual with Voice */}
+                <BilingualVoiceGroup
+                  englishLabel="Partner Name"
+                  tamilLabel="பங்குதாரர் பெயர்"
+                  englishValue={partnerForm.name}
+                  tamilValue={partnerForm.name_ta}
+                  onEnglishChange={(val) => setPartnerForm(prev => ({ ...prev, name: val }))}
+                  onTamilChange={(val) => setPartnerForm(prev => ({ ...prev, name_ta: val }))}
+                  englishPlaceholder="e.g. R. Selvam"
+                  tamilPlaceholder="எ.கா. ஆர். செல்வம்"
+                  lang={lang}
+                  required
+                />
 
                 {/* Share Percentage */}
                 <div className="form-group">

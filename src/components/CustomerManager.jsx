@@ -5,6 +5,7 @@ import AdminDeleteModal from './AdminDeleteModal';
 import BilingualVoiceGroup from './common/BilingualVoiceGroup';
 import VoiceInput from './common/VoiceInput';
 import { normalizePhone, validatePhone10 } from '../services/storage';
+import { getBilingualText } from '../utils/langUtils';
 
 export default function CustomerManager({ 
   customers, 
@@ -144,7 +145,8 @@ export default function CustomerManager({
   };
 
   const handleSendWhatsAppReminder = (customer, balance) => {
-    const text = `வணக்கம் ${customer.name_ta || customer.name} அய்யா,
+    const custDisplayName = getBilingualText(customer.name, customer.name_ta, 'ta');
+    const text = `வணக்கம் ${custDisplayName} அய்யா,
 தங்களின் டிராக்டர் உழவு வேலைக்கான கணக்கு நிலவரம்:
 நிலுவைத் தொகை: ₹${balance.toLocaleString()}
 நேரம் கிடைக்கும்போது செலுத்தவும். நன்றி! 🙏`;
@@ -230,7 +232,7 @@ export default function CustomerManager({
                   <tr key={item.id}>
                     <td style={{ fontWeight: 700, color: 'var(--primary-700)' }}>{item.id}</td>
                     <td>
-                      <div style={{ fontWeight: 600 }}>{lang === 'ta' ? (item.name_ta || item.name) : item.name}</div>
+                      <div style={{ fontWeight: 600 }}>{getBilingualText(item.name, item.name_ta, lang)}</div>
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}>
@@ -241,7 +243,7 @@ export default function CustomerManager({
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                         <MapPin size={13} color="var(--amber-600)" />
-                        <span>{lang === 'ta' ? (item.village_ta || item.village || '--') : (item.village || '--')}</span>
+                        <span>{getBilingualText(item.village, item.village_ta, lang) || '--'}</span>
                       </div>
                     </td>
                     <td>

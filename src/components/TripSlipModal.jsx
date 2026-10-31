@@ -8,7 +8,8 @@ import {
   localizeMachineryName, 
   localizeWorkType, 
   localizePaymentMode, 
-  localizeCollectedBy 
+  localizeCollectedBy,
+  getBilingualText
 } from '../utils/langUtils';
 
 export default function TripSlipModal({ isOpen, onClose, trip: rawTrip, lang, settings }) {
@@ -16,25 +17,20 @@ export default function TripSlipModal({ isOpen, onClose, trip: rawTrip, lang, se
   const trip = healShiftedTripRecord(rawTrip);
   const t = translations[lang] || translations.en;
 
-  const dispCustomer = lang === 'ta'
-    ? (trip.customerName_ta || localizeName(trip.customerName, 'ta'))
-    : (localizeName(trip.customerName_ta || trip.customerName, 'en'));
+  const dispCustomer = getBilingualText(trip.customerName, trip.customerName_ta, lang) || '---';
+  const dispDriver = getBilingualText(trip.driverName, trip.driverName_ta, lang) || '---';
+  const dispTractor = getBilingualText(trip.tractorName, trip.tractorName_ta, lang) || '---';
 
-  const dispDriver = lang === 'ta'
-    ? (trip.driverName_ta || localizeName(trip.driverName, 'ta'))
-    : (localizeName(trip.driverName_ta || trip.driverName, 'en'));
-
-  const dispTractor = lang === 'ta'
-    ? (trip.tractorName_ta || localizeMachineryName(trip.tractorName, 'ta'))
-    : (localizeMachineryName(trip.tractorName_ta || trip.tractorName, 'en'));
-
-  const dispImplement = trip.implementName 
-    ? (lang === 'ta' ? (trip.implementName_ta || localizeMachineryName(trip.implementName, 'ta')) : localizeMachineryName(trip.implementName_ta || trip.implementName, 'en'))
+  const dispImplement = (trip.implementName || trip.implementName_ta)
+    ? getBilingualText(trip.implementName, trip.implementName_ta, lang)
     : (lang === 'ta' ? 'தனி டிராக்டர்' : 'Standalone Tractor');
 
   const dispWork = localizeWorkType(trip.workType || trip.workDescription, lang);
   const dispMode = localizePaymentMode(trip.paymentMode, lang);
   const dispCollector = localizeCollectedBy(trip.collectedBy, lang);
+
+  const phone = (settings?.contactPhone && settings.contactPhone.trim()) ? settings.contactPhone.trim() : '6383728267';
+  const companyTitle = (lang === 'ta' ? (settings?.companyName_ta || settings?.companyName) : settings?.companyName) || 'Tractor & Agri Machinery Works';
 
   const handlePrint = () => {
     window.print();
@@ -44,8 +40,7 @@ export default function TripSlipModal({ isOpen, onClose, trip: rawTrip, lang, se
     const startT = formatTimeDisplay(trip.startTime);
     const endT = formatTimeDisplay(trip.endTime);
     const timeSnippet = startT ? ` (${startT}${endT ? ` - ${endT}` : ''})` : '';
-    const company = lang === 'ta' ? (settings.companyName_ta || settings.companyName) : settings.companyName;
-    const text = `🚜 *${company || 'TRACTOR BILL SLIP'}* 🚜
+    const text = `🚜 *${companyTitle} | Ph: ${phone}* 🚜
 ==============================
 *${lang === 'ta' ? 'ரசீது எண்' : 'Trip Slip No'}:* ${trip.id}
 *${lang === 'ta' ? 'தேதி' : 'Date'}:* ${formatDateDDMMYYYY(trip.date)}${timeSnippet}
@@ -53,7 +48,6 @@ export default function TripSlipModal({ isOpen, onClose, trip: rawTrip, lang, se
 *${lang === 'ta' ? 'ஓட்டுநர்' : 'Driver'}:* ${dispDriver}
 *${lang === 'ta' ? 'டிராக்டர்' : 'Tractor'}:* ${dispTractor}
 *${lang === 'ta' ? 'கருவி' : 'Implement'}:* ${dispImplement}
-*${lang === 'ta' ? 'வேலை விவரம்' : 'Work Done'}:* ${dispWork}
 ------------------------------
 *${lang === 'ta' ? 'அளவு' : 'Units'}:* ${trip.quantity} ${trip.billingUnit}
 *${lang === 'ta' ? 'கட்டணம்' : 'Rate'}:* ₹${trip.rate}
@@ -92,12 +86,15 @@ ${trip.collectedBy ? `*${lang === 'ta' ? 'வசூலித்தவர்' : '
                   style={{ width: '48px', height: '48px', borderRadius: '10px', objectFit: 'cover' }} 
                 />
               </div>
-              <div className="slip-company-name">
-                {lang === 'ta' ? (settings.companyName_ta || settings.companyName) : settings.companyName}
+              <div className="slip-company-name" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
+                <span>{companyTitle}</span>
+                <span style={{ fontSize: '1.05rem', fontWeight: 600, color: '#1f2937' }}>| Ph: {phone}</span>
               </div>
-              <div className="slip-company-sub">
-                {settings.address} | Ph: {settings.contactPhone}
-              </div>
+              {settings?.address && settings.address.trim() ? (
+                <div className="slip-company-sub">
+                  {settings.address}
+                </div>
+              ) : null}
               <div className="slip-badge-pill">
                 TRACTOR & IMPLEMENT WORK SLIP / உழவு ரசீது
               </div>
@@ -131,10 +128,7 @@ ${trip.collectedBy ? `*${lang === 'ta' ? 'வசூலித்தவர்' : '
                   <td className="slip-label">{t.machine}:</td>
                   <td className="slip-value">{dispImplement}</td>
                 </tr>
-                <tr>
-                  <td className="slip-label">{t.workDescription}:</td>
-                  <td className="slip-value">{dispWork}</td>
-                </tr>
+
                 {trip.startMeter && trip.endMeter && (
                   <tr>
                     <td className="slip-label">Hour Meter Reading:</td>

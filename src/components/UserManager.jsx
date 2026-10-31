@@ -36,6 +36,7 @@ import { StorageService, normalizePhone, validatePhone10 } from '../services/sto
 import SearchableSelect from './common/SearchableSelect';
 import BilingualVoiceGroup from './common/BilingualVoiceGroup';
 import VoiceInput from './common/VoiceInput';
+import { getBilingualText } from '../utils/langUtils';
 
 export default function UserManager({
   users = [],
@@ -779,7 +780,7 @@ export default function UserManager({
                           </div>
                           <div>
                             <div style={{ fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                              <span>{lang === 'ta' ? (u.displayName_ta || u.displayName) : u.displayName}</span>
+                              <span>{getBilingualText(u.displayName, u.displayName_ta, lang)}</span>
                               {isCurrent && (
                                 <span style={{ fontSize: '0.65rem', background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
                                   You
@@ -791,8 +792,8 @@ export default function UserManager({
                                 </span>
                               )}
                             </div>
-                            {lang === 'ta' && u.displayName && u.displayName_ta && u.displayName !== u.displayName_ta && (
-                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{u.displayName}</div>
+                            {lang === 'ta' && getBilingualText(u.displayName, u.displayName_ta, 'en') !== getBilingualText(u.displayName, u.displayName_ta, 'ta') && (
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{getBilingualText(u.displayName, u.displayName_ta, 'en')}</div>
                             )}
                           </div>
                         </div>

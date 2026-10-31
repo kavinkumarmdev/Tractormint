@@ -7,6 +7,7 @@ import SearchableSelect from './common/SearchableSelect';
 import BilingualVoiceGroup from './common/BilingualVoiceGroup';
 import VoiceInput from './common/VoiceInput';
 import { normalizePhone, validatePhone10, validatePositiveNumber } from '../services/storage';
+import { getBilingualText } from '../utils/langUtils';
 
 export default function DriverList({ 
   drivers, 
@@ -14,7 +15,10 @@ export default function DriverList({
   onSaveDriver, 
   onDeleteDriver, 
   lang, 
-  role 
+  role,
+  currentUser,
+  users,
+  settings
 }) {
   const t = translations[lang];
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,6 +55,38 @@ export default function DriverList({
       nextNum++;
     }
     return `DRV-${String(nextNum).padStart(2, '0')}`;
+  };
+
+  const handleOpenAddOwner = () => {
+    const adminUser = users?.find(u => u.role === 'admin') || currentUser;
+    const ownerNameEn = adminUser?.displayName || currentUser?.displayName || 'Owner';
+    const ownerNameTa = adminUser?.displayName_ta || currentUser?.displayName_ta || 'உரிமையாளர்';
+    const ownerPhone = adminUser?.phone || currentUser?.phone || '';
+
+    const existing = drivers.find(d => 
+      (d.name && d.name.toLowerCase() === ownerNameEn.toLowerCase()) ||
+      (d.wageType === 'owner') ||
+      (ownerPhone && d.phone && d.phone === ownerPhone)
+    );
+
+    if (existing) {
+      handleOpenEdit(existing);
+    } else {
+      setEditingItem(null);
+      setFormError('');
+      setFormData({
+        id: generateUniqueDriverId(),
+        name: ownerNameEn,
+        name_ta: ownerNameTa,
+        phone: ownerPhone,
+        licenseNo: '',
+        wageType: 'owner',
+        defaultWage: '0',
+        status: 'active',
+        joinedDate: new Date().toISOString().slice(0, 10)
+      });
+      setIsModalOpen(true);
+    }
   };
 
   const handleOpenAdd = () => {
@@ -176,10 +212,30 @@ export default function DriverList({
         <div className="card-title-group">
           <h2 style={{ margin: 0 }}><UserCheck size={22} /> {t.drivers}</h2>
         </div>
-        <button className="btn btn-primary" onClick={handleOpenAdd}>
-          <Plus size={16} />
-          <span>{lang === 'ta' ? 'புதிய டிரைவர் சேர்' : 'Add Driver / Labor'}</span>
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button 
+            type="button" 
+            className="btn btn-outline"
+            onClick={handleOpenAddOwner}
+            style={{ 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              gap: '0.35rem', 
+              borderColor: '#8b5cf6', 
+              color: '#7c3aed', 
+              fontWeight: 700,
+              background: '#f5f3ff'
+            }}
+            title={lang === 'ta' ? 'உரிமையாளரை ஓட்டுநராக பதிவு செய்ய' : 'Register Tractor Owner as Driver'}
+          >
+            <span>🚜</span>
+            <span>{lang === 'ta' ? '+ உரிமையாளரை டிரைவராக சேர்க்க' : '+ Add Owner as Driver'}</span>
+          </button>
+          <button className="btn btn-primary" onClick={handleOpenAdd}>
+            <Plus size={16} />
+            <span>{lang === 'ta' ? 'புதிய டிரைவர் சேர்' : 'Add Driver / Labor'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}
@@ -220,7 +276,7 @@ export default function DriverList({
                   <tr key={item.id}>
                     <td style={{ fontWeight: 700, color: 'var(--primary-700)' }}>{item.id}</td>
                     <td>
-                      <div style={{ fontWeight: 600 }}>{lang === 'ta' ? (item.name_ta || item.name) : item.name}</div>
+                      <div style={{ fontWeight: 600 }}>{getBilingualText(item.name, item.name_ta, lang)}</div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>Lic: {item.licenseNo || '--'}</div>
                     </td>
                     <td>
@@ -230,13 +286,16 @@ export default function DriverList({
                       </div>
                     </td>
                     <td>
-                      <span className="badge badge-info">
-                        {item.wageType === 'daily_bata' ? t.dailyBata :
+                      <span className={`badge ${item.wageType === 'owner' ? 'badge-purple' : 'badge-info'}`}>
+                        {item.wageType === 'owner' ? (lang === 'ta' ? '⭐ உரிமையாளர்' : '⭐ Owner / Self') :
+                         item.wageType === 'daily_bata' ? t.dailyBata :
                          item.wageType === 'per_hour' ? t.perHourWage :
                          item.wageType === 'monthly_salary' ? t.monthlySalary : t.perAcreWage}
                       </span>
                     </td>
-                    <td style={{ fontWeight: 700 }}>₹{item.defaultWage}</td>
+                    <td style={{ fontWeight: 700 }}>
+                      {item.wageType === 'owner' ? (lang === 'ta' ? 'சொந்த உழவு' : 'Owner / Self') : `₹${item.defaultWage}`}
+                    </td>
                     <td style={{ fontWeight: 600 }}>{stats.tripsCount}</td>
                     <td>{stats.hours.toFixed(1)} {lang === 'ta' ? 'மணி' : 'hrs'}</td>
                     <td style={{ fontWeight: 700, color: '#16a34a' }}>₹{stats.totalBata.toLocaleString()}</td>
@@ -366,8 +425,15 @@ export default function DriverList({
                   <SearchableSelect
                     label={t.wageType}
                     value={formData.wageType}
-                    onChange={(val) => setFormData({ ...formData, wageType: val })}
+                    onChange={(val) => {
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        wageType: val,
+                        defaultWage: val === 'owner' ? '0' : (prev.defaultWage === '0' ? '600' : prev.defaultWage)
+                      }));
+                    }}
                     options={[
+                      { value: 'owner', label: lang === 'ta' ? '⭐ உரிமையாளர் (சொந்த உழவு - ஊதியம் இல்லை)' : '⭐ Owner / Self (No Wage)' },
                       { value: 'daily_bata', label: t.dailyBata },
                       { value: 'per_hour', label: t.perHourWage },
                       { value: 'monthly_salary', label: t.monthlySalary },

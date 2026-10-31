@@ -169,8 +169,9 @@ export default function App() {
     }
   };
 
-  // Auto-fetch data from Google Sheets on initial load to get latest list
+  // Run auto-bilingual healing and auto-fetch data from Google Sheets on initial load
   useEffect(() => {
+    StorageService.healAllBilingualData();
     const url = getEffectiveGoogleSheetUrl(settings.webAppUrl);
     if (url) {
       handlePullFromSheets(url);
@@ -333,6 +334,7 @@ export default function App() {
     const result = await fetchDataFromGoogleSheet(url);
     if (result.success && result.data) {
       StorageService.importFullDataset(result.data);
+      StorageService.healAllBilingualData();
       refreshAllData(false);
       setSyncStatus('connected');
     } else {
@@ -473,6 +475,9 @@ export default function App() {
             onDeleteDriver={handleDeleteDriver}
             lang={lang}
             role={role}
+            currentUser={currentUser}
+            users={users}
+            settings={settings}
           />
         )}
 
@@ -495,6 +500,9 @@ export default function App() {
             onDeleteMaintenance={handleDeleteMaintenance}
             lang={lang}
             role={role}
+            currentUser={currentUser}
+            users={users}
+            drivers={drivers}
           />
         )}
 

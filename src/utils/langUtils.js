@@ -6,6 +6,12 @@
  * 3. Smart transliteration for Tamil/English farmer & driver names
  */
 
+import { 
+  transliterateTamilToEnglish, 
+  transliterateEnglishToTamil, 
+  isTamilScript 
+} from '../services/bilingualTranslate';
+
 // Common Tamil Names Dictionary (Bilingual Lookup)
 export const NAME_DICTIONARY = {
   // English -> Tamil
@@ -16,27 +22,46 @@ export const NAME_DICTIONARY = {
   "swamy": "சாமி",
   "kavin": "கவின்",
   "kavinkumar": "கவின்குமார்",
+  "kavin kumar": "கவின் குமார்",
   "kumar": "குமார்",
+  "tharun": "தருண்",
+  "tarun": "தருண்",
+  "dharun": "தருண்",
+  "kirubakaran": "கிருபாகரன்",
+  "krubakaran": "கிருபாகரன்",
+  "kiruba": "கிருபா",
+  "pandian": "பாண்டியன்",
+  "pandiyan": "பாண்டியன்",
+  "pandi": "பாண்டி",
   "murugan": "முருகன்",
   "selvam": "செல்வம்",
   "selvaraj": "செல்வராஜ்",
   "raja": "ராஜா",
   "velu": "வேலு",
+  "velusamy": "வேலுசாமி",
+  "veluswamy": "வேலுசாமி",
   "palani": "பழனி",
   "palanisamy": "பழனிசாமி",
+  "palaniswamy": "பழனிசாமி",
   "mani": "மணி",
+  "manickam": "மாணிக்கம்",
   "ramesh": "ரமேஷ்",
   "suresh": "சுரேஷ்",
   "ravi": "ரவி",
+  "ravichandran": "ரவிச்சந்திரன்",
   "shankar": "சங்கர்",
+  "sankar": "சங்கர்",
   "arun": "அருண்",
   "chinnasamy": "சின்னசாமி",
   "periyasamy": "பெரியசாமி",
+  "periasamy": "பெரியசாமி",
+  "perumal": "பெருமாள்",
   "marimuthu": "மாரிமுத்து",
   "ramu": "ராமு",
   "somu": "சோமு",
   "gopal": "கோபால்",
   "krishnan": "கிருஷ்ணன்",
+  "radhakrishnan": "ராதாகிருஷ்ணன்",
   "ganesan": "கணேசன்",
   "subramani": "சுப்பிரமணி",
   "subramanian": "சுப்பிரமணியன்",
@@ -44,8 +69,12 @@ export const NAME_DICTIONARY = {
   "thangavel": "தங்கவேல்",
   "thangavelu": "தங்கவேலு",
   "kandasamy": "கந்தசாமி",
+  "kandhasamy": "கந்தசாமி",
   "govindaraj": "கோவிந்தராஜ்",
+  "govindasamy": "கோவிந்தசாமி",
   "nataraj": "நடராஜ்",
+  "natarajan": "நடராஜன்",
+  "natraj": "நடராஜ்",
   "saravanan": "சரவணன்",
   "karthik": "கார்த்திக்",
   "karthikeyan": "கார்த்திகேயன்",
@@ -54,21 +83,32 @@ export const NAME_DICTIONARY = {
   "rajendran": "ராஜேந்திரன்",
   "venkat": "வெங்கடேஷ்",
   "venkatesh": "வெங்கடேஷ்",
+  "venkatachalam": "வெங்கடாசலம்",
   "vijay": "விஜய்",
+  "ajith": "அஜித்",
   "siva": "சிவா",
   "sivakumar": "சிவக்குமார்",
   "mohan": "மோகன்",
   "anbu": "அன்பு",
   "elango": "இளங்கோ",
   "nagaraj": "நாகராஜ்",
-  "pandian": "பாண்டியன்",
+  "nagarajan": "நாகராஜன்",
   "sakthivel": "சக்திவேல்",
   "vadivel": "வடிவேல்",
+  "vadivelu": "வடிவேலு",
   "vignesh": "விக்னேஷ்",
   "boopathy": "பூபதி",
   "prakash": "பிரகாஷ்",
   "easwaran": "ஈஸ்வரன்",
   "dhandapani": "தண்டபாணி",
+  "gounder": "கவுண்டர்",
+  "thevar": "தேவர்",
+  "chettiar": "செட்டியார்",
+  "naicker": "நாயக்கர்",
+  "naidu": "நாயுடு",
+  "reddy": "ரெட்டி",
+  "reddiar": "ரெட்டியார்",
+  "pillai": "பிள்ளை",
   "general customer": "பொது வாடிக்கையாளர்",
   "general driver": "பொது ஓட்டுநர்",
   "operator": "இயக்குனர்",
@@ -79,9 +119,53 @@ export const NAME_DICTIONARY = {
 };
 
 // Reverse Dictionary (Tamil -> English)
-export const REVERSE_NAME_DICTIONARY = {};
+export const REVERSE_NAME_DICTIONARY = {
+  "தருண்": "Tharun",
+  "கவின் குமார்": "Kavin Kumar",
+  "கவின்குமார்": "Kavinkumar",
+  "கவின்": "Kavin",
+  "குமார்": "Kumar",
+  "கிருபாகரன்": "Kirubakaran",
+  "கிருபா": "Kiruba",
+  "பாண்டியன்": "Pandian",
+  "பாண்டி": "Pandi",
+  "முத்துசாமி": "Muthusamy",
+  "பழனிசாமி": "Palanisamy",
+  "வேலுசாமி": "Velusamy",
+  "செல்வம்": "Selvam",
+  "செல்வராஜ்": "Selvaraj",
+  "முருகன்": "Murugan",
+  "ஆறுமுகம்": "Arumugam",
+  "பெருமாள்": "Perumal",
+  "கவுண்டர்": "Gounder",
+  "சுரேஷ்": "Suresh",
+  "ரமேஷ்": "Ramesh",
+  "செந்தில்": "Senthil",
+  "செந்தில்குமார்": "Senthilkumar",
+  "தங்கவேல்": "Thangavel",
+  "மணி": "Mani",
+  "மாணிக்கம்": "Manickam",
+  "சுப்பிரமணி": "Subramani",
+  "ராஜேந்திரன்": "Rajendran",
+  "கணேசன்": "Ganesan",
+  "வெங்கடேஷ்": "Venkatesh",
+  "சிவா": "Siva",
+  "சிவக்குமார்": "Sivakumar",
+  "அருண்": "Arun",
+  "சங்கர்": "Shankar",
+  "விஜய்": "Vijay",
+  "சரவணன்": "Saravanan",
+  "சக்திவேல்": "Sakthivel",
+  "விக்னேஷ்": "Vignesh",
+  "பூபதி": "Boopathy",
+  "பிரகாஷ்": "Prakash",
+  "தனபால்": "Dhanapal"
+};
+
 Object.entries(NAME_DICTIONARY).forEach(([en, ta]) => {
-  REVERSE_NAME_DICTIONARY[ta] = en.charAt(0).toUpperCase() + en.slice(1);
+  if (!REVERSE_NAME_DICTIONARY[ta]) {
+    REVERSE_NAME_DICTIONARY[ta] = en.charAt(0).toUpperCase() + en.slice(1);
+  }
 });
 
 // Common Tractor Brands & Implement Terms
@@ -142,7 +226,7 @@ export function hasTamilCharacters(str) {
 }
 
 /**
- * Translates/transliterates an arbitrary customer/driver name based on active language
+ * Translates/transliterates an arbitrary customer/driver/partner name based on active language
  */
 export function localizeName(name, lang = 'ta') {
   if (!name || typeof name !== 'string') return name || '';
@@ -161,7 +245,8 @@ export function localizeName(name, lang = 'ta') {
         return taVal;
       }
     }
-    return trimmed;
+    // High-accuracy fallback: phonetic transliteration
+    return transliterateEnglishToTamil(trimmed);
   } else {
     // English target: if already in English, keep it
     if (!hasTamilCharacters(trimmed)) {
@@ -174,7 +259,77 @@ export function localizeName(name, lang = 'ta') {
         return enVal;
       }
     }
-    return trimmed;
+    // High-accuracy fallback: phonetic transliteration
+    return transliterateTamilToEnglish(trimmed);
+  }
+}
+
+/**
+ * Resolves bilingual pair: ensures English field has English text and Tamil field has Tamil text.
+ * Automatically translates/transliterates if one is missing, empty, or wrongly identical.
+ */
+export function resolveBilingualPair(enVal, taVal) {
+  const en = String(enVal || '').trim();
+  const ta = String(taVal || '').trim();
+
+  const enHasTamil = hasTamilCharacters(en);
+  const taHasTamil = hasTamilCharacters(ta);
+
+  // Case 1: Both identical Tamil string (e.g., "தருண்" in both columns)
+  if (enHasTamil && taHasTamil) {
+    const cleanTa = ta || en;
+    const cleanEn = localizeName(cleanTa, 'en');
+    return { en: cleanEn, ta: cleanTa };
+  }
+
+  // Case 2: Both identical English string (e.g., "kirubakaran" in both columns)
+  if (!enHasTamil && !taHasTamil && en && ta) {
+    const cleanEn = en.charAt(0).toUpperCase() + en.slice(1);
+    const cleanTa = localizeName(cleanEn, 'ta');
+    return { en: cleanEn, ta: cleanTa };
+  }
+
+  // Case 3: Only Tamil provided (en is empty or has Tamil)
+  if (taHasTamil && (!en || enHasTamil)) {
+    const cleanEn = localizeName(ta, 'en');
+    return { en: cleanEn, ta };
+  }
+
+  // Case 4: Only English provided (ta is empty or has English)
+  if (!enHasTamil && en && (!ta || !taHasTamil)) {
+    const cleanEn = en.charAt(0).toUpperCase() + en.slice(1);
+    const cleanTa = localizeName(cleanEn, 'ta');
+    return { en: cleanEn, ta: cleanTa };
+  }
+
+  // Case 5: en is actually Tamil, ta is actually English
+  if (enHasTamil && !taHasTamil && ta) {
+    return { en: ta.charAt(0).toUpperCase() + ta.slice(1), ta: en };
+  }
+
+  // Case 6: Already clean bilingual pair
+  return {
+    en: en ? (en.charAt(0).toUpperCase() + en.slice(1)) : (ta ? localizeName(ta, 'en') : ''),
+    ta: ta || (en ? localizeName(en, 'ta') : '')
+  };
+}
+
+/**
+ * Displays text based on current active language.
+ * Guarantees Tamil when lang === 'ta', and English when lang === 'en'.
+ */
+export function getBilingualText(enText, taText, lang = 'en') {
+  const en = String(enText || '').trim();
+  const ta = String(taText || '').trim();
+
+  if (lang === 'ta') {
+    if (ta && hasTamilCharacters(ta)) return ta;
+    if (en && hasTamilCharacters(en)) return en;
+    return localizeName(ta || en, 'ta');
+  } else {
+    if (en && !hasTamilCharacters(en)) return en;
+    if (ta && !hasTamilCharacters(ta)) return ta;
+    return localizeName(en || ta, 'en');
   }
 }
 
