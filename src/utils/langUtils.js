@@ -319,8 +319,21 @@ export function resolveBilingualPair(enVal, taVal) {
  * Guarantees Tamil when lang === 'ta', and English when lang === 'en'.
  */
 export function getBilingualText(enText, taText, lang = 'en') {
-  const en = String(enText || '').trim();
-  const ta = String(taText || '').trim();
+  let resolvedEn = enText;
+  let resolvedTa = taText;
+  if (enText && typeof enText === 'object') {
+    if (typeof enText.en === 'string') resolvedEn = enText.en;
+    if (typeof enText.ta === 'string' && !resolvedTa) resolvedTa = enText.ta;
+    if (typeof enText.name === 'string' && !resolvedEn) resolvedEn = enText.name;
+    if (typeof enText.label === 'string' && !resolvedEn) resolvedEn = enText.label;
+  }
+  if (taText && typeof taText === 'object') {
+    if (typeof taText.ta === 'string') resolvedTa = taText.ta;
+    if (typeof taText.en === 'string' && !resolvedEn) resolvedEn = taText.en;
+    if (typeof taText.name === 'string' && !resolvedTa) resolvedTa = taText.name;
+  }
+  const en = String(resolvedEn ?? '').trim();
+  const ta = String(resolvedTa ?? '').trim();
 
   if (lang === 'ta') {
     if (ta && hasTamilCharacters(ta)) return ta;
@@ -535,10 +548,10 @@ export function healShiftedTripRecord(trip) {
   // collectedBy was in trip.totalAmount (e.g. "Admin")
   // paymentMode was in trip.balanceAmount (e.g. "cash")
 
-  const realCustomerName = trip.customerId && !trip.customerId.startsWith('CUST-') 
+  const realCustomerName = trip.customerId && typeof trip.customerId === 'string' && !trip.customerId.startsWith('CUST-') 
     ? trip.customerId 
     : (trip.customerName || 'General Customer');
-  const realDriverName = trip.customerName && !trip.customerName.toLowerCase().includes('rotavator') 
+  const realDriverName = trip.customerName && !toSafeLower(trip.customerName).includes('rotavator') 
     ? trip.customerName 
     : 'General Driver';
   const realImplementName = trip.driverName || 'Standalone Tractor';
@@ -577,3 +590,30 @@ export function healShiftedTripRecord(trip) {
     _healed: true
   };
 }
+
+/**
+ * Robust string extractor & case-insensitive matcher
+ * Safely handles strings, numbers, objects ({ en, ta }), null and undefined
+ * Prevents "TypeError: ...toLowerCase is not a function"
+ */
+export const toSafeStr = (val) => {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number') return String(val);
+  if (typeof val === 'object') {
+    if (typeof val.en === 'string') return val.en;
+    if (typeof val.name === 'string') return val.name;
+    if (typeof val.ta === 'string') return val.ta;
+    if (typeof val.label === 'string') return val.label;
+  }
+  return String(val || '');
+};
+
+export const toSafeLower = (val) => toSafeStr(val).trim().toLowerCase();
+
+export const isNameMatch = (a, b) => {
+  const sa = toSafeLower(a);
+  const sb = toSafeLower(b);
+  return sa !== '' && sb !== '' && sa === sb;
+};
+

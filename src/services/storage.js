@@ -2,7 +2,7 @@
 import { syncAllToGoogleSheet, recordLoginAttemptInSheet } from './googleSheets';
 import { ENV_GOOGLE_SHEETS_URL, getEffectiveGoogleSheetUrl } from '../config/env';
 import { cleanDeep } from '../utils/timeCalcUtils';
-import { healShiftedTripRecord, resolveBilingualPair, localizeName, hasTamilCharacters } from '../utils/langUtils';
+import { healShiftedTripRecord, resolveBilingualPair, localizeName, hasTamilCharacters, isNameMatch, toSafeLower, toSafeStr } from '../utils/langUtils';
 
 const STORAGE_KEYS = {
   FLEET: "tractomint_fleet",
@@ -487,7 +487,7 @@ export const StorageService = {
     if (!trip.customerId) {
       if (trip.customerName) {
         const custList = StorageService.getCustomers();
-        const matched = custList.find(c => c.name && c.name.toLowerCase() === trip.customerName.toLowerCase());
+        const matched = custList.find(c => c.name && isNameMatch(c.name, trip.customerName));
         if (matched) trip.customerId = matched.id;
       }
       if (!trip.customerId) {
@@ -506,7 +506,7 @@ export const StorageService = {
     if (!trip.driverId) {
       if (trip.driverName) {
         const drvList = StorageService.getDrivers();
-        const matched = drvList.find(d => d.name && d.name.toLowerCase() === trip.driverName.toLowerCase());
+        const matched = drvList.find(d => d.name && isNameMatch(d.name, trip.driverName));
         if (matched) trip.driverId = matched.id;
       }
       if (!trip.driverId) {
@@ -525,7 +525,7 @@ export const StorageService = {
     if (!trip.tractorId) {
       if (trip.tractorName) {
         const fleetList = StorageService.getFleet();
-        const matched = fleetList.find(f => f.type === 'tractor' && f.name.toLowerCase() === trip.tractorName.toLowerCase());
+        const matched = fleetList.find(f => f.type === 'tractor' && isNameMatch(f.name, trip.tractorName));
         if (matched) trip.tractorId = matched.id;
       }
       if (!trip.tractorId) {
@@ -657,7 +657,7 @@ export const StorageService = {
     const list = loadData('tractomint_custom_expense_types', []);
     const exists = list.some(item => 
       (newType.id && item.id === newType.id) || 
-      (item.name && item.name.toLowerCase() === newType.name.toLowerCase()) ||
+      (item.name && isNameMatch(item.name, newType.name)) ||
       (item.name_ta && newType.name_ta && item.name_ta === newType.name_ta)
     );
     if (!exists) {
@@ -912,7 +912,7 @@ export const StorageService = {
     }
     const cleanUsername = user.username.trim().toLowerCase();
     const list = StorageService.getUsers(true);
-    const existing = list.find(u => u.username.toLowerCase() === cleanUsername && u.id !== user.id);
+    const existing = list.find(u => String(u.username || '').toLowerCase() === cleanUsername && u.id !== user.id);
     if (existing) {
       return { success: false, error: `Username "${cleanUsername}" is already taken.` };
     }

@@ -21,14 +21,16 @@ function normalizeOption(item) {
     };
   }
   if (typeof item === 'object') {
-    const val = item.value !== undefined ? String(item.value) : (item.id !== undefined ? String(item.id) : String(item.name || item.label || ''));
-    const lbl = item.label || item.name || item.title || val;
+    const rawVal = item.value !== undefined ? item.value : (item.id !== undefined ? item.id : (item.name || item.label || ''));
+    const val = (rawVal && typeof rawVal === 'object') ? (rawVal.en || rawVal.name || JSON.stringify(rawVal)) : String(rawVal ?? '');
+    const rawLbl = item.label || item.name || item.title || val;
+    const lbl = (rawLbl && typeof rawLbl === 'object') ? (rawLbl.en || rawLbl.ta || rawLbl.name || JSON.stringify(rawLbl)) : String(rawLbl ?? '');
     return {
       id: item.id !== undefined ? String(item.id) : val,
       value: val,
       label: lbl,
       subLabel: item.subLabel || item.phone || item.rate ? (item.phone || (item.rate ? `₹${item.rate}` : item.subLabel)) : '',
-      group: item.group || item.category || '',
+      group: typeof item.group === 'string' ? item.group : (typeof item.category === 'string' ? item.category : ''),
       badge: item.badge || item.unit || '',
       icon: item.icon || null,
       disabled: Boolean(item.disabled)
@@ -133,9 +135,10 @@ export default function SearchableSelect({
   const selectedOption = useMemo(() => {
     if (value === '' || value === null || value === undefined) return null;
     const strVal = String(value);
+    const strLower = strVal.toLowerCase();
     return (
       normalizedOptions.find(
-        (opt) => opt.value === strVal || opt.id === strVal || opt.label.toLowerCase() === strVal.toLowerCase()
+        (opt) => opt.value === strVal || opt.id === strVal || String(opt.label || '').toLowerCase() === strLower
       ) || {
         id: strVal,
         value: strVal,
@@ -154,10 +157,10 @@ export default function SearchableSelect({
     if (!searchQuery.trim()) return normalizedOptions;
     const q = searchQuery.toLowerCase().trim();
     return normalizedOptions.filter((opt) => {
-      const matchLabel = opt.label.toLowerCase().includes(q);
-      const matchSub = opt.subLabel ? opt.subLabel.toLowerCase().includes(q) : false;
-      const matchGroup = opt.group ? opt.group.toLowerCase().includes(q) : false;
-      const matchValue = opt.value ? opt.value.toLowerCase().includes(q) : false;
+      const matchLabel = String(opt.label || '').toLowerCase().includes(q);
+      const matchSub = opt.subLabel ? String(opt.subLabel).toLowerCase().includes(q) : false;
+      const matchGroup = opt.group ? String(opt.group).toLowerCase().includes(q) : false;
+      const matchValue = opt.value ? String(opt.value).toLowerCase().includes(q) : false;
       return matchLabel || matchSub || matchGroup || matchValue;
     });
   }, [normalizedOptions, searchQuery]);
@@ -405,7 +408,7 @@ export default function SearchableSelect({
           >
             {/* Ungrouped items */}
             {groupedOptions.ungrouped.map((opt) => {
-              const isSelected = String(value) === String(opt.value) || String(value) === String(opt.id) || String(value).toLowerCase() === opt.label.toLowerCase();
+              const isSelected = String(value) === String(opt.value) || String(value) === String(opt.id) || String(value).toLowerCase() === String(opt.label || '').toLowerCase();
 
               return (
                 <button
@@ -482,7 +485,7 @@ export default function SearchableSelect({
                   {groupTitle}
                 </div>
                 {groupItems.map((opt) => {
-                  const isSelected = String(value) === String(opt.value) || String(value) === String(opt.id) || String(value).toLowerCase() === opt.label.toLowerCase();
+                  const isSelected = String(value) === String(opt.value) || String(value) === String(opt.id) || String(value).toLowerCase() === String(opt.label || '').toLowerCase();
 
                   return (
                     <button

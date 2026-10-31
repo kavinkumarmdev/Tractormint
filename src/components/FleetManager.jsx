@@ -19,16 +19,16 @@ import SearchableSelect from './common/SearchableSelect';
 import BilingualVoiceGroup from './common/BilingualVoiceGroup';
 import VoiceInput from './common/VoiceInput';
 import { normalizeRegNumber, validatePositiveNumber } from '../services/storage';
-import { getBilingualText } from '../utils/langUtils';
+import { getBilingualText, toSafeLower } from '../utils/langUtils';
 
 export default function FleetManager({ 
-  fleet, 
+  fleet = [], 
   onSaveFleet, 
   onDeleteFleet, 
-  lang, 
-  role 
+  lang = 'ta', 
+  role = 'admin' 
 }) {
-  const t = translations[lang];
+  const t = translations[lang] || translations.en;
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all'); // all | tractor | implement
   const [acquisitionFilter, setAcquisitionFilter] = useState('all');
@@ -248,9 +248,12 @@ export default function FleetManager({
 
   // Filtered Items
   const filteredFleet = fleet.filter(item => {
-    const matchesSearch = (item.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (item.name_ta || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (item.regNumber || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const sLower = toSafeLower(searchTerm);
+    const matchesSearch = !sLower || (
+      toSafeLower(item.name).includes(sLower) ||
+      toSafeLower(item.name_ta).includes(sLower) ||
+      toSafeLower(item.regNumber).includes(sLower)
+    );
     const matchesType = typeFilter === 'all' || item.type === typeFilter;
     const matchesAcquisition = acquisitionFilter === 'all' || item.acquisition === acquisitionFilter;
     return matchesSearch && matchesType && matchesAcquisition;

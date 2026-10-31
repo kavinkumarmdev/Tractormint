@@ -7,20 +7,20 @@ import SearchableSelect from './common/SearchableSelect';
 import BilingualVoiceGroup from './common/BilingualVoiceGroup';
 import VoiceInput from './common/VoiceInput';
 import { normalizePhone, validatePhone10, validatePositiveNumber } from '../services/storage';
-import { getBilingualText } from '../utils/langUtils';
+import { getBilingualText, isNameMatch, toSafeLower } from '../utils/langUtils';
 
 export default function DriverList({ 
-  drivers, 
-  tripSheets, 
+  drivers = [], 
+  tripSheets = [], 
   onSaveDriver, 
   onDeleteDriver, 
-  lang, 
-  role,
+  lang = 'ta', 
+  role = 'admin',
   currentUser,
-  users,
-  settings
+  users = [],
+  settings = {}
 }) {
-  const t = translations[lang];
+  const t = translations[lang] || translations.en;
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -64,7 +64,7 @@ export default function DriverList({
     const ownerPhone = adminUser?.phone || currentUser?.phone || '';
 
     const existing = drivers.find(d => 
-      (d.name && d.name.toLowerCase() === ownerNameEn.toLowerCase()) ||
+      (d.name && isNameMatch(d.name, ownerNameEn)) ||
       (d.wageType === 'owner') ||
       (ownerPhone && d.phone && d.phone === ownerPhone)
     );
@@ -191,8 +191,10 @@ export default function DriverList({
   };
 
   const filteredDrivers = drivers.filter(d => {
-    return (d.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-           (d.name_ta || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const sLower = toSafeLower(searchTerm);
+    if (!sLower) return true;
+    return toSafeLower(d.name).includes(sLower) ||
+           toSafeLower(d.name_ta).includes(sLower) ||
            (d.phone || '').includes(searchTerm);
   });
 

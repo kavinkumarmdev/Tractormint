@@ -39,20 +39,20 @@ export const downloadCsv = (filename, csvData) => {
 };
 
 export default function GoogleSheetsSettings({ 
-  settings, 
+  settings = {}, 
   onSaveSettings, 
   onSyncAll, 
   onPullFromSheets,
   onClearAllData,
-  allData, 
-  lang, 
-  role 
+  allData = {}, 
+  lang = 'ta', 
+  role = 'admin' 
 }) {
-  const t = translations[lang];
+  const t = translations[lang] || translations.en;
   const [webAppUrl, setWebAppUrl] = useState(
-    settings.webAppUrl || ENV_GOOGLE_SHEETS_URL || ''
+    settings?.webAppUrl || ENV_GOOGLE_SHEETS_URL || ''
   );
-  const [autoSync, setAutoSync] = useState(settings.autoSync || false);
+  const [autoSync, setAutoSync] = useState(settings?.autoSync || false);
   const [adminPin, setAdminPin] = useState(settings.adminPin || '1234');
   const [companyName, setCompanyName] = useState(settings.companyName || '');
   const [companyName_ta, setCompanyName_ta] = useState(settings.companyName_ta || '');
@@ -549,31 +549,31 @@ export default function GoogleSheetsSettings({
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <button 
                 className="btn btn-outline btn-sm"
-                onClick={() => downloadCsv('TractoMint_TripSheets', convertToCsv(allData.tripSheets))}
+                onClick={() => downloadCsv('TractoMint_TripSheets', convertToCsv(allData?.tripSheets || []))}
               >
                 {lang === 'ta' ? 'டிரிப் சீட்டுகள் CSV' : 'Trip Sheets CSV'}
               </button>
               <button 
                 className="btn btn-outline btn-sm"
-                onClick={() => downloadCsv('TractoMint_Maintenance', convertToCsv(allData.maintenance))}
+                onClick={() => downloadCsv('TractoMint_Maintenance', convertToCsv(allData?.maintenance || []))}
               >
                 {lang === 'ta' ? 'பராமரிப்பு CSV' : 'Maintenance CSV'}
               </button>
               <button 
                 className="btn btn-outline btn-sm"
-                onClick={() => downloadCsv('TractoMint_Customers', convertToCsv(allData.customers))}
+                onClick={() => downloadCsv('TractoMint_Customers', convertToCsv(allData?.customers || []))}
               >
                 {lang === 'ta' ? 'விவசாயிகள் CSV' : 'Customers CSV'}
               </button>
               <button 
                 className="btn btn-outline btn-sm"
-                onClick={() => downloadCsv('TractoMint_Users', convertToCsv(allData.users))}
+                onClick={() => downloadCsv('TractoMint_Users', convertToCsv(allData?.users || []))}
               >
                 {lang === 'ta' ? 'பணியாளர்கள் CSV' : 'Users CSV'}
               </button>
               <button 
                 className="btn btn-outline btn-sm"
-                onClick={() => downloadCsv('TractoMint_FullDatabase', JSON.stringify(allData, null, 2))}
+                onClick={() => downloadCsv('TractoMint_FullDatabase', JSON.stringify(allData || {}, null, 2))}
               >
                 {lang === 'ta' ? 'முழு தரவு காப்புப்பிரதி (JSON)' : 'Full JSON Backup'}
               </button>

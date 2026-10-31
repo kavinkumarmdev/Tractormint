@@ -6,16 +6,16 @@ import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
 import { validatePositiveNumber } from '../services/storage';
 import { formatDateDDMMYYYY } from '../utils/dateUtils';
-import { getBilingualText } from '../utils/langUtils';
+import { getBilingualText, toSafeLower } from '../utils/langUtils';
 
 export default function IncomeExpenseManager({ 
-  incomeExpense, 
+  incomeExpense = [], 
   onSaveIncomeExpense, 
   onDeleteIncomeExpense, 
-  lang, 
-  role 
+  lang = 'ta', 
+  role = 'admin' 
 }) {
-  const t = translations[lang];
+  const t = translations[lang] || translations.en;
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all'); // all | income | expense
   const [statusFilter, setStatusFilter] = useState('all'); // all | completed | pending
@@ -134,9 +134,12 @@ export default function IncomeExpenseManager({
   };
 
   const filteredList = incomeExpense.filter(item => {
-    const matchesSearch = (item.category || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (item.category_ta || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (item.description || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const sLower = toSafeLower(searchTerm);
+    const matchesSearch = !sLower || (
+      toSafeLower(item.category).includes(sLower) ||
+      toSafeLower(item.category_ta).includes(sLower) ||
+      toSafeLower(item.description).includes(sLower)
+    );
     const matchesType = typeFilter === 'all' || item.type === typeFilter;
     const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
     return matchesSearch && matchesType && matchesStatus;

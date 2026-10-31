@@ -34,7 +34,7 @@ export default function Header({
   mobileNavOpen,
   setMobileNavOpen
 }) {
-  const t = translations[lang];
+  const t = translations[lang] || translations.en;
   const [showPinModal, setShowPinModal] = useState(false);
   const [enteredPin, setEnteredPin] = useState('');
   const [pinError, setPinError] = useState('');

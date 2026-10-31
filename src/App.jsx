@@ -15,9 +15,63 @@ import AuditTrashManager from './components/AuditTrashManager';
 import TripSlipModal from './components/TripSlipModal';
 import AuthScreen from './components/AuthScreen';
 import UserManager from './components/UserManager';
+import ErrorBoundary from './components/common/ErrorBoundary';
+import { ShieldAlert } from 'lucide-react';
 import { StorageService } from './services/storage';
 import { syncAllToGoogleSheet, fetchDataFromGoogleSheet } from './services/googleSheets';
 import { getEffectiveGoogleSheetUrl } from './config/env';
+
+// Friendly access restricted card when an unauthorized role visits a protected tab
+function AccessRestrictedView({ requiredRole = 'Admin', lang = 'ta', onGoHome, onElevate }) {
+  const isTa = lang === 'ta';
+  return (
+    <div style={{
+      maxWidth: '560px',
+      margin: '3rem auto',
+      padding: '2.5rem 1.75rem',
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border-color)',
+      borderRadius: '20px',
+      textAlign: 'center',
+      boxShadow: 'var(--shadow-md)'
+    }}>
+      <div style={{
+        width: '64px',
+        height: '64px',
+        borderRadius: '20px',
+        background: 'rgba(239, 68, 68, 0.1)',
+        color: '#dc2626',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        margin: '0 auto 1.25rem'
+      }}>
+        <ShieldAlert size={32} />
+      </div>
+
+      <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
+        {isTa ? 'அணுகல் அனுமதி தேவை' : `${requiredRole} Access Required`}
+      </h2>
+
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
+        {isTa 
+          ? `இந்த பக்கத்தை அணுக ${requiredRole} அனுமதி தேவை. தயவுசெய்து அட்மின் பதவிக்கு மாறவும் அல்லது முகப்பு பலகைக்குச் செல்லவும்.`
+          : `This section is restricted to ${requiredRole} credentials. Please elevate to an Admin role or return to the dashboard.`}
+      </p>
+
+      <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+        <button className="btn btn-primary" onClick={onGoHome} style={{ fontWeight: 700 }}>
+          {isTa ? 'முகப்பு பலகைக்குச் செல்' : 'Back to Dashboard'}
+        </button>
+        {onElevate && (
+          <button className="btn btn-outline" onClick={onElevate} style={{ fontWeight: 600 }}>
+            {isTa ? 'அட்மினாக மாறு' : 'Elevate to Admin'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const SESSION_KEY = 'tractomint_user_session';
 
@@ -416,166 +470,250 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="main-view-wrapper">
-        {activeTab === 'dashboard' && (
-          <Dashboard
-            lang={lang}
-            tripSheets={tripSheets}
-            fleet={fleet}
-            maintenance={maintenance}
-            incomeExpense={incomeExpense}
-            drivers={drivers}
-            customers={customers}
-            onNavigate={(tab) => setActiveTab(tab)}
-            onViewSlip={(trip) => setSelectedTripForSlip(trip)}
-          />
-        )}
+        <ErrorBoundary key={activeTab} lang={lang} onReset={() => setActiveTab('dashboard')}>
+          {activeTab === 'dashboard' && (
+            <Dashboard
+              lang={lang}
+              tripSheets={tripSheets || []}
+              fleet={fleet || []}
+              maintenance={maintenance || []}
+              incomeExpense={incomeExpense || []}
+              drivers={drivers || []}
+              customers={customers || []}
+              onNavigate={(tab) => setActiveTab(tab)}
+              onViewSlip={(trip) => setSelectedTripForSlip(trip)}
+            />
+          )}
 
-        {activeTab === 'tripSheets' && (
-          <TripSheetManager
-            tripSheets={tripSheets}
-            fleet={fleet}
-            drivers={drivers}
-            customers={customers}
-            rateMatrix={rateMatrix}
-            onSaveTrip={handleSaveTrip}
-            onDeleteTrip={handleDeleteTrip}
-            onViewSlip={(trip) => setSelectedTripForSlip(trip)}
-            lang={lang}
-            role={role}
-            currentUser={currentUser}
-          />
-        )}
+          {activeTab === 'tripSheets' && (
+            <TripSheetManager
+              tripSheets={tripSheets || []}
+              fleet={fleet || []}
+              drivers={drivers || []}
+              customers={customers || []}
+              rateMatrix={rateMatrix || []}
+              onSaveTrip={handleSaveTrip}
+              onDeleteTrip={handleDeleteTrip}
+              onViewSlip={(trip) => setSelectedTripForSlip(trip)}
+              lang={lang}
+              role={role}
+              currentUser={currentUser}
+            />
+          )}
 
-        {activeTab === 'fleet' && (
-          <FleetManager
-            fleet={fleet}
-            onSaveFleet={handleSaveFleet}
-            onDeleteFleet={handleDeleteFleet}
-            lang={lang}
-            role={role}
-          />
-        )}
+          {activeTab === 'fleet' && (
+            <FleetManager
+              fleet={fleet || []}
+              onSaveFleet={handleSaveFleet}
+              onDeleteFleet={handleDeleteFleet}
+              lang={lang}
+              role={role}
+            />
+          )}
 
-        {activeTab === 'rateMatrix' && (role === 'admin' || role === 'manager') && (
-          <RateMatrixManager
-            rateMatrix={rateMatrix}
-            fleet={fleet}
-            onSaveRate={handleSaveRate}
-            onDeleteRate={handleDeleteRate}
-            lang={lang}
-            role={role}
-          />
-        )}
+          {activeTab === 'rateMatrix' && (
+            (role === 'admin' || role === 'manager' || role === 'operator') ? (
+              <RateMatrixManager
+                rateMatrix={rateMatrix || []}
+                fleet={fleet || []}
+                onSaveRate={handleSaveRate}
+                onDeleteRate={handleDeleteRate}
+                lang={lang}
+                role={role}
+              />
+            ) : (
+              <AccessRestrictedView
+                requiredRole="Admin or Manager"
+                lang={lang}
+                onGoHome={() => setActiveTab('dashboard')}
+                onElevate={() => setRole('admin')}
+              />
+            )
+          )}
 
-        {activeTab === 'drivers' && role !== 'driver' && (
-          <DriverList
-            drivers={drivers}
-            tripSheets={tripSheets}
-            onSaveDriver={handleSaveDriver}
-            onDeleteDriver={handleDeleteDriver}
-            lang={lang}
-            role={role}
-            currentUser={currentUser}
-            users={users}
-            settings={settings}
-          />
-        )}
+          {activeTab === 'drivers' && (
+            role !== 'driver' ? (
+              <DriverList
+                drivers={drivers || []}
+                tripSheets={tripSheets || []}
+                onSaveDriver={handleSaveDriver}
+                onDeleteDriver={handleDeleteDriver}
+                lang={lang}
+                role={role}
+                currentUser={currentUser}
+                users={users || []}
+                settings={settings || {}}
+              />
+            ) : (
+              <AccessRestrictedView
+                requiredRole="Admin / Operator"
+                lang={lang}
+                onGoHome={() => setActiveTab('dashboard')}
+                onElevate={() => setRole('admin')}
+              />
+            )
+          )}
 
-        {activeTab === 'customers' && role !== 'driver' && (
-          <CustomerManager
-            customers={customers}
-            tripSheets={tripSheets}
-            onSaveCustomer={handleSaveCustomer}
-            onDeleteCustomer={handleDeleteCustomer}
-            lang={lang}
-            role={role}
-          />
-        )}
+          {activeTab === 'customers' && (
+            role !== 'driver' ? (
+              <CustomerManager
+                customers={customers || []}
+                tripSheets={tripSheets || []}
+                onSaveCustomer={handleSaveCustomer}
+                onDeleteCustomer={handleDeleteCustomer}
+                lang={lang}
+                role={role}
+              />
+            ) : (
+              <AccessRestrictedView
+                requiredRole="Admin / Operator"
+                lang={lang}
+                onGoHome={() => setActiveTab('dashboard')}
+                onElevate={() => setRole('admin')}
+              />
+            )
+          )}
 
-        {activeTab === 'maintenance' && (
-          <MaintenanceManager
-            maintenance={maintenance}
-            fleet={fleet}
-            onSaveMaintenance={handleSaveMaintenance}
-            onDeleteMaintenance={handleDeleteMaintenance}
-            lang={lang}
-            role={role}
-            currentUser={currentUser}
-            users={users}
-            drivers={drivers}
-          />
-        )}
+          {activeTab === 'maintenance' && (
+            <MaintenanceManager
+              maintenance={maintenance || []}
+              fleet={fleet || []}
+              onSaveMaintenance={handleSaveMaintenance}
+              onDeleteMaintenance={handleDeleteMaintenance}
+              lang={lang}
+              role={role}
+              currentUser={currentUser}
+              users={users || []}
+              drivers={drivers || []}
+            />
+          )}
 
-        {activeTab === 'incomeExpense' && role !== 'driver' && (
-          <IncomeExpenseManager
-            incomeExpense={incomeExpense}
-            onSaveIncomeExpense={handleSaveIncomeExpense}
-            onDeleteIncomeExpense={handleDeleteIncomeExpense}
-            lang={lang}
-            role={role}
-          />
-        )}
+          {activeTab === 'incomeExpense' && (
+            role !== 'driver' ? (
+              <IncomeExpenseManager
+                incomeExpense={incomeExpense || []}
+                onSaveIncomeExpense={handleSaveIncomeExpense}
+                onDeleteIncomeExpense={handleDeleteIncomeExpense}
+                lang={lang}
+                role={role}
+              />
+            ) : (
+              <AccessRestrictedView
+                requiredRole="Admin / Operator"
+                lang={lang}
+                onGoHome={() => setActiveTab('dashboard')}
+                onElevate={() => setRole('admin')}
+              />
+            )
+          )}
 
-        {activeTab === 'partnerSplit' && (role === 'admin' || role === 'manager') && (
-          <PartnerSplitManager
-            partners={partners}
-            partnerDrawings={partnerDrawings}
-            tripSheets={tripSheets}
-            maintenance={maintenance}
-            incomeExpense={incomeExpense}
-            onSavePartner={handleSavePartner}
-            onDeletePartner={handleDeletePartner}
-            onSaveDrawing={handleSaveDrawing}
-            onDeleteDrawing={handleDeleteDrawing}
-            lang={lang}
-            role={role}
-          />
-        )}
+          {activeTab === 'partnerSplit' && (
+            (role === 'admin' || role === 'manager') ? (
+              <PartnerSplitManager
+                partners={partners || []}
+                partnerDrawings={partnerDrawings || []}
+                tripSheets={tripSheets || []}
+                maintenance={maintenance || []}
+                incomeExpense={incomeExpense || []}
+                onSavePartner={handleSavePartner}
+                onDeletePartner={handleDeletePartner}
+                onSaveDrawing={handleSaveDrawing}
+                onDeleteDrawing={handleDeleteDrawing}
+                lang={lang}
+                role={role}
+              />
+            ) : (
+              <AccessRestrictedView
+                requiredRole="Admin"
+                lang={lang}
+                onGoHome={() => setActiveTab('dashboard')}
+                onElevate={() => setRole('admin')}
+              />
+            )
+          )}
 
-        {activeTab === 'userManagement' && (role === 'admin' || role === 'manager') && (
-          <UserManager
-            users={users}
-            onSaveUser={handleSaveUser}
-            onDeleteUser={handleDeleteUser}
-            currentUser={currentUser}
-            adminPin={settings.adminPin}
-            lang={lang}
-            role={role}
-          />
-        )}
+          {activeTab === 'userManagement' && (
+            (role === 'admin' || role === 'manager') ? (
+              <UserManager
+                users={users || []}
+                onSaveUser={handleSaveUser}
+                onDeleteUser={handleDeleteUser}
+                currentUser={currentUser}
+                adminPin={settings?.adminPin}
+                lang={lang}
+                role={role}
+              />
+            ) : (
+              <AccessRestrictedView
+                requiredRole="Admin"
+                lang={lang}
+                onGoHome={() => setActiveTab('dashboard')}
+                onElevate={() => setRole('admin')}
+              />
+            )
+          )}
 
-        {activeTab === 'auditTrash' && role === 'admin' && (
-          <AuditTrashManager
-            deletedRecords={deletedRecords}
-            onRestoreRecord={handleRestoreRecord}
-            lang={lang}
-            role={role}
-          />
-        )}
+          {activeTab === 'auditTrash' && (
+            <AuditTrashManager
+              deletedRecords={deletedRecords || []}
+              onRestoreRecord={handleRestoreRecord}
+              lang={lang}
+              role={role}
+            />
+          )}
 
-        {activeTab === 'googleSheets' && role === 'admin' && (
-          <GoogleSheetsSettings
-            settings={settings}
-            onSaveSettings={handleSaveSettings}
-            onSyncAll={handleSyncAll}
-            onPullFromSheets={handlePullFromSheets}
-            onClearAllData={handleClearAllData}
-            allData={{
-              fleet,
-              rateMatrix,
-              drivers,
-              customers,
-              tripSheets,
-              maintenance,
-              incomeExpense,
-              partners,
-              partnerDrawings,
-              users
-            }}
-            lang={lang}
-            role={role}
-          />
-        )}
+          {activeTab === 'googleSheets' && (
+            role === 'admin' ? (
+              <GoogleSheetsSettings
+                settings={settings || {}}
+                onSaveSettings={handleSaveSettings}
+                onSyncAll={handleSyncAll}
+                onPullFromSheets={handlePullFromSheets}
+                onClearAllData={handleClearAllData}
+                allData={{
+                  fleet: fleet || [],
+                  rateMatrix: rateMatrix || [],
+                  drivers: drivers || [],
+                  customers: customers || [],
+                  tripSheets: tripSheets || [],
+                  maintenance: maintenance || [],
+                  incomeExpense: incomeExpense || [],
+                  partners: partners || [],
+                  partnerDrawings: partnerDrawings || [],
+                  users: users || []
+                }}
+                lang={lang}
+                role={role}
+              />
+            ) : (
+              <AccessRestrictedView
+                requiredRole="Admin"
+                lang={lang}
+                onGoHome={() => setActiveTab('dashboard')}
+                onElevate={() => setRole('admin')}
+              />
+            )
+          )}
+
+          {/* Safety Fallback for any unexpected/unmatched tab */}
+          {![
+            'dashboard', 'tripSheets', 'fleet', 'rateMatrix', 
+            'drivers', 'customers', 'maintenance', 'incomeExpense', 
+            'partnerSplit', 'userManagement', 'auditTrash', 'googleSheets'
+          ].includes(activeTab) && (
+            <Dashboard
+              lang={lang}
+              tripSheets={tripSheets || []}
+              fleet={fleet || []}
+              maintenance={maintenance || []}
+              incomeExpense={incomeExpense || []}
+              drivers={drivers || []}
+              customers={customers || []}
+              onNavigate={(tab) => setActiveTab(tab)}
+              onViewSlip={(trip) => setSelectedTripForSlip(trip)}
+            />
+          )}
+        </ErrorBoundary>
       </main>
 
       {/* Printable Trip Slip Modal */}

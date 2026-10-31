@@ -7,22 +7,22 @@ import SearchableSelect from './common/SearchableSelect';
 import BilingualVoiceGroup from './common/BilingualVoiceGroup';
 import { normalizePhone, validatePhone10, validatePositiveNumber } from '../services/storage';
 import { formatDateDDMMYYYY } from '../utils/dateUtils';
-import { getBilingualText } from '../utils/langUtils';
+import { getBilingualText, toSafeLower } from '../utils/langUtils';
 
 export default function PartnerSplitManager({ 
-  partners, 
-  partnerDrawings, 
-  tripSheets, 
-  maintenance, 
-  incomeExpense, 
+  partners = [], 
+  partnerDrawings = [], 
+  tripSheets = [], 
+  maintenance = [], 
+  incomeExpense = [], 
   onSavePartner, 
   onDeletePartner, 
   onSaveDrawing, 
   onDeleteDrawing, 
-  lang, 
-  role 
+  lang = 'ta', 
+  role = 'admin' 
 }) {
-  const t = translations[lang];
+  const t = translations[lang] || translations.en;
   const [activeSubTab, setActiveSubTab] = useState('drawings'); // 'drawings' | 'partners'
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -57,22 +57,28 @@ export default function PartnerSplitManager({
   });
 
   // Financial Calculations for Dynamic Profit Split
-  const totalTripRevenue = tripSheets.reduce((sum, curr) => sum + (Number(curr.paidAmount) || 0), 0);
-  const totalOtherIncome = incomeExpense.filter(x => x.type === 'income').reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0);
+  const safeTripSheets = Array.isArray(tripSheets) ? tripSheets : [];
+  const safeIncomeExpense = Array.isArray(incomeExpense) ? incomeExpense : [];
+  const safeMaintenance = Array.isArray(maintenance) ? maintenance : [];
+  const safePartners = Array.isArray(partners) ? partners : [];
+  const safeDrawings = Array.isArray(partnerDrawings) ? partnerDrawings : [];
+
+  const totalTripRevenue = safeTripSheets.reduce((sum, curr) => sum + (Number(curr?.paidAmount) || 0), 0);
+  const totalOtherIncome = safeIncomeExpense.filter(x => x?.type === 'income').reduce((sum, curr) => sum + (Number(curr?.amount) || 0), 0);
   
-  const totalMaintenance = maintenance.reduce((sum, curr) => sum + (Number(curr.totalAmount) || 0), 0);
-  const totalDriverBata = tripSheets.reduce((sum, curr) => sum + (Number(curr.driverBata) || 0), 0);
-  const totalOtherExpense = incomeExpense.filter(x => x.type === 'expense').reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0);
+  const totalMaintenance = safeMaintenance.reduce((sum, curr) => sum + (Number(curr?.totalAmount) || 0), 0);
+  const totalDriverBata = safeTripSheets.reduce((sum, curr) => sum + (Number(curr?.driverBata) || 0), 0);
+  const totalOtherExpense = safeIncomeExpense.filter(x => x?.type === 'expense').reduce((sum, curr) => sum + (Number(curr?.amount) || 0), 0);
 
   const totalBusinessIncome = totalTripRevenue + totalOtherIncome;
   const totalBusinessExpenses = totalMaintenance + totalDriverBata + totalOtherExpense;
   const netBusinessProfit = Math.max(0, totalBusinessIncome - totalBusinessExpenses);
 
   // Partner Summaries
-  const partnerSummaries = partners.map(p => {
-    const pDrawings = partnerDrawings.filter(d => d.partnerId === p.id);
-    const totalWithdrawn = pDrawings.reduce((sum, curr) => sum + (Number(curr.amount) || 0), 0);
-    const eligibleProfitShare = Math.round(netBusinessProfit * ((Number(p.sharePercent) || 0) / 100));
+  const partnerSummaries = safePartners.map(p => {
+    const pDrawings = safeDrawings.filter(d => d?.partnerId === p?.id);
+    const totalWithdrawn = pDrawings.reduce((sum, curr) => sum + (Number(curr?.amount) || 0), 0);
+    const eligibleProfitShare = Math.round(netBusinessProfit * ((Number(p?.sharePercent) || 0) / 100));
     const balanceRemaining = eligibleProfitShare - totalWithdrawn;
 
     return {
@@ -288,8 +294,10 @@ export default function PartnerSplitManager({
   };
 
   const filteredDrawings = partnerDrawings.filter(d => {
-    return (d.partnerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-           (d.purpose || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const sLower = toSafeLower(searchTerm);
+    if (!sLower) return true;
+    return toSafeLower(d.partnerName).includes(sLower) ||
+           toSafeLower(d.purpose).includes(sLower);
   });
 
   return (

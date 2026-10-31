@@ -5,17 +5,17 @@ import AdminDeleteModal from './AdminDeleteModal';
 import BilingualVoiceGroup from './common/BilingualVoiceGroup';
 import VoiceInput from './common/VoiceInput';
 import { normalizePhone, validatePhone10 } from '../services/storage';
-import { getBilingualText } from '../utils/langUtils';
+import { getBilingualText, toSafeLower } from '../utils/langUtils';
 
 export default function CustomerManager({ 
-  customers, 
-  tripSheets, 
+  customers = [], 
+  tripSheets = [], 
   onSaveCustomer, 
   onDeleteCustomer, 
-  lang, 
-  role 
+  lang = 'ta', 
+  role = 'admin' 
 }) {
-  const t = translations[lang];
+  const t = translations[lang] || translations.en;
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -154,11 +154,14 @@ export default function CustomerManager({
   };
 
   const filteredCustomers = customers.filter(c => {
-    const matchesSearch = (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (c.name_ta || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (c.village || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (c.village_ta || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (c.phone || '').includes(searchTerm);
+    const sLower = toSafeLower(searchTerm);
+    const matchesSearch = !sLower || (
+      toSafeLower(c.name).includes(sLower) ||
+      toSafeLower(c.name_ta).includes(sLower) ||
+      toSafeLower(c.village).includes(sLower) ||
+      toSafeLower(c.village_ta).includes(sLower) ||
+      (c.phone || '').includes(searchTerm)
+    );
 
     if (!matchesSearch) return false;
 

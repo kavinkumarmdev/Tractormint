@@ -19,7 +19,7 @@ import { getEffectiveGoogleSheetUrl } from '../config/env';
 import VoiceInput from './common/VoiceInput';
 
 export default function AuthScreen({ onLogin, lang, setLang }) {
-  const t = translations[lang];
+  const t = translations[lang] || translations.en;
   const [username, setUsername] = useState('');
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);

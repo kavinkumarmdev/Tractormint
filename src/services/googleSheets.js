@@ -444,8 +444,9 @@ function getSheetData(sheet) {
         ['cash', 'credit', 'gpay', 'upi', 'bank'].indexOf(balStr) !== -1
       );
       if (isShifted) {
-        var realCustomer = item.customerId && item.customerId.indexOf('CUST-') !== 0 ? item.customerId : (item.customerName || 'General Customer');
-        var realDriver = item.customerName && item.customerName.toLowerCase().indexOf('rotavator') === -1 ? item.customerName : 'General Driver';
+        var realCustomer = item.customerId && typeof item.customerId === 'string' && item.customerId.indexOf('CUST-') !== 0 ? item.customerId : (item.customerName || 'General Customer');
+        var custStr = typeof item.customerName === 'string' ? item.customerName : (item.customerName && item.customerName.en ? item.customerName.en : '');
+        var realDriver = custStr && custStr.toLowerCase().indexOf('rotavator') === -1 ? custStr : 'General Driver';
         var realImplement = item.driverName || 'Standalone Tractor';
         var realTotal = Number(item.quantity) || 1600;
         var realCollectedBy = totalStr || 'Admin';

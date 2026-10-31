@@ -1,20 +1,25 @@
 import React, { useState } from 'react';
 import { Trash2, RotateCcw, ShieldCheck, ShieldAlert, Search, History, Calendar } from 'lucide-react';
 import { translations } from '../translations/dictionary';
+import { toSafeLower } from '../utils/langUtils';
 
 export default function AuditTrashManager({ 
-  deletedRecords, 
+  deletedRecords = [], 
   onRestoreRecord, 
-  lang, 
-  role 
+  lang = 'ta', 
+  role = 'admin' 
 }) {
-  const t = translations[lang];
+  const t = translations[lang] || translations.en;
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filtered = deletedRecords.filter(r => {
+  const filtered = (deletedRecords || []).filter(r => {
+    if (!r) return false;
+    const sLower = toSafeLower(searchTerm);
+    if (!sLower) return true;
     const title = r.name || r.customerName || r.category || r.partnerName || r.tractorName || r.id || '';
-    return title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           r._tableName.toLowerCase().includes(searchTerm.toLowerCase());
+    const tableName = r._tableName || '';
+    return toSafeLower(title).includes(sLower) ||
+           toSafeLower(tableName).includes(sLower);
   });
 
   return (

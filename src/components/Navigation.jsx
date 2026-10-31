@@ -35,7 +35,7 @@ export default function Navigation({
   onSyncNow,
   onRoleToggle
 }) {
-  const t = translations[lang];
+  const t = translations[lang] || translations.en;
   const [moreDropdownOpen, setMoreDropdownOpen] = useState(false);
   const moreDropdownRef = useRef(null);
 

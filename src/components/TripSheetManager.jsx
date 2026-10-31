@@ -51,23 +51,26 @@ import {
   localizePaymentMode, 
   localizeCollectedBy,
   resolveBilingualPair,
-  getBilingualText
+  getBilingualText,
+  toSafeStr,
+  toSafeLower,
+  isNameMatch
 } from '../utils/langUtils';
 
 export default function TripSheetManager({ 
-  tripSheets, 
-  fleet, 
-  drivers, 
-  customers, 
-  rateMatrix, 
+  tripSheets = [], 
+  fleet = [], 
+  drivers = [], 
+  customers = [], 
+  rateMatrix = [], 
   onSaveTrip, 
   onDeleteTrip, 
   onViewSlip, 
-  lang, 
-  role,
+  lang = 'ta', 
+  role = 'admin',
   currentUser
 }) {
-  const t = translations[lang];
+  const t = translations[lang] || translations.en;
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // all | paid | partial | unpaid
   const [customerFilter, setCustomerFilter] = useState('all'); // all | customerId
@@ -104,8 +107,8 @@ export default function TripSheetManager({
   // Logged-in user assignment in this trip: 'driver' | 'collector' | 'none'
   const [loginUserAssignment, setLoginUserAssignment] = useState('collector');
 
-  const tractors = fleet.filter(f => f.type === 'tractor');
-  const implementsList = fleet.filter(f => f.type === 'implement');
+  const tractors = (fleet || []).filter(f => f && f.type === 'tractor');
+  const implementsList = (fleet || []).filter(f => f && f.type === 'implement');
 
   const getCurrentTimeFormatted = () => {
     const now = new Date();
@@ -186,7 +189,7 @@ export default function TripSheetManager({
     return tripSheets
       .filter(t => (
         (formData.customerId && t.customerId === formData.customerId) || 
-        (formData.customerName && t.customerName && t.customerName.toLowerCase() === formData.customerName.toLowerCase())
+        (formData.customerName && t.customerName && isNameMatch(t.customerName, formData.customerName))
       ) && t.id !== formData.id)
       .reduce((sum, t) => sum + (parseFloat(t.balanceAmount) || 0), 0);
   }, [formData?.customerId, formData?.customerName, formData?.id, tripSheets]);
@@ -304,14 +307,18 @@ export default function TripSheetManager({
 
   // Build the Unified Single Select Options: (Tractor + Implement / Rate Card Combos)
   const comboOptions = [];
-  rateMatrix.forEach(r => {
-    let matchedT = tractors.find(t => (r.tractorId && t.id === r.tractorId) || (r.tractorName && t.name.toLowerCase() === r.tractorName.toLowerCase()));
-    const resolvedTractorId = matchedT ? matchedT.id : (r.tractorId || (tractors[0] ? tractors[0].id : 'TRAC-01'));
-    const resolvedTractorName = matchedT ? getBilingualText(matchedT.name, matchedT.name_ta, lang) : (r.tractorName || (tractors[0] ? tractors[0].name : 'Tractor'));
+  (rateMatrix || []).forEach(r => {
+    if (!r) return;
+    const rTracName = toSafeStr(r.tractorName);
+    const rImpName = toSafeStr(r.implementName);
 
-    let matchedI = implementsList.find(m => (r.implementId && m.id === r.implementId) || (r.implementName && m.name.toLowerCase() === r.implementName.toLowerCase()));
+    let matchedT = tractors.find(t => (r.tractorId && t.id === r.tractorId) || (rTracName && isNameMatch(t.name, rTracName)));
+    const resolvedTractorId = matchedT ? matchedT.id : (r.tractorId || (tractors[0] ? tractors[0].id : 'TRAC-01'));
+    const resolvedTractorName = matchedT ? getBilingualText(matchedT.name, matchedT.name_ta, lang) : (rTracName || (tractors[0] ? tractors[0].name : 'Tractor'));
+
+    let matchedI = implementsList.find(m => (r.implementId && m.id === r.implementId) || (rImpName && isNameMatch(m.name, rImpName)));
     const resolvedImplementId = matchedI ? matchedI.id : (r.implementId || 'none');
-    const resolvedImplementName = matchedI ? getBilingualText(matchedI.name, matchedI.name_ta, lang) : (r.implementName || (lang === 'ta' ? 'தனி டிராக்டர்' : 'Standalone Tractor'));
+    const resolvedImplementName = matchedI ? getBilingualText(matchedI.name, matchedI.name_ta, lang) : (rImpName || (lang === 'ta' ? 'தனி டிராக்டர்' : 'Standalone Tractor'));
 
     comboOptions.push({
       value: `rate_${r.id}`,
@@ -329,7 +336,7 @@ export default function TripSheetManager({
   });
 
   tractors.forEach(tr => {
-    const hasStandaloneInRate = rateMatrix.some(r => r.tractorId === tr.id && (!r.implementId || r.implementId === 'none'));
+    const hasStandaloneInRate = (rateMatrix || []).some(r => r && r.tractorId === tr.id && (!r.implementId || r.implementId === 'none'));
     if (!hasStandaloneInRate) {
       comboOptions.push({
         value: `tr_${tr.id}_none`,
@@ -348,7 +355,7 @@ export default function TripSheetManager({
     }
 
     implementsList.forEach(imp => {
-      const hasComboInRate = rateMatrix.some(r => r.tractorId === tr.id && r.implementId === imp.id);
+      const hasComboInRate = (rateMatrix || []).some(r => r && r.tractorId === tr.id && r.implementId === imp.id);
       if (!hasComboInRate) {
         comboOptions.push({
           value: `tr_${tr.id}_imp_${imp.id}`,
@@ -375,21 +382,22 @@ export default function TripSheetManager({
     const currentTractorName = formData.tractorName || (tractors[0] ? tractors[0].name : '');
 
     // 1. Find all rateMatrix entries for this tractor
-    const mappedRates = rateMatrix.filter(r => {
+    const mappedRates = (rateMatrix || []).filter(r => {
+      if (!r) return false;
       const matchId = currentTractorId && r.tractorId && r.tractorId === currentTractorId;
-      const matchName = currentTractorName && r.tractorName && 
-        r.tractorName.trim().toLowerCase() === currentTractorName.trim().toLowerCase();
+      const matchName = currentTractorName && r.tractorName && isNameMatch(r.tractorName, currentTractorName);
       return matchId || matchName;
     });
 
     const mappedGroupTitle = lang === 'ta' ? '⭐ பொருத்தப்பட்ட கருவிகள் (விலை அட்டை)' : '⭐ Mapped Machinery (Rate Card)';
     mappedRates.forEach(r => {
-      let matchedImp = implementsList.find(m => (r.implementId && m.id === r.implementId) || (r.implementName && m.name.toLowerCase() === r.implementName.toLowerCase()));
+      const rImpName = toSafeStr(r.implementName);
+      let matchedImp = implementsList.find(m => (r.implementId && m.id === r.implementId) || (rImpName && isNameMatch(m.name, rImpName)));
       const impId = matchedImp ? matchedImp.id : (r.implementId || 'none');
-      const impNameEn = matchedImp ? matchedImp.name : (r.implementName || 'Standalone Tractor');
+      const impNameEn = matchedImp ? matchedImp.name : (rImpName || 'Standalone Tractor');
       const impNameTa = matchedImp?.name_ta || '';
       const displayLabel = getBilingualText(impNameEn, impNameTa, lang);
-      const isStandalone = impId === 'none' || impNameEn.toLowerCase().includes('standalone');
+      const isStandalone = impId === 'none' || toSafeLower(impNameEn).includes('standalone');
 
       options.push({
         value: impId,
@@ -475,13 +483,13 @@ export default function TripSheetManager({
   const driverOptions = useMemo(() => {
     const list = drivers.map(d => ({ 
       value: d.id, 
-      label: getBilingualText(d.name, d.name_ta, lang) + (d.name.toLowerCase() === loggedUserName.toLowerCase() ? (lang === 'ta' ? ' (நீங்கள்)' : ' (You)') : ''), 
+      label: getBilingualText(d.name, d.name_ta, lang) + (isNameMatch(d.name, loggedUserName) ? (lang === 'ta' ? ' (நீங்கள்)' : ' (You)') : ''), 
       subLabel: d.phone || '', 
       badge: d.wageType === 'owner' ? (lang === 'ta' ? '⭐ உரிமையாளர்' : '⭐ Owner') : (d.wageType || '') 
     }));
 
     const hasOwnerInList = drivers.some(d => 
-      (d.name && d.name.toLowerCase() === loggedUserName.toLowerCase()) ||
+      (d.name && isNameMatch(d.name, loggedUserName)) ||
       (currentUser?.phone && d.phone && d.phone === currentUser.phone) ||
       d.wageType === 'owner' ||
       d.id === 'DRV-OWNER'
@@ -507,12 +515,12 @@ export default function TripSheetManager({
       const item = opt.rateItem || opt.customCombo;
       if (!item) return false;
       const matchTrac = (formData.tractorId && item.tractorId && formData.tractorId === item.tractorId) ||
-                        (formData.tractorName && item.tractorName && formData.tractorName.trim().toLowerCase() === item.tractorName.trim().toLowerCase());
+                        (formData.tractorName && item.tractorName && isNameMatch(formData.tractorName, item.tractorName));
       const isFormImpNone = !formData.implementId || formData.implementId === 'none' || formData.implementName === 'Standalone Tractor';
       const isItemImpNone = !item.implementId || item.implementId === 'none' || item.implementName === 'Standalone Tractor';
       const matchImp = (isFormImpNone && isItemImpNone) ||
                        (formData.implementId && item.implementId && formData.implementId === item.implementId) ||
-                       (formData.implementName && item.implementName && formData.implementName.trim().toLowerCase() === item.implementName.trim().toLowerCase());
+                       (formData.implementName && item.implementName && isNameMatch(formData.implementName, item.implementName));
       const matchUnit = !formData.billingUnit || item.unit === formData.billingUnit;
       return matchTrac && matchImp && matchUnit;
     });
@@ -524,22 +532,24 @@ export default function TripSheetManager({
   const lookupRate = (tractorId, implementId, date, unit) => {
     if (!tractorId) return null;
     if (!implementId || implementId === 'none') {
-      const matched = rateMatrix.filter(r => 
+      const matched = (rateMatrix || []).filter(r => 
+        r &&
         r.tractorId === tractorId && 
         (r.implementId === 'none' || !r.implementId) &&
         r.unit === unit &&
         r.effectiveDate <= date
-      ).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0];
+      ).sort((a, b) => (b.effectiveDate || '').localeCompare(a.effectiveDate || ''))[0];
       return matched ? matched.rate : null;
     }
 
     const targetIds = implementId.split(',').map(s => s.trim());
-    const matched = rateMatrix.filter(r => 
+    const matched = (rateMatrix || []).filter(r => 
+      r &&
       r.tractorId === tractorId && 
       (targetIds.includes(r.implementId) || r.implementId === implementId || r.implementId === 'none') &&
       r.unit === unit &&
       r.effectiveDate <= date
-    ).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0];
+    ).sort((a, b) => (b.effectiveDate || '').localeCompare(a.effectiveDate || ''))[0];
 
     return matched ? matched.rate : null;
   };
@@ -549,7 +559,7 @@ export default function TripSheetManager({
     const foundT = tractors.find(t => t.id === tracId);
     const tracName = foundT ? foundT.name : tracId;
 
-    const mapped = rateMatrix.filter(r => r.tractorId === tracId || (r.tractorName && r.tractorName.toLowerCase() === tracName.toLowerCase()));
+    const mapped = (rateMatrix || []).filter(r => r && (r.tractorId === tracId || (r.tractorName && isNameMatch(r.tractorName, tracName))));
     
     let nextImpId = formData.implementId || 'none';
     let nextImpName = formData.implementName || 'Standalone Tractor';
@@ -690,7 +700,7 @@ export default function TripSheetManager({
     setLoginUserAssignment(mode);
     if (mode === 'driver') {
       const matched = drivers.find(d => 
-        (d.name && d.name.toLowerCase() === loggedUserName.toLowerCase()) ||
+        (d.name && isNameMatch(d.name, loggedUserName)) ||
         (currentUser?.phone && d.phone && d.phone === currentUser.phone) ||
         d.wageType === 'owner'
       );
@@ -737,16 +747,16 @@ export default function TripSheetManager({
 
     if (selected.rateItem) {
       const r = selected.rateItem;
-      tracName = r.tractorName || (tractors[0] ? tractors[0].name : 'Tractor');
+      tracName = toSafeStr(r.tractorName) || (tractors[0] ? tractors[0].name : 'Tractor');
       tracId = r.tractorId;
       if (!tracId) {
-        const foundT = tractors.find(t => r.tractorName && t.name.toLowerCase() === r.tractorName.toLowerCase());
+        const foundT = tractors.find(t => r.tractorName && isNameMatch(t.name, r.tractorName));
         tracId = foundT ? foundT.id : (tractors[0] ? tractors[0].id : 'TRAC-01');
       }
       impId = r.implementId || 'none';
-      impName = r.implementName || 'Standalone Tractor';
+      impName = toSafeStr(r.implementName) || 'Standalone Tractor';
       if (impId === 'none' && r.implementName && r.implementName !== 'Standalone Tractor') {
-        const foundI = implementsList.find(m => m.name.toLowerCase() === r.implementName.toLowerCase());
+        const foundI = implementsList.find(m => isNameMatch(m.name, r.implementName));
         if (foundI) impId = foundI.id;
       }
       unitVal = r.unit || 'per_hour';
@@ -860,7 +870,7 @@ export default function TripSheetManager({
     let chosenDrvNameTa = defaultDrv.name_ta || defaultDrv.name || 'டிரைவர்';
     if (initAssignment === 'driver') {
       const matchDrv = drivers.find(d => 
-        (d.name && d.name.toLowerCase() === loggedUserName.toLowerCase()) ||
+        (d.name && isNameMatch(d.name, loggedUserName)) ||
         (currentUser?.phone && d.phone && d.phone === currentUser.phone) ||
         d.wageType === 'owner'
       );
@@ -945,7 +955,7 @@ export default function TripSheetManager({
     let tracId = trip.tractorId;
     let tracName = trip.tractorName;
     if (!tracId && tracName) {
-      const matchT = tractors.find(t => t.name.toLowerCase() === tracName.toLowerCase());
+      const matchT = tractors.find(t => isNameMatch(t.name, tracName));
       if (matchT) tracId = matchT.id;
     }
     if (!tracId && tractors.length > 0) {
@@ -960,7 +970,7 @@ export default function TripSheetManager({
     let drvId = trip.driverId;
     let drvName = trip.driverName;
     if (!drvId && drvName) {
-      const matchD = drivers.find(d => d.name.toLowerCase() === drvName.toLowerCase());
+      const matchD = drivers.find(d => isNameMatch(d.name, drvName));
       if (matchD) drvId = matchD.id;
     }
     if (!drvId && drivers.length > 0) {
@@ -975,7 +985,7 @@ export default function TripSheetManager({
     let custId = trip.customerId;
     let custName = trip.customerName;
     if (!custId && custName) {
-      const matchC = customers.find(c => c.name && c.name.toLowerCase() === custName.toLowerCase());
+      const matchC = customers.find(c => c.name && isNameMatch(c.name, custName));
       if (matchC) custId = matchC.id;
     }
     if (!custId && customers.length > 0) {
@@ -1007,9 +1017,9 @@ export default function TripSheetManager({
     setTimerMessage('');
     setShowAdvancedFleet(ids.length > 1);
 
-    if (drvName && drvName.toLowerCase() === loggedUserName.toLowerCase()) {
+    if (drvName && isNameMatch(drvName, loggedUserName)) {
       setLoginUserAssignment('driver');
-    } else if (trip.collectedBy && trip.collectedBy.toLowerCase().includes(loggedUserName.toLowerCase())) {
+    } else if (trip.collectedBy && toSafeLower(trip.collectedBy).includes(toSafeLower(loggedUserName))) {
       setLoginUserAssignment('collector');
     } else {
       setLoginUserAssignment('none');
@@ -1420,7 +1430,7 @@ export default function TripSheetManager({
     let resolvedTractorId = formData.tractorId;
     let resolvedTractorName = formData.tractorName;
     if (!resolvedTractorId && resolvedTractorName) {
-      const matchT = tractors.find(t => t.name.toLowerCase() === resolvedTractorName.toLowerCase());
+      const matchT = tractors.find(t => isNameMatch(t.name, resolvedTractorName));
       if (matchT) resolvedTractorId = matchT.id;
     }
     if (!resolvedTractorId && tractors.length > 0) {
@@ -1435,7 +1445,7 @@ export default function TripSheetManager({
     let resolvedDriverId = formData.driverId;
     let resolvedDriverName = formData.driverName;
     if (!resolvedDriverId && resolvedDriverName) {
-      const matchD = drivers.find(d => d.name.toLowerCase() === resolvedDriverName.toLowerCase());
+      const matchD = drivers.find(d => isNameMatch(d.name, resolvedDriverName));
       if (matchD) resolvedDriverId = matchD.id;
     }
     if (!resolvedDriverId && drivers.length > 0) {
@@ -1450,7 +1460,7 @@ export default function TripSheetManager({
     let resolvedCustomerId = formData.customerId;
     let resolvedCustomerName = formData.customerName;
     if (!resolvedCustomerId && resolvedCustomerName) {
-      const matchC = customers.find(c => c.name && c.name.toLowerCase() === resolvedCustomerName.toLowerCase());
+      const matchC = customers.find(c => c.name && isNameMatch(c.name, resolvedCustomerName));
       if (matchC) resolvedCustomerId = matchC.id;
     }
     if (!resolvedCustomerId && customers.length > 0) {
@@ -1634,11 +1644,14 @@ export default function TripSheetManager({
   }, [tripSheets]);
 
   const filteredTrips = healedTrips.filter(t => {
-    const matchesSearch = (t.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (t.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (t.driverName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (t.tractorName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (t.workDescription || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const sLower = toSafeLower(searchTerm);
+    const matchesSearch = !sLower || (
+      toSafeLower(t.id).includes(sLower) ||
+      toSafeLower(t.customerName).includes(sLower) ||
+      toSafeLower(t.driverName).includes(sLower) ||
+      toSafeLower(t.tractorName).includes(sLower) ||
+      toSafeLower(t.workDescription).includes(sLower)
+    );
     
     let matchesStatus = true;
     if (statusFilter === 'unpaid') {
@@ -1649,7 +1662,7 @@ export default function TripSheetManager({
 
     let matchesCustomer = true;
     if (customerFilter !== 'all') {
-      matchesCustomer = t.customerId === customerFilter || (t.customerName && t.customerName.toLowerCase() === customerFilter.toLowerCase());
+      matchesCustomer = t.customerId === customerFilter || isNameMatch(t.customerName, customerFilter);
     }
 
     return matchesSearch && matchesStatus && matchesCustomer;
@@ -1781,13 +1794,13 @@ export default function TripSheetManager({
                 const startT = formatTimeDisplay(trip.startTime);
                 const endT = formatTimeDisplay(trip.endTime);
 
-                const foundCust = customers.find(c => c.id === trip.customerId || (c.name && c.name.toLowerCase() === (trip.customerName || '').toLowerCase()));
+                const foundCust = customers.find(c => c.id === trip.customerId || isNameMatch(c.name, trip.customerName));
                 const dispCustomer = getBilingualText(trip.customerName || foundCust?.name, trip.customerName_ta || foundCust?.name_ta, lang) || '---';
 
-                const foundDrv = drivers.find(d => d.id === trip.driverId || (d.name && d.name.toLowerCase() === (trip.driverName || '').toLowerCase()));
+                const foundDrv = drivers.find(d => d.id === trip.driverId || isNameMatch(d.name, trip.driverName));
                 const dispDriver = getBilingualText(trip.driverName || foundDrv?.name, trip.driverName_ta || foundDrv?.name_ta, lang) || '---';
 
-                const foundTrac = tractors.find(t => t.id === trip.tractorId || (t.name && t.name.toLowerCase() === (trip.tractorName || '').toLowerCase()));
+                const foundTrac = tractors.find(t => t.id === trip.tractorId || isNameMatch(t.name, trip.tractorName));
                 const dispTractor = getBilingualText(trip.tractorName || foundTrac?.name, trip.tractorName_ta || foundTrac?.name_ta, lang) || '---';
 
                 const foundImp = implementsList.find(m => m.id === trip.implementId);
@@ -3127,7 +3140,7 @@ export default function TripSheetManager({
         const farmerTotalPriorDue = tripSheets
           .filter(t => (
             (trip.customerId && t.customerId === trip.customerId) ||
-            (trip.customerName && t.customerName && t.customerName.toLowerCase() === trip.customerName.toLowerCase())
+            (trip.customerName && t.customerName && isNameMatch(t.customerName, trip.customerName))
           ) && t.id !== trip.id)
           .reduce((sum, t) => sum + (parseFloat(t.balanceAmount) || 0), 0);
 

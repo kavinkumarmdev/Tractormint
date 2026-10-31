@@ -6,25 +6,25 @@ import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
 import VoiceInput from './common/VoiceInput';
 import { validatePositiveNumber } from '../services/storage';
-import { getBilingualText } from '../utils/langUtils';
+import { getBilingualText, isNameMatch, toSafeLower, toSafeStr } from '../utils/langUtils';
 
 export default function RateMatrixManager({ 
-  rateMatrix, 
-  fleet, 
+  rateMatrix = [], 
+  fleet = [], 
   onSaveRate, 
   onDeleteRate, 
-  lang, 
-  role 
+  lang = 'ta', 
+  role = 'admin' 
 }) {
-  const t = translations[lang];
+  const t = translations[lang] || translations.en;
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deleteModalState, setDeleteModalState] = useState({ isOpen: false, item: null });
   const [formError, setFormError] = useState('');
 
-  const tractors = fleet.filter(f => f.type === 'tractor');
-  const implementsList = fleet.filter(f => f.type === 'implement');
+  const tractors = (fleet || []).filter(f => f && f.type === 'tractor');
+  const implementsList = (fleet || []).filter(f => f && f.type === 'implement');
 
   const [formData, setFormData] = useState({
     id: '',
@@ -81,15 +81,15 @@ export default function RateMatrixManager({
     setFormError('');
     let tracId = item.tractorId;
     if (!tracId && item.tractorName) {
-      const matchT = tractors.find(t => t.name.toLowerCase() === item.tractorName.toLowerCase());
+      const matchT = tractors.find(t => isNameMatch(t.name, item.tractorName));
       if (matchT) tracId = matchT.id;
     }
     let impId = item.implementId;
     if (!impId && item.implementName) {
-      if (item.implementName.toLowerCase().includes('standalone') || item.implementName === 'none') {
+      if (toSafeLower(item.implementName).includes('standalone') || toSafeStr(item.implementName) === 'none') {
         impId = 'none';
       } else {
-        const matchM = implementsList.find(m => m.name.toLowerCase() === item.implementName.toLowerCase());
+        const matchM = implementsList.find(m => isNameMatch(m.name, item.implementName));
         if (matchM) impId = matchM.id;
       }
     }
@@ -177,9 +177,11 @@ export default function RateMatrixManager({
   };
 
   const filteredRates = rateMatrix.filter(r => {
-    return (r.tractorName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-           (r.implementName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-           (r.description || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const sLower = toSafeLower(searchTerm);
+    if (!sLower) return true;
+    return toSafeLower(r.tractorName).includes(sLower) ||
+           toSafeLower(r.implementName).includes(sLower) ||
+           toSafeLower(r.description).includes(sLower);
   });
 
   return (
@@ -230,17 +232,17 @@ export default function RateMatrixManager({
                   <td style={{ fontWeight: 700, color: 'var(--primary-700)' }}>{item.id}</td>
                   <td style={{ fontWeight: 600 }}>
                     {(() => {
-                      const matched = tractors.find(t => t.id === item.tractorId || t.name === item.tractorName);
+                      const matched = tractors.find(t => t.id === item.tractorId || isNameMatch(t.name, item.tractorName));
                       return getBilingualText(item.tractorName || matched?.name, matched?.name_ta, lang);
                     })()}
                   </td>
                   <td>
                     <span className="badge badge-purple">
                       {(() => {
-                        if (item.implementId === 'none' || (item.implementName || '').toLowerCase().includes('standalone')) {
+                        if (item.implementId === 'none' || toSafeLower(item.implementName).includes('standalone')) {
                           return lang === 'ta' ? 'தனி டிராக்டர்' : 'Standalone Tractor';
                         }
-                        const matched = implementsList.find(m => m.id === item.implementId || m.name === item.implementName);
+                        const matched = implementsList.find(m => m.id === item.implementId || isNameMatch(m.name, item.implementName));
                         return getBilingualText(item.implementName || matched?.name, matched?.name_ta, lang);
                       })()}
                     </span>

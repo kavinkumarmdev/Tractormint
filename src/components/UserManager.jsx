@@ -36,7 +36,7 @@ import { StorageService, normalizePhone, validatePhone10 } from '../services/sto
 import SearchableSelect from './common/SearchableSelect';
 import BilingualVoiceGroup from './common/BilingualVoiceGroup';
 import VoiceInput from './common/VoiceInput';
-import { getBilingualText } from '../utils/langUtils';
+import { getBilingualText, isNameMatch, toSafeLower, toSafeStr } from '../utils/langUtils';
 
 export default function UserManager({
   users = [],
@@ -44,10 +44,10 @@ export default function UserManager({
   onDeleteUser,
   currentUser,
   adminPin,
-  lang,
-  role
+  lang = 'ta',
+  role = 'admin'
 }) {
-  const t = translations[lang];
+  const t = translations[lang] || translations.en;
   const [activeSubTab, setActiveSubTab] = useState('accounts'); // 'accounts' | 'history'
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -223,11 +223,13 @@ export default function UserManager({
 
   // Filter Users
   const filteredUsers = users.filter((u) => {
-    const matchesSearch = 
-      (u.username || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (u.displayName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (u.displayName_ta || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (u.phone || '').includes(searchTerm);
+    const sLower = toSafeLower(searchTerm);
+    const matchesSearch = !sLower || (
+      toSafeLower(u.username).includes(sLower) ||
+      toSafeLower(u.displayName).includes(sLower) ||
+      toSafeLower(u.displayName_ta).includes(sLower) ||
+      (u.phone || '').includes(searchTerm)
+    );
 
     const matchesRole = roleFilter === 'all' || u.role === roleFilter;
     return matchesSearch && matchesRole;
@@ -289,11 +291,13 @@ export default function UserManager({
 
   // Filter Login History Logs
   const filteredHistoryLogs = loginLogs.filter((log) => {
-    const matchesSearch = 
-      (log.username || '').toLowerCase().includes(historySearch.toLowerCase()) ||
-      (log.displayName || '').toLowerCase().includes(historySearch.toLowerCase()) ||
-      (log.reason || '').toLowerCase().includes(historySearch.toLowerCase()) ||
-      (log.device || '').toLowerCase().includes(historySearch.toLowerCase());
+    const sLower = toSafeLower(historySearch);
+    const matchesSearch = !sLower || (
+      toSafeLower(log.username).includes(sLower) ||
+      toSafeLower(log.displayName).includes(sLower) ||
+      toSafeLower(log.reason).includes(sLower) ||
+      toSafeLower(log.device).includes(sLower)
+    );
     
     const matchesStatus = historyStatusFilter === 'all' || log.status === historyStatusFilter;
     return matchesSearch && matchesStatus;
@@ -759,7 +763,7 @@ export default function UserManager({
               ) : (
                 filteredUsers.map((u) => {
                   const badge = getRoleBadge(u.role);
-                  const isCurrent = currentUser?.username?.toLowerCase() === u.username.toLowerCase();
+                  const isCurrent = isNameMatch(currentUser?.username, u.username);
                   return (
                     <tr key={u.id}>
                       <td>
@@ -1055,7 +1059,7 @@ export default function UserManager({
                           </td>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                              {log.device?.toLowerCase().includes('phone') || log.device?.toLowerCase().includes('ios') || log.device?.toLowerCase().includes('android') ? (
+                              {toSafeLower(log.device).includes('phone') || toSafeLower(log.device).includes('ios') || toSafeLower(log.device).includes('android') ? (
                                 <Smartphone size={14} />
                               ) : (
                                 <Laptop size={14} />

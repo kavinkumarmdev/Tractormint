@@ -7,7 +7,7 @@ import SearchableSelect from './common/SearchableSelect';
 import VoiceInput from './common/VoiceInput';
 import { StorageService, validatePositiveNumber } from '../services/storage';
 import { formatDateDDMMYYYY } from '../utils/dateUtils';
-import { getBilingualText } from '../utils/langUtils';
+import { getBilingualText, isNameMatch, toSafeLower, toSafeStr } from '../utils/langUtils';
 
 // Standard Consumables / Things Categories
 const DEFAULT_THINGS_CATEGORIES = [
@@ -201,7 +201,7 @@ export default function MaintenanceManager({
 
     let assetId = item.assetId;
     if (!assetId && item.assetName) {
-      const matchF = fleet.find(f => f.name.toLowerCase() === item.assetName.toLowerCase());
+      const matchF = fleet.find(f => isNameMatch(f.name, item.assetName));
       if (matchF) assetId = matchF.id;
     }
 
@@ -398,15 +398,16 @@ export default function MaintenanceManager({
       return false;
     }
 
-    const searchLower = searchTerm.toLowerCase();
+    const searchLower = toSafeLower(searchTerm);
+    if (!searchLower) return true;
     return (
-      (m.assetName || '').toLowerCase().includes(searchLower) ||
-      (m.category || '').toLowerCase().includes(searchLower) ||
-      (m.category_ta || '').toLowerCase().includes(searchLower) ||
-      (m.description || '').toLowerCase().includes(searchLower) ||
-      (m.notes || '').toLowerCase().includes(searchLower) ||
-      (m.vendorName || '').toLowerCase().includes(searchLower) ||
-      (m.person || '').toLowerCase().includes(searchLower)
+      toSafeLower(m.assetName).includes(searchLower) ||
+      toSafeLower(m.category).includes(searchLower) ||
+      toSafeLower(m.category_ta).includes(searchLower) ||
+      toSafeLower(m.description).includes(searchLower) ||
+      toSafeLower(m.notes).includes(searchLower) ||
+      toSafeLower(m.vendorName).includes(searchLower) ||
+      toSafeLower(m.person).includes(searchLower)
     );
   });
 
