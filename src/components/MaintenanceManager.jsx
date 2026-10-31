@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Wrench, Plus, Search, Edit3, Trash2, Fuel, Filter, X, AlertCircle, Check, User, Package, Calendar } from 'lucide-react';
-import { translations, resolveBilingual } from '../translations/dictionary';
+import { Wrench, Plus, Search, Edit3, Trash2, Fuel, X, AlertCircle, User } from 'lucide-react';
+import { translations } from '../translations/dictionary';
 import AdminDeleteModal from './AdminDeleteModal';
 import DatePicker from './common/DatePicker';
 import SearchableSelect from './common/SearchableSelect';
@@ -55,7 +55,7 @@ export default function MaintenanceManager({
   const [deleteModalState, setDeleteModalState] = useState({ isOpen: false, item: null });
   const [formError, setFormError] = useState('');
 
-  // 1) Entry Type Switcher: 'things' (Diesel/Oil/Blades) vs 'service' (Tractor/Machine Service)
+  // Entry Type: 'things' (Diesel/Oil/Spares) vs 'service' (Tractor/Machine Service)
   const [entryType, setEntryType] = useState('things');
 
   // Custom in-place added expense types
@@ -67,7 +67,7 @@ export default function MaintenanceManager({
     }
   });
 
-  // Inline "Add New Type" form state (no other menu needed)
+  // Inline "Add New Type" form state
   const [isAddingNewType, setIsAddingNewType] = useState(false);
   const [newTypeName, setNewTypeName] = useState('');
   const [newTypeNameTa, setNewTypeNameTa] = useState('');
@@ -89,26 +89,26 @@ export default function MaintenanceManager({
     return lang === 'ta' ? 'முதன்மை நிர்வாகி' : 'Master Administrator';
   };
 
-  // Form State accommodating both Type 1 (Things) and Type 2 (Service)
+  // Form State
   const [formData, setFormData] = useState({
     id: '',
-    entryType: 'things', // 'things' | 'service'
+    entryType: 'things',
     date: new Date().toISOString().slice(0, 10),
-    // Type 1: Things
+    // Things
     category: 'diesel',
     category_ta: 'டீசல்',
     count: '50',
     unit: 'liters',
     unitCost: '92',
-    // Type 2: Machine Service
+    // Machine Service
     assetId: '',
     assetName: '',
     hourMeter: '',
     // Common
     amount: '4600',
     totalAmount: '4600',
-    paidStatus: 'paid', // 'paid' | 'unpaid' | 'partial'
-    paymentMode: 'cash', // 'cash' | 'gpay_upi' | 'bank_transfer' | 'credit'
+    paidStatus: 'paid', // 'paid' | 'unpaid'
+    paymentMode: 'cash', // 'cash' | 'gpay_upi' | 'credit' | 'bank_transfer'
     person: getLoggedPerson(),
     description: ''
   });
@@ -131,7 +131,7 @@ export default function MaintenanceManager({
     return `MNT-${nextNum}`;
   };
 
-  // Open modal with specific type
+  // Open modal easily
   const handleOpenAdd = (typeToOpen = 'things') => {
     const defaultAsset = fleet[0] || { id: '', name: 'General Fleet' };
     const defaultPerson = getLoggedPerson();
@@ -250,10 +250,10 @@ export default function MaintenanceManager({
         }
       }
 
-      // Auto-compute amount if user edits count and unitCost
-      if (field === 'count' || field === 'unitCost') {
-        const cnt = parseFloat(field === 'count' ? value : updated.count) || 0;
-        const uc = parseFloat(field === 'unitCost' ? value : updated.unitCost) || 0;
+      // Auto-compute amount if user changes count
+      if (field === 'count') {
+        const cnt = parseFloat(value) || 0;
+        const uc = parseFloat(updated.unitCost) || 0;
         if (cnt > 0 && uc > 0) {
           const calc = (cnt * uc).toFixed(0);
           updated.amount = calc;
@@ -261,18 +261,8 @@ export default function MaintenanceManager({
         }
       }
 
-      // Sync amount and totalAmount
       if (field === 'amount') {
         updated.totalAmount = value;
-      }
-
-      // Auto-adjust paymentMode when paidStatus changes
-      if (field === 'paidStatus') {
-        if (value === 'unpaid') {
-          updated.paymentMode = 'credit';
-        } else if (value === 'paid' && updated.paymentMode === 'credit') {
-          updated.paymentMode = 'cash';
-        }
       }
 
       return updated;
@@ -307,12 +297,9 @@ export default function MaintenanceManager({
     });
   };
 
-  // In-place inline category creation (no other menu needed)
+  // Inline custom type creation
   const handleAddNewType = () => {
-    if (!newTypeName.trim()) {
-      setFormError(lang === 'ta' ? 'புதிய செலவு வகையின் பெயரை உள்ளிடவும்!' : 'Please enter the new expense type name!');
-      return;
-    }
+    if (!newTypeName.trim()) return;
     const cleanEn = newTypeName.trim();
     const cleanTa = newTypeNameTa.trim() || cleanEn;
     const catId = 'custom_' + cleanEn.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now().toString().slice(-4);
@@ -327,7 +314,6 @@ export default function MaintenanceManager({
     StorageService.saveCustomExpenseType(newCat);
     setCustomCategories(prev => [...prev, newCat]);
 
-    // Immediately select this new category in form
     handleFormChange('category', catId);
     handleFormChange('category_ta', cleanTa);
     handleFormChange('unit', newCat.unit);
@@ -335,7 +321,6 @@ export default function MaintenanceManager({
     setNewTypeName('');
     setNewTypeNameTa('');
     setIsAddingNewType(false);
-    setFormError('');
   };
 
   // Form submission
@@ -354,22 +339,12 @@ export default function MaintenanceManager({
       return;
     }
 
-    if (!formData.paidStatus) {
-      setFormError(lang === 'ta' ? 'கட்டண நிலை அவசியம்!' : 'Paid status is required!');
-      return;
-    }
-
     if (entryType === 'things') {
       if (!formData.category) {
         setFormError(lang === 'ta' ? 'செலவு வகையை தேர்வு செய்யவும்!' : 'Please select type of expense!');
         return;
       }
-      if (!formData.person || !formData.person.trim()) {
-        setFormError(lang === 'ta' ? 'நபரின் பெயர் அவசியம்!' : 'Person name is required!');
-        return;
-      }
     } else {
-      // Service
       if (!formData.assetId) {
         setFormError(lang === 'ta' ? 'டிராக்டர் அல்லது இயந்திரத்தை தேர்வு செய்யவும்!' : 'Please select Tractor or Machine!');
         return;
@@ -403,14 +378,14 @@ export default function MaintenanceManager({
 
     const res = onSaveMaintenance(recordToSave);
     if (res && res.success === false) {
-      setFormError(res.error || 'Failed to save maintenance record.');
+      setFormError(res.error || 'Failed to save record.');
       return;
     }
 
     setIsModalOpen(false);
   };
 
-  // Filter items based on search and entryType filter
+  // Filter items
   const filteredItems = maintenance.filter(m => {
     const isSvc = m.entryType === 'service' || 
                   m.category === 'tractor_repair' || 
@@ -424,51 +399,38 @@ export default function MaintenanceManager({
     }
 
     const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = 
+    return (
       (m.assetName || '').toLowerCase().includes(searchLower) ||
       (m.category || '').toLowerCase().includes(searchLower) ||
       (m.category_ta || '').toLowerCase().includes(searchLower) ||
       (m.description || '').toLowerCase().includes(searchLower) ||
       (m.notes || '').toLowerCase().includes(searchLower) ||
       (m.vendorName || '').toLowerCase().includes(searchLower) ||
-      (m.person || '').toLowerCase().includes(searchLower);
-
-    return matchesSearch;
+      (m.person || '').toLowerCase().includes(searchLower)
+    );
   });
 
   return (
     <div>
-      {/* Header Bar */}
+      {/* Clean Header Bar with ONE Easy Add Button */}
       <div className="card-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div className="card-title-group">
           <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Wrench size={22} color="var(--primary-600)" /> 
-            <span>{lang === 'ta' ? 'எரிபொருள், உதிரிபாகங்கள் & இயந்திர சர்வீஸ்' : 'Fuel, Spare Parts & Machine Service'}</span>
+            <span>{lang === 'ta' ? 'டீசல், உதிரிபாகங்கள் & சர்வீஸ்' : 'Fuel, Spares & Service'}</span>
           </h2>
         </div>
         
-        {/* Two Quick Add Buttons */}
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button 
-            type="button" 
-            className="btn btn-primary" 
-            onClick={() => handleOpenAdd('things')}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700 }}
-          >
-            <Fuel size={16} />
-            <span>{lang === 'ta' ? '+ 1) பொருட்கள் / எரிபொருள்' : '+ 1) Things (Diesel, Spares)'}</span>
-          </button>
-          
-          <button 
-            type="button" 
-            className="btn btn-secondary" 
-            onClick={() => handleOpenAdd('service')}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, background: '#0284c7', borderColor: '#0284c7', color: '#fff' }}
-          >
-            <Wrench size={16} />
-            <span>{lang === 'ta' ? '+ 2) இயந்திர சர்வீஸ்' : '+ 2) Machine Service'}</span>
-          </button>
-        </div>
+        {/* Simple, Easy Add Button */}
+        <button 
+          type="button" 
+          className="btn btn-primary" 
+          onClick={() => handleOpenAdd('things')}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700, padding: '0.55rem 1rem' }}
+        >
+          <Plus size={18} />
+          <span>{lang === 'ta' ? 'புதிய செலவு / சர்வீஸ் சேர்க்க' : 'Add Expense / Service'}</span>
+        </button>
       </div>
 
       {/* Filter and Search Bar */}
@@ -477,13 +439,13 @@ export default function MaintenanceManager({
           <Search size={16} className="search-icon-inside" />
           <input
             type="text"
-            placeholder={lang === 'ta' ? 'தேடுக (டீசல், ஆயில், பிளேடு, கடை, டிராக்டர், நபர்)...' : 'Search (Diesel, Oil, Blades, Shop, Tractor, Person)...'}
+            placeholder={lang === 'ta' ? 'தேடுக (டீசல், ஆயில், பிளேடு, கடை, டிராக்டர்)...' : 'Search (Diesel, Oil, Blades, Shop, Tractor)...'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
 
-        {/* 2-Type Filter Tabs */}
+        {/* Clean Filter Tabs */}
         <div style={{ display: 'flex', gap: '0.25rem', background: 'var(--bg-subtle)', padding: '3px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
           <button
             type="button"
@@ -500,7 +462,7 @@ export default function MaintenanceManager({
             onClick={() => setTypeFilter('things')}
           >
             <Fuel size={14} />
-            <span>{lang === 'ta' ? 'பொருட்கள் / எரிபொருள்' : 'Things / Fuel'}</span>
+            <span>{lang === 'ta' ? 'டீசல் & பொருட்கள்' : 'Fuel & Spares'}</span>
           </button>
           <button
             type="button"
@@ -509,12 +471,12 @@ export default function MaintenanceManager({
             onClick={() => setTypeFilter('service')}
           >
             <Wrench size={14} />
-            <span>{lang === 'ta' ? 'இயந்திர சர்வீஸ்' : 'Machine Service'}</span>
+            <span>{lang === 'ta' ? 'சர்வீஸ்' : 'Service'}</span>
           </button>
         </div>
       </div>
 
-      {/* Maintenance Table */}
+      {/* Clean Table */}
       <div className="content-card" style={{ padding: '0' }}>
         <div className="table-responsive">
           <table className="data-table">
@@ -523,10 +485,10 @@ export default function MaintenanceManager({
                 <th>{lang === 'ta' ? 'தேதி' : 'Date'}</th>
                 <th>{lang === 'ta' ? 'வகை / பொருள்' : 'Type / Item'}</th>
                 <th>{lang === 'ta' ? 'இயந்திரம்' : 'Tractor / Machine'}</th>
-                <th>{lang === 'ta' ? 'அளவு' : 'Count & Unit'}</th>
+                <th>{lang === 'ta' ? 'அளவு' : 'Quantity'}</th>
                 <th>{lang === 'ta' ? 'தொகை (₹)' : 'Amount (₹)'}</th>
-                <th>{lang === 'ta' ? 'கட்டண நிலை' : 'Paid Status'}</th>
-                <th>{lang === 'ta' ? 'பதிவு செய்தவர்' : 'Person'}</th>
+                <th>{lang === 'ta' ? 'கட்டணம்' : 'Payment'}</th>
+                <th>{lang === 'ta' ? 'நபர்' : 'Person'}</th>
                 <th>{lang === 'ta' ? 'கடை / விவரம்' : 'Shop / Description'}</th>
                 <th style={{ textAlign: 'right' }}>{t.actions}</th>
               </tr>
@@ -540,7 +502,6 @@ export default function MaintenanceManager({
                               item.category === 'tractor_service';
                 const dispCat = lang === 'ta' ? (item.category_ta || item.category) : (item.category || item.category_ta);
                 const isPaid = item.paidStatus === 'paid' || (!item.paidStatus && item.paymentMode !== 'credit');
-                const isPartial = item.paidStatus === 'partial';
 
                 return (
                   <tr key={item.id}>
@@ -550,10 +511,10 @@ export default function MaintenanceManager({
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                         <span className={`badge ${isSvc ? 'badge-info' : 'badge-primary'}`} style={{ fontSize: '0.7rem' }}>
-                          {isSvc ? '🔧 சர்வீஸ்' : '📦 பொருட்கள்'}
+                          {isSvc ? '🔧 சர்வீஸ்' : '⛽ பொருட்கள்'}
                         </span>
                         <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>
-                          {isSvc ? (lang === 'ta' ? 'சர்வீஸ் & பழுதுபார்ப்பு' : 'Machine Service') : dispCat}
+                          {isSvc ? (lang === 'ta' ? 'இயந்திர சர்வீஸ்' : 'Machine Service') : dispCat}
                         </span>
                       </div>
                     </td>
@@ -567,7 +528,7 @@ export default function MaintenanceManager({
                         </span>
                       ) : (
                         <span style={{ color: 'var(--text-light)', fontSize: '0.8rem' }}>
-                          {item.assetName && item.assetName !== 'General Fleet / பொது இருப்பு' ? item.assetName : (lang === 'ta' ? 'பொது இருப்பு' : 'General')}
+                          {item.assetName && item.assetName !== 'General Fleet / பொது இருப்பு' ? item.assetName : (lang === 'ta' ? 'பொது' : 'General')}
                         </span>
                       )}
                     </td>
@@ -584,20 +545,16 @@ export default function MaintenanceManager({
                       </span>
                     </td>
                     <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        <span className={`badge ${isPaid ? 'badge-success' : (isPartial ? 'badge-info' : 'badge-warning')}`} style={{ fontSize: '0.72rem' }}>
-                          {isPaid ? (lang === 'ta' ? 'செலுத்தப்பட்டது' : 'PAID') : (isPartial ? (lang === 'ta' ? 'பகுதி செலுத்தியது' : 'PARTIAL') : (lang === 'ta' ? 'நிலுவை (கடன்)' : 'UNPAID'))}
-                        </span>
-                        {item.paymentMode && (
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-light)', textTransform: 'uppercase' }}>
-                            {item.paymentMode === 'gpay_upi' ? 'UPI / GPay' : item.paymentMode}
-                          </span>
-                        )}
-                      </div>
+                      <span className={`badge ${isPaid ? 'badge-success' : 'badge-warning'}`} style={{ fontSize: '0.72rem' }}>
+                        {isPaid 
+                          ? (item.paymentMode === 'gpay_upi' ? 'UPI' : (lang === 'ta' ? 'ரொக்கம் (PAID)' : 'CASH'))
+                          : (lang === 'ta' ? 'கடன் (UNPAID)' : 'CREDIT')
+                        }
+                      </span>
                     </td>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.85rem' }}>
-                        <User size={13} style={{ color: 'var(--primary-600)' }} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.82rem' }}>
+                        <User size={12} style={{ color: 'var(--primary-600)' }} />
                         <span>{item.person || '--'}</span>
                       </div>
                     </td>
@@ -638,7 +595,7 @@ export default function MaintenanceManager({
               {filteredItems.length === 0 && (
                 <tr>
                   <td colSpan="9" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-light)' }}>
-                    {lang === 'ta' ? 'பதிவுகள் எதுவும் காணப்படவில்லை.' : 'No maintenance / expense records found.'}
+                    {lang === 'ta' ? 'பதிவுகள் எதுவும் இல்லை.' : 'No records found.'}
                   </td>
                 </tr>
               )}
@@ -647,21 +604,23 @@ export default function MaintenanceManager({
         </div>
       </div>
 
-      {/* Add / Edit Modal with Two Distinct Types */}
+      {/* Super Simple Modal */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '580px' }}>
             
             {/* Modal Header */}
             <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 {entryType === 'things' ? <Fuel size={20} color="var(--primary-600)" /> : <Wrench size={20} color="#0284c7" />}
-                <h3 style={{ margin: 0, fontSize: '1.15rem' }}>
-                  {editingItem ? (lang === 'ta' ? 'பதிவை திருத்து' : 'Edit Record') : (
-                    entryType === 'things' 
-                      ? (lang === 'ta' ? '1) பொருட்கள் / எரிபொருள் செலவு' : '1) Things (Diesel, Oil, Spares)')
-                      : (lang === 'ta' ? '2) டிராக்டர் / இயந்திர சர்வீஸ்' : '2) Tractor / Machine Service')
-                  )}
+                <h3 style={{ margin: 0, fontSize: '1.1rem' }}>
+                  {editingItem 
+                    ? (lang === 'ta' ? 'பதிவை திருத்து' : 'Edit Record')
+                    : (entryType === 'things' 
+                        ? (lang === 'ta' ? 'டீசல் & உதிரிபாகங்கள் செலவு' : 'Diesel & Spares Expense')
+                        : (lang === 'ta' ? 'டிராக்டர் / மெஷின் சர்வீஸ்' : 'Tractor / Machine Service')
+                      )
+                  }
                 </h3>
               </div>
               <button 
@@ -697,11 +656,11 @@ export default function MaintenanceManager({
             <form onSubmit={handleSubmit}>
               <div className="modal-body">
                 
-                {/* Type Switcher (Things vs Service) */}
+                {/* Clean, Simple 2-Way Tab Switcher */}
                 <div style={{ 
                   display: 'grid', 
                   gridTemplateColumns: '1fr 1fr', 
-                  gap: '0.5rem', 
+                  gap: '0.35rem', 
                   marginBottom: '1.25rem',
                   background: 'var(--bg-subtle)',
                   padding: '4px',
@@ -718,12 +677,12 @@ export default function MaintenanceManager({
                       gap: '0.45rem', 
                       padding: '0.55rem', 
                       fontWeight: 700, 
-                      fontSize: '0.85rem',
+                      fontSize: '0.88rem',
                       border: entryType === 'things' ? 'none' : '1px solid transparent'
                     }}
                   >
                     <Fuel size={16} />
-                    <span>{lang === 'ta' ? '1) பொருட்கள் / உதிரிபாகங்கள்' : '1) Things (Diesel/Spares)'}</span>
+                    <span>{lang === 'ta' ? 'டீசல் & பொருட்கள்' : 'Diesel & Spares'}</span>
                   </button>
                   <button
                     type="button"
@@ -736,23 +695,23 @@ export default function MaintenanceManager({
                       gap: '0.45rem', 
                       padding: '0.55rem', 
                       fontWeight: 700, 
-                      fontSize: '0.85rem',
+                      fontSize: '0.88rem',
                       background: entryType === 'service' ? '#0284c7' : 'transparent',
                       color: entryType === 'service' ? '#fff' : 'var(--text-main)',
                       border: entryType === 'service' ? 'none' : '1px solid transparent'
                     }}
                   >
                     <Wrench size={16} />
-                    <span>{lang === 'ta' ? '2) இயந்திர சர்வீஸ்' : '2) Machine Service'}</span>
+                    <span>{lang === 'ta' ? 'இயந்திர சர்வீஸ்' : 'Machine Service'}</span>
                   </button>
                 </div>
 
                 <div className="form-grid">
                   
-                  {/* TYPE 1: THINGS (Diesel, Oil, Rotavator Blades, etc.) */}
+                  {/* OPTION 1: DIESEL & SPARES */}
                   {entryType === 'things' && (
                     <>
-                      {/* 1. Date * */}
+                      {/* Date */}
                       <div className="form-group">
                         <DatePicker
                           label={lang === 'ta' ? 'தேதி *' : 'Date *'}
@@ -763,20 +722,20 @@ export default function MaintenanceManager({
                         />
                       </div>
 
-                      {/* 2. Type of Expense * (Select + In-place Add) */}
+                      {/* Type of Expense (with in-place add) */}
                       <div className="form-group">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
                           <label style={{ margin: 0 }}>
-                            {lang === 'ta' ? 'செலவு வகை (Type of Expense) *' : 'Type of Expense *'}
+                            {lang === 'ta' ? 'செலவு வகை (Expense Item) *' : 'Expense Item *'}
                           </label>
                           {!isAddingNewType && (
                             <button
                               type="button"
                               className="btn btn-outline btn-sm"
                               onClick={() => setIsAddingNewType(true)}
-                              style={{ padding: '2px 7px', fontSize: '0.72rem', color: 'var(--primary-700)', borderColor: 'var(--primary-300)' }}
+                              style={{ padding: '2px 7px', fontSize: '0.72rem', color: 'var(--primary-700)' }}
                             >
-                              + {lang === 'ta' ? 'புதிய வகை சேர்க்க' : 'Add New Type'}
+                              + {lang === 'ta' ? 'புதிய வகை' : 'New Type'}
                             </button>
                           )}
                         </div>
@@ -789,75 +748,80 @@ export default function MaintenanceManager({
                             label: lang === 'ta' ? c.name_ta : c.name,
                             badge: c.unit ? c.unit : undefined
                           }))}
-                          placeholder="-- Select Type of Expense --"
+                          placeholder="-- Select Item --"
                           required
                           lang={lang}
                         />
 
-                        {/* Inline "Add New Type" Right in Place (No other menu required!) */}
+                        {/* Inline Quick Add */}
                         {isAddingNewType && (
                           <div style={{
-                            marginTop: '0.5rem',
-                            padding: '0.65rem 0.75rem',
+                            marginTop: '0.45rem',
+                            padding: '0.5rem 0.65rem',
                             borderRadius: '8px',
                             background: 'var(--bg-subtle)',
                             border: '1.5px dashed var(--primary-500)',
                             display: 'flex',
-                            flexDirection: 'column',
-                            gap: '0.45rem'
+                            gap: '0.35rem',
+                            alignItems: 'center'
                           }}>
-                            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary-700)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span>➕ {lang === 'ta' ? 'இங்கேயே புதிய வகை சேர்க்க:' : 'Add New Type In-Place:'}</span>
-                              <button type="button" onClick={() => setIsAddingNewType(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}>
-                                <X size={14} />
-                              </button>
-                            </div>
-                            
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
-                              <input 
-                                type="text"
-                                className="form-control"
-                                placeholder="Type name (e.g. Fan Belt)"
-                                value={newTypeName}
-                                onChange={(e) => setNewTypeName(e.target.value)}
-                                style={{ fontSize: '0.82rem', padding: '0.35rem 0.5rem' }}
-                              />
-                              <input 
-                                type="text"
-                                className="form-control"
-                                placeholder="தமிழ் பெயர் (உதா: பேன் பெல்ட்)"
-                                value={newTypeNameTa}
-                                onChange={(e) => setNewTypeNameTa(e.target.value)}
-                                style={{ fontSize: '0.82rem', padding: '0.35rem 0.5rem' }}
-                              />
-                            </div>
-
-                            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                              <select
-                                className="form-control"
-                                value={newTypeUnit}
-                                onChange={(e) => setNewTypeUnit(e.target.value)}
-                                style={{ fontSize: '0.82rem', padding: '0.35rem 0.5rem', flex: 1 }}
-                              >
-                                {UNIT_OPTIONS.map(u => (
-                                  <option key={u.value} value={u.value}>{u.label}</option>
-                                ))}
-                              </select>
-                              
-                              <button
-                                type="button"
-                                className="btn btn-primary btn-sm"
-                                onClick={handleAddNewType}
-                                style={{ padding: '0.35rem 0.75rem', fontSize: '0.82rem', fontWeight: 700 }}
-                              >
-                                {lang === 'ta' ? 'சேர்' : 'Add'}
-                              </button>
-                            </div>
+                            <input 
+                              type="text"
+                              className="form-control"
+                              placeholder="New Item Name (e.g. Belt)"
+                              value={newTypeName}
+                              onChange={(e) => setNewTypeName(e.target.value)}
+                              style={{ fontSize: '0.82rem', padding: '0.35rem', flex: 1 }}
+                              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddNewType(); } }}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              onClick={handleAddNewType}
+                              style={{ padding: '0.35rem 0.65rem', fontSize: '0.8rem', fontWeight: 700 }}
+                            >
+                              {lang === 'ta' ? 'சேர்' : 'Add'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-outline btn-sm"
+                              onClick={() => setIsAddingNewType(false)}
+                              style={{ padding: '0.35rem' }}
+                            >
+                              <X size={14} />
+                            </button>
                           </div>
                         )}
                       </div>
 
-                      {/* 3. Amount * */}
+                      {/* Quantity & Unit in ONE neat line */}
+                      <div className="form-group" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.5rem' }}>
+                        <div>
+                          <label>{lang === 'ta' ? 'எண்ணிக்கை / அளவு' : 'Quantity'}</label>
+                          <input
+                            type="number"
+                            step="any"
+                            className="form-control"
+                            placeholder="e.g. 50"
+                            value={formData.count}
+                            onChange={(e) => handleFormChange('count', e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label>{lang === 'ta' ? 'அலகு (Unit)' : 'Unit'}</label>
+                          <select
+                            className="form-control"
+                            value={formData.unit}
+                            onChange={(e) => handleFormChange('unit', e.target.value)}
+                          >
+                            {UNIT_OPTIONS.map(u => (
+                              <option key={u.value} value={u.value}>{u.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Amount (₹) */}
                       <div className="form-group">
                         <label style={{ color: '#d97706', fontWeight: 800 }}>
                           {lang === 'ta' ? 'தொகை (₹) *' : 'Amount (₹) *'}
@@ -874,85 +838,47 @@ export default function MaintenanceManager({
                         />
                       </div>
 
-                      {/* 4. Paid Status * */}
+                      {/* Payment Method / Status (1 simple dropdown!) */}
                       <div className="form-group">
-                        <label>{lang === 'ta' ? 'கட்டண நிலை (Paid Status) *' : 'Paid Status *'}</label>
-                        <SearchableSelect
-                          value={formData.paidStatus}
-                          onChange={(val) => handleFormChange('paidStatus', val)}
-                          options={[
-                            { value: 'paid', label: lang === 'ta' ? '✅ Paid / செலுத்தப்பட்டது' : '✅ Paid' },
-                            { value: 'unpaid', label: lang === 'ta' ? '⏳ Unpaid / நிலுவை (கடன்)' : '⏳ Unpaid / Credit' },
-                            { value: 'partial', label: lang === 'ta' ? '🔄 Partial / பகுதி செலுத்தியது' : '🔄 Partial' }
-                          ]}
+                        <label>{lang === 'ta' ? 'கட்டண முறை / நிலை *' : 'Payment Status *'}</label>
+                        <select
+                          className="form-control"
+                          value={formData.paymentMode}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            handleFormChange('paymentMode', val);
+                            handleFormChange('paidStatus', val === 'credit' ? 'unpaid' : 'paid');
+                          }}
                           required
-                          lang={lang}
-                        />
+                        >
+                          <option value="cash">💵 {lang === 'ta' ? 'ரொக்கம் (Cash - PAID)' : 'Cash (PAID)'}</option>
+                          <option value="gpay_upi">📱 {lang === 'ta' ? 'UPI / GPay (PAID)' : 'UPI / GPay (PAID)'}</option>
+                          <option value="credit">⏳ {lang === 'ta' ? 'கடன் / பங்க் கணக்கு (UNPAID / Credit)' : 'Credit / Bunk Khata (UNPAID)'}</option>
+                          <option value="bank_transfer">🏦 {lang === 'ta' ? 'வங்கி பரிமாற்றம் (Bank - PAID)' : 'Bank Transfer (PAID)'}</option>
+                        </select>
                       </div>
 
-                      {/* 5. Person (Current Login User) * */}
+                      {/* Person (Current User) */}
                       <div className="form-group">
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                           <User size={14} color="var(--primary-600)" />
-                          <span>{lang === 'ta' ? 'நபர் (Person / Login User) *' : 'Person (Current Login User) *'}</span>
+                          <span>{lang === 'ta' ? 'பதிவு செய்த நபர் *' : 'Recorded By *'}</span>
                         </label>
                         <input
                           type="text"
                           className="form-control"
                           value={formData.person}
                           onChange={(e) => handleFormChange('person', e.target.value)}
-                          placeholder="e.g. Admin / Operator Name"
+                          placeholder="User name"
                           required
                         />
                       </div>
 
-                      {/* 6. Count (Quantity) */}
-                      <div className="form-group">
-                        <label>{lang === 'ta' ? 'எண்ணிக்கை / அளவு (Count)' : 'Count / Quantity'}</label>
-                        <input
-                          type="number"
-                          step="any"
-                          className="form-control"
-                          placeholder="e.g. 50"
-                          value={formData.count}
-                          onChange={(e) => handleFormChange('count', e.target.value)}
-                        />
-                      </div>
-
-                      {/* 7. Unit (Liters, Kg, Pieces, etc.) */}
-                      <div className="form-group">
-                        <label>{lang === 'ta' ? 'அலகு (Unit)' : 'Unit'}</label>
-                        <select
-                          className="form-control"
-                          value={formData.unit}
-                          onChange={(e) => handleFormChange('unit', e.target.value)}
-                        >
-                          {UNIT_OPTIONS.map(u => (
-                            <option key={u.value} value={u.value}>{u.label}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Payment Mode */}
-                      <div className="form-group">
-                        <label>{t.paymentMode}</label>
-                        <select
-                          className="form-control"
-                          value={formData.paymentMode}
-                          onChange={(e) => handleFormChange('paymentMode', e.target.value)}
-                        >
-                          <option value="cash">{t.cash}</option>
-                          <option value="gpay_upi">{t.gpayUpi}</option>
-                          <option value="bank_transfer">{t.bankTransfer}</option>
-                          <option value="credit">Credit / Bunk Khata (கடன்)</option>
-                        </select>
-                      </div>
-
-                      {/* 8. Description (Shop name, etc.) */}
+                      {/* Description / Shop Name */}
                       <div className="form-group col-full">
                         <VoiceInput
-                          label={lang === 'ta' ? 'விவரம் (கடை பெயர், ரசீது எண், குறிப்பு)' : 'Description (Shop Name, Invoice #, Notes)'}
-                          placeholder={lang === 'ta' ? 'உதா: HP Auto Fuel Point, Bill #4920' : 'e.g. HP Auto Fuel Point / Sri Murugan Agri Spares, Bill #4920'}
+                          label={lang === 'ta' ? 'கடை பெயர் & குறிப்பு' : 'Shop Name & Details'}
+                          placeholder={lang === 'ta' ? 'உதா: HP பங்க், பில் #4920' : 'e.g. HP Auto Fuel Point, Bill #4920'}
                           value={formData.description}
                           onChange={(val) => handleFormChange('description', val)}
                           speechLang={lang === 'ta' ? 'ta-IN' : 'en-IN'}
@@ -961,10 +887,10 @@ export default function MaintenanceManager({
                     </>
                   )}
 
-                  {/* TYPE 2: TRACTOR OR MACHINE SERVICE */}
+                  {/* OPTION 2: MACHINE SERVICE */}
                   {entryType === 'service' && (
                     <>
-                      {/* 1. Date * */}
+                      {/* Date */}
                       <div className="form-group">
                         <DatePicker
                           label={lang === 'ta' ? 'தேதி *' : 'Date *'}
@@ -975,10 +901,10 @@ export default function MaintenanceManager({
                         />
                       </div>
 
-                      {/* 2. Select the Tractor or Machine * */}
+                      {/* Target Machine */}
                       <div className="form-group">
                         <SearchableSelect
-                          label={lang === 'ta' ? 'டிராக்டர் அல்லது இயந்திரம் *' : 'Select Tractor or Machine *'}
+                          label={lang === 'ta' ? 'டிராக்டர் அல்லது இயந்திரம் *' : 'Select Tractor / Machine *'}
                           value={formData.assetId}
                           onChange={(val) => handleFormChange('assetId', val)}
                           options={fleet.map(f => ({
@@ -987,16 +913,16 @@ export default function MaintenanceManager({
                             subLabel: f.regNumber || '',
                             badge: f.type === 'tractor' ? (lang === 'ta' ? 'டிராக்டர்' : 'Tractor') : (lang === 'ta' ? 'கருவி' : 'Machine')
                           }))}
-                          placeholder="-- Select Tractor / Machine --"
+                          placeholder="-- Select Machine --"
                           required
                           lang={lang}
                         />
                       </div>
 
-                      {/* 3. Amount * */}
+                      {/* Amount */}
                       <div className="form-group">
                         <label style={{ color: '#d97706', fontWeight: 800 }}>
-                          {lang === 'ta' ? 'சர்வீஸ் கட்டணம் / தொகை (₹) *' : 'Service Amount (₹) *'}
+                          {lang === 'ta' ? 'சர்வீஸ் கட்டணம் (₹) *' : 'Service Amount (₹) *'}
                         </label>
                         <input
                           type="number"
@@ -1010,38 +936,27 @@ export default function MaintenanceManager({
                         />
                       </div>
 
-                      {/* 4. Paid Status * */}
+                      {/* Payment Method / Status */}
                       <div className="form-group">
-                        <label>{lang === 'ta' ? 'கட்டண நிலை (Paid Status) *' : 'Paid Status *'}</label>
-                        <SearchableSelect
-                          value={formData.paidStatus}
-                          onChange={(val) => handleFormChange('paidStatus', val)}
-                          options={[
-                            { value: 'paid', label: lang === 'ta' ? '✅ Paid / செலுத்தப்பட்டது' : '✅ Paid' },
-                            { value: 'unpaid', label: lang === 'ta' ? '⏳ Unpaid / நிலுவை (கடன்)' : '⏳ Unpaid / Credit' },
-                            { value: 'partial', label: lang === 'ta' ? '🔄 Partial / பகுதி செலுத்தியது' : '🔄 Partial' }
-                          ]}
-                          required
-                          lang={lang}
-                        />
-                      </div>
-
-                      {/* Payment Mode */}
-                      <div className="form-group">
-                        <label>{t.paymentMode}</label>
+                        <label>{lang === 'ta' ? 'கட்டண முறை / நிலை *' : 'Payment Status *'}</label>
                         <select
                           className="form-control"
                           value={formData.paymentMode}
-                          onChange={(e) => handleFormChange('paymentMode', e.target.value)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            handleFormChange('paymentMode', val);
+                            handleFormChange('paidStatus', val === 'credit' ? 'unpaid' : 'paid');
+                          }}
+                          required
                         >
-                          <option value="cash">{t.cash}</option>
-                          <option value="gpay_upi">{t.gpayUpi}</option>
-                          <option value="bank_transfer">{t.bankTransfer}</option>
-                          <option value="credit">Workshop Credit (பட்டறை கடன்)</option>
+                          <option value="cash">💵 {lang === 'ta' ? 'ரொக்கம் (Cash - PAID)' : 'Cash (PAID)'}</option>
+                          <option value="gpay_upi">📱 {lang === 'ta' ? 'UPI / GPay (PAID)' : 'UPI / GPay (PAID)'}</option>
+                          <option value="credit">⏳ {lang === 'ta' ? 'பட்டறை கடன் (Workshop Credit)' : 'Workshop Credit (UNPAID)'}</option>
+                          <option value="bank_transfer">🏦 {lang === 'ta' ? 'வங்கி பரிமாற்றம் (Bank - PAID)' : 'Bank Transfer (PAID)'}</option>
                         </select>
                       </div>
 
-                      {/* Hour Meter at Service */}
+                      {/* Hour Meter */}
                       <div className="form-group">
                         <label>{t.meterReading} ({lang === 'ta' ? 'மணி மீட்டர்' : 'Hour Meter'})</label>
                         <input
@@ -1054,11 +969,11 @@ export default function MaintenanceManager({
                         />
                       </div>
 
-                      {/* 5. Description (Reason and Shop Name etc.) */}
+                      {/* Description / Work Details */}
                       <div className="form-group col-full">
                         <VoiceInput
-                          label={lang === 'ta' ? 'காரணம் & பட்டறை / மெக்கானிக் விவரம் (Reason & Shop Name) *' : 'Description (Reason & Workshop Name) *'}
-                          placeholder={lang === 'ta' ? 'உதா: 250 மணி நேர ஆயில் சர்வீஸ், பிரேக் அட்ஜஸ்ட்மென்ட் - முருகன் பட்டறை' : 'e.g. 250 Hours Regular Service, Filter replacement done at Swaraj Authorized Workshop'}
+                          label={lang === 'ta' ? 'பட்டறை & வேலை விவரம் (Workshop & Work Done) *' : 'Workshop & Work Done *'}
+                          placeholder={lang === 'ta' ? 'உதா: 250 மணி நேர ஆயில் சர்வீஸ் - முருகன் பட்டறை' : 'e.g. 250 Hours Regular Service & oil change at Swaraj Workshop'}
                           value={formData.description}
                           onChange={(val) => handleFormChange('description', val)}
                           speechLang={lang === 'ta' ? 'ta-IN' : 'en-IN'}
